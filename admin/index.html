@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Yeshivat Torat Yosef Raffle</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Define your color variables */
+        :root {
+            --primary-bg: #f8f8f8;
+            --primary-text: rgb(0, 33, 65);
+            --secondary-bg: rgb(0, 33, 65);
+            --accent: #7F0031;
+            --hover: #590023;
+            --input-border: #ccc;
+            --button-bg-hover: #590023;
+            --card-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Universal box-sizing for consistent layout */
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif; /* Using Inter font */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--primary-bg);
+            color: var(--primary-text);
+        }
+
+        .header {
+            background-color: var(--secondary-bg);
+            color: white;
+            padding: 1rem 2rem;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            width: 100%;
+            max-width: 900px;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .auth-section, .dashboard-section {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--card-shadow);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-section h2, .dashboard-section h2 {
+            color: var(--accent);
+            margin-top: 0;
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--primary-text);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(127, 0, 49, 0.2);
+            outline: none;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 8px rgba(127, 0, 49, 0.3);
+            margin-top: 1rem;
+            width: 100%;
+            max-width: 250px;
+        }
+
+        button:hover {
+            background-color: var(--button-bg-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(127, 0, 49, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(127, 0, 49, 0.2);
+        }
+
+        #login-error {
+            color: red;
+            margin-top: 1rem;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        #current-user-info {
+            margin-bottom: 1.5rem;
+            padding: 0.75rem;
+            background-color: #e6f7ff; /* Light blue background */
+            border: 1px solid #91d5ff; /* Blue border */
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: var(--primary-text);
+        }
+
+        #current-user-info strong {
+            color: var(--secondary-bg);
+        }
+
+        .sales-data-section {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--card-shadow);
+            width: 100%;
+            margin-top: 2rem;
+        }
+
+        .sales-data-section h2 {
+            color: var(--accent);
+            margin-top: 0;
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .sales-table-container {
+            overflow-x: auto; /* Enable horizontal scroll for small screens */
+        }
+
+        #sales-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        #sales-table th, #sales-table td {
+            border: 1px solid #eee;
+            padding: 0.8rem;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        #sales-table th {
+            background-color: var(--secondary-bg);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        #sales-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        #sales-table tr:hover {
+            background-color: #f0f0f0;
+        }
+
+        .no-data-message {
+            text-align: center;
+            padding: 2rem;
+            color: #888;
+            font-style: italic;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .header {
+                padding: 1rem 1rem;
+            }
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            .auth-section, .dashboard-section, .sales-data-section {
+                padding: 1.5rem;
+            }
+            button {
+                font-size: 1rem;
+                padding: 0.7rem 1.2rem;
+                max-width: none; /* Allow full width on small screens */
+            }
+            .form-group input {
+                font-size: 0.9rem;
+                padding: 0.6rem 0.8rem;
+            }
+            #sales-table th, #sales-table td {
+                padding: 0.6rem;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Admin Dashboard</h1>
+    </div>
+
+    <div class="main-content">
+        <!-- Login Section -->
+        <div id="auth-section" class="auth-section">
+            <h2>Login</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" placeholder="Enter your email" required />
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" placeholder="Enter your password" required />
+                </div>
+                <button type="submit">Login</button>
+                <p id="login-error" style="display: none;"></p>
+            </form>
+        </div>
+
+        <!-- Dashboard Section (Hidden until logged in) -->
+        <div id="dashboard-section" class="dashboard-section" style="display: none;">
+            <h2>Welcome to Admin Dashboard!</h2>
+            <p id="current-user-info"></p>
+            <button id="logout-button">Logout</button>
+        </div>
+
+        <!-- Sales Data Section (Hidden until logged in) -->
+        <div id="sales-data-section" class="sales-data-section" style="display: none;">
+            <h2>Ticket Sales Overview</h2>
+            <div class="sales-table-container">
+                <table id="sales-table">
+                    <thead>
+                        <tr>
+                            <th>Sale ID</th>
+                            <th>Seller ID</th>
+                            <th>Prize</th>
+                            <th>Tickets Sold</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Sales data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+                <p id="no-sales-message" class="no-data-message" style="display: none;">No sales data available yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, onSnapshot, orderBy, serverTimestamp, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase config (provided by Canvas environment)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // UI Elements
+        const authSection = document.getElementById('auth-section');
+        const dashboardSection = document.getElementById('dashboard-section');
+        const salesDataSection = document.getElementById('sales-data-section');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const logoutButton = document.getElementById('logout-button');
+        const currentUserInfo = document.getElementById('current-user-info');
+        const salesTableBody = document.querySelector('#sales-table tbody');
+        const noSalesMessage = document.getElementById('no-sales-message');
+
+        let currentUserId = null;
+        let isAuthReady = false;
+
+        // Function to update UI based on auth state
+        const updateUI = (user) => {
+            if (user) {
+                // User is signed in
+                currentUserId = user.uid;
+                currentUserInfo.innerHTML = `Logged in as: <strong>${user.email || 'Anonymous'}</strong> (UID: <strong>${user.uid}</strong>)`;
+                authSection.style.display = 'none';
+                dashboardSection.style.display = 'block';
+                salesDataSection.style.display = 'block';
+                // Fetch sales data once logged in and auth is ready
+                if (isAuthReady) {
+                    fetchSalesData();
+                }
+            } else {
+                // User is signed out
+                currentUserId = null;
+                authSection.style.display = 'block';
+                dashboardSection.style.display = 'none';
+                salesDataSection.style.display = 'none';
+                salesTableBody.innerHTML = ''; // Clear sales data
+                noSalesMessage.style.display = 'none';
+            }
+            loginError.style.display = 'none'; // Clear any previous errors
+        };
+
+        // Auth state change listener
+        onAuthStateChanged(auth, async (user) => {
+            console.log("Auth state changed:", user ? user.uid : "Signed out");
+            if (!isAuthReady) {
+                // Perform initial sign-in if token exists
+                if (initialAuthToken && !auth.currentUser) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } catch (error) {
+                        console.error("Error signing in with custom token:", error);
+                        // If custom token fails, sign in anonymously
+                        try {
+                            await signInAnonymously(auth);
+                            console.log("Signed in anonymously.");
+                        } catch (anonError) {
+                            console.error("Error signing in anonymously:", anonError);
+                        }
+                    }
+                } else if (!auth.currentUser) {
+                    // If no initial token, sign in anonymously by default
+                    try {
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously (no initial token).");
+                    } catch (anonError) {
+                        console.error("Error signing in anonymously:", anonError);
+                    }
+                }
+                isAuthReady = true; // Mark auth as ready after initial check/sign-in
+            }
+            updateUI(auth.currentUser); // Update UI based on current user after auth readiness check
+        });
+
+        // Login form submission
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = loginForm['email'].value;
+            const password = loginForm['password'].value;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // UI will be updated by onAuthStateChanged listener
+            } catch (error) {
+                console.error("Login failed:", error);
+                loginError.textContent = error.message;
+                loginError.style.display = 'block';
+            }
+        });
+
+        // Logout button click
+        logoutButton.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                // UI will be updated by onAuthStateChanged listener
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
+        });
+
+        // Function to fetch and display sales data
+        const fetchSalesData = () => {
+            if (!currentUserId) {
+                console.warn("User not authenticated. Cannot fetch sales data.");
+                return;
+            }
+
+            // Reference to the public sales collection
+            // Security rule: allow read, write: if request.auth != null;
+            const salesCollectionRef = collection(db, `artifacts/${appId}/public/sales`);
+            const q = query(salesCollectionRef); // You can add orderBy or where clauses here if needed
+
+            // Set up real-time listener for sales data
+            onSnapshot(q, (snapshot) => {
+                salesTableBody.innerHTML = ''; // Clear existing data
+                if (snapshot.empty) {
+                    noSalesMessage.style.display = 'block';
+                    return;
+                } else {
+                    noSalesMessage.style.display = 'none';
+                }
+
+                snapshot.forEach((doc) => {
+                    const sale = doc.data();
+                    const row = salesTableBody.insertRow();
+                    row.insertCell(0).textContent = doc.id; // Sale ID
+                    row.insertCell(1).textContent = sale.sellerId || 'N/A';
+                    row.insertCell(2).textContent = sale.prize || 'N/A';
+                    row.insertCell(3).textContent = sale.ticketCount || 1;
+                    row.insertCell(4).textContent = sale.timestamp ? new Date(sale.timestamp.seconds * 1000).toLocaleString() : 'N/A';
+                });
+            }, (error) => {
+                console.error("Error fetching sales data:", error);
+                salesTableBody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Error loading sales data. Please check console for details.</td></tr>`;
+            });
+        };
+    </script>
+</body>
+</html>
