@@ -45,12 +45,12 @@
         }
 
         .logo {
-            max-width: 130px;
-            width: 75vw;
+            max-width: 250px;
+            width: 80vw;
             height: auto;
-            max-height: 60px;
             border: 1px solid rgba(0, 0, 0, 0.1);
             border-radius: 8px;
+            box-sizing: border-box;
         }
 
         nav {
@@ -417,16 +417,18 @@
         <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/refs/heads/main/assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
     </div>
     <nav>
-        <a href="index.html">Home</a>
+        <a href="index.html" class="nav-link">Home</a>
         <a href="prizes.html" class="active">Prizes</a>
-        <a href="why.html">Why Buy</a>
+        <a href="why.html" class="nav-link">Why Buy</a>
+        <a href="donors.html" class="nav-link">Donors</a>
+        <a href="sponsor.html" class="nav-link">Sponship Oportunities</a>
     </nav>
     <div class="container">
         <h1>Raffle Prizes</h1>
         <p class="intro">One winner. Their choice of prize. One ticket could change everything. $126 per entry.</p>
         <div class="prize-row">
             <div class="prize">
-                <img src="https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7/c_limit,w_1920/v1/catalogue/2025/upright-c/m126300-0002" alt="Rolex Watch" />
+                <img src="https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0026" alt="Rolex Watch" />
                 <h2>Rolex Watch</h2>
                 <p>Datejust 41, blue dial, Jubilee bracelet. Retail value over $9,000.</p>
                 <button class="view-button" onclick="openPopup('rolex')">View Prize</button>
@@ -451,8 +453,7 @@
             </div>
         </div>
         <div class="buy-links">
-            <a href="square.html" rel="noopener" class="buy-link-main">Buy Ticket (Venmo)</a>
-            <a href="square.html" rel="noopener" class="buy-link-main">Buy Ticket (Stripe)</a>
+            <a href="square.html" rel="noopener" class="buy-link-main">Buy Ticket Now</a>
         </div>
     </div>
 
@@ -464,23 +465,7 @@
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
-            authDomain: "torat-yosef.firebaseapp.com",
-            projectId: "torat-yosef",
-            storageBucket: "torat-yosef.firebasestorage.app",
-            messagingSenderId: "1033400220494",
-            appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
-            measurementId: "G-331D9RHZWH"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-
+    <script>
         // Function to parse URL parameters
         function getUrlParameter(name) {
             name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
@@ -489,35 +474,6 @@
             return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         };
 
-        const referrerId = getUrlParameter('ref'); // Get referrer from current URL
-        // Log event if prizes page is loaded with a referrer
-        if (referrerId) {
-            logEvent(analytics, 'prizes_page_loaded_with_referrer', { referrer: referrerId });
-        } else {
-            logEvent(analytics, 'prizes_page_loaded_no_referrer');
-        }
-
-        // --- Start Custom Code for Dynamic Buy Buttons ---
-        document.addEventListener('DOMContentLoaded', () => {
-            const mainBuyButtons = document.querySelectorAll('.buy-link-main');
-            const paymentPageBaseUrl = `square.html`; // Relative path to payment page
-
-            mainBuyButtons.forEach(button => {
-                let href = paymentPageBaseUrl;
-                if (referrerId) {
-                    href += `?ref=${referrerId}`;
-                }
-                button.href = href;
-                // Optional: Update button text to include referrer if you want
-                // if (referrerId) {
-                //     button.textContent = `Buy Ticket (via ${referrerId})`;
-                // }
-            });
-        });
-        // --- End Custom Code for Dynamic Buy Buttons ---
-    </script>
-
-    <script>
         let slideIndex = 0;
         let slideInterval;
 
@@ -631,18 +587,12 @@
             const currentReferrerId = getUrlParameter('ref');
             const paymentPageBaseUrl = `square.html`; // Relative path
 
-            let venmoPaymentUrl = paymentPageBaseUrl;
-            let stripePaymentUrl = paymentPageBaseUrl;
+            let buyTicketUrl = paymentPageBaseUrl;
 
             // Append referrer ID if it exists
             if (currentReferrerId) {
-                venmoPaymentUrl += `?ref=${currentReferrerId}&method=venmo`;
-                stripePaymentUrl += `?ref=${currentReferrerId}&method=stripe`;
-            } else {
-                venmoPaymentUrl += `?method=venmo`; // Still include method if no referrer
-                stripePaymentUrl += `?method=stripe`;
+                buyTicketUrl += `?ref=${currentReferrerId}`;
             }
-
 
             let slideshowHTML = '';
             if (prize.images.length > 1) {
@@ -675,8 +625,7 @@
             slideshowHTML += `
                 <div class="popup-details">${prize.details}</div>
                 <div class="buy-links">
-                    <a href="${venmoPaymentUrl}" target="_blank" rel="noopener">Buy Ticket (Venmo)</a>
-                    <a href="${stripePaymentUrl}" target="_blank" rel="noopener">Buy Ticket (Stripe)</a>
+                    <a href="${buyTicketUrl}" rel="noopener">Buy Ticket Now</a>
                 </div>
             `;
 
@@ -761,6 +710,67 @@
                     showSlides(slideIndex + 1, prizeKey);
                 }, 3000);
             }
+        }
+
+        // --- New JavaScript to preserve 'ref' parameter for all internal links ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Select all nav links (Home, Prizes, Why Buy)
+            const navLinks = document.querySelectorAll('nav a'); 
+            const buyLinkMain = document.querySelector('.buy-link-main'); // Select the main buy button
+
+            const referrerId = getUrlParameter('ref'); // Get referrer from current page's URL
+
+            if (referrerId) {
+                // Update all navigation links
+                navLinks.forEach(link => {
+                    const originalHref = link.getAttribute('href');
+                    // Only modify if it's an internal link and NOT the current active page
+                    if (originalHref && !originalHref.startsWith('http') && !link.classList.contains('active')) {
+                        const newHref = originalHref.includes('?') 
+                                       ? `${originalHref}&ref=${referrerId}` // Append if existing params
+                                       : `${originalHref}?ref=${referrerId}`; // Add if no existing params
+                        link.href = newHref;
+                    }
+                });
+
+                // Update the main "Buy Ticket Now" button
+                if (buyLinkMain) {
+                    const originalHref = buyLinkMain.getAttribute('href');
+                    if (originalHref && !originalHref.startsWith('http')) {
+                        const newHref = originalHref.includes('?') 
+                                       ? `${originalHref}&ref=${referrerId}` 
+                                       : `${originalHref}?ref=${referrerId}`;
+                        buyLinkMain.href = newHref;
+                    }
+                }
+            }
+        });
+        // --- End New JavaScript ---
+    </script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+            authDomain: "torat-yosef.firebaseapp.com",
+            projectId: "torat-yosef",
+            storageBucket: "torat-yosef.firebasestorage.app",
+            messagingSenderId: "1033400220494",
+            appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+            measurementId: "G-331D9RHZWH"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+        const referrerIdForFirebase = getUrlParameter('ref'); 
+
+        if (referrerIdForFirebase) {
+            logEvent(analytics, 'prizes_page_loaded_with_referrer', { referrer: referrerIdForFirebase });
+        } else {
+            logEvent(analytics, 'prizes_page_loaded_no_referrer');
         }
     </script>
 </body>

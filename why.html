@@ -11,30 +11,59 @@
       --secondary-bg: rgb(0, 33, 65);
       --accent: #7F0031;
       --hover: #590023;
+      --button-gradient-start: #a30040; /* Added for consistency */
+      --button-gradient-end: #7F0031;   /* Added for consistency */
     }
 
+    /* Added body flex for consistent layout with other pages */
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
       background-color: var(--primary-bg);
       color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh; /* Ensure it takes full viewport height */
+      padding-bottom: 1rem; /* Add some padding at the bottom */
+    }
+
+    /* Logo Container styles (copied from other pages) */
+    .logo-container {
+        text-align: center;
+        padding: 0.8rem 0 0.4rem;
+        flex-shrink: 0;
+    }
+
+    .logo {
+        max-width: 250px;
+        width: 80vw;
+        height: auto;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        box-sizing: border-box;
     }
 
     nav {
       display: flex;
       justify-content: center;
-      gap: 2rem;
-      padding: 1rem 0;
+      gap: 1rem; /* Adjusted gap to match prizes.html */
+      padding: 0.8rem 0; /* Adjusted padding to match prizes.html */
       background-color: var(--secondary-bg);
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+      width: 100%;
+      flex-wrap: wrap; /* Allow wrapping on smaller screens */
     }
 
     nav a {
       color: white;
       text-decoration: none;
-      padding: 0.5rem 1rem;
+      padding: 0.4rem 0.8rem; /* Adjusted padding to match prizes.html */
       font-weight: bold;
-      font-size: 1.1rem;
+      font-size: 1rem; /* Adjusted font-size to match prizes.html */
+      white-space: nowrap; /* Keep links from breaking into multiple lines */
+      user-select: none; /* Prevent text selection on links */
     }
 
     nav a.active {
@@ -51,10 +80,15 @@
       margin: 2rem auto;
       padding: 1rem;
       text-align: center;
+      flex-grow: 1; /* Allow container to grow and push footer down */
+      width: 100%; /* Ensure container takes full width up to max-width */
+      box-sizing: border-box; /* Include padding in width calculation */
     }
 
     h1 {
       color: var(--accent);
+      font-size: 1.6rem; /* Consistent heading size */
+      margin: 0.5rem 0; /* Consistent margin */
     }
 
     .reasons {
@@ -62,6 +96,9 @@
       text-align: left;
       font-size: 1.1rem;
       line-height: 1.6;
+      max-width: 90%; /* Limit width for better readability on large screens */
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .reasons p {
@@ -74,13 +111,84 @@
       font-size: 1.2rem;
       color: var(--secondary-bg);
     }
+
+    /* Buy Ticket Button styles (copied from prizes.html) */
+    .buy-links {
+        margin-top: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+        max-width: 350px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .buy-links a {
+        display: block;
+        padding: 0.9rem 1.8rem;
+        background-image: linear-gradient(to right, var(--button-gradient-start), var(--button-gradient-end));
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        text-transform: uppercase;
+        transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        text-align: center;
+        box-shadow: 0 6px 12px rgba(127, 0, 49, 0.4);
+        border: 1px solid var(--hover);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .buy-links a:hover {
+        background-image: linear-gradient(to right, var(--hover), var(--accent));
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px rgba(127, 0, 49, 0.6);
+    }
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 400px) {
+        h1 {
+            font-size: 1.4rem;
+        }
+        nav a {
+            font-size: 1rem;
+            padding: 0.4rem 0.8rem;
+        }
+        .buy-links {
+            max-width: 250px;
+        }
+        .buy-links a {
+            font-size: 0.9rem;
+            padding: 0.6rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .buy-links {
+            flex-direction: row;
+            justify-content: center;
+            max-width: none;
+        }
+        .buy-links a {
+            width: auto;
+        }
+    }
   </style>
 </head>
 <body>
+  <div class="logo-container">
+    <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/refs/heads/main/assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
+  </div>
+
   <nav>
-    <a href="index.html">Home</a>
-    <a href="prizes.html">Prizes</a>
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="prizes.html" class="nav-link">Prizes</a>
     <a href="why.html" class="active">Why Buy</a>
+    <a href="donors.html" class="nav-link">Donors</a>
+    <a href="sponsor.html" class="nav-link">Sponship Oportunities</a>
   </nav>
 
   <div class="container">
@@ -97,6 +205,53 @@
     <div class="cta">
       Be a part of something eternal. Buy your ticket today.
     </div>
+
+    <div class="buy-links">
+        <a href="square.html" rel="noopener" class="buy-link-main">Buy Ticket Now</a>
+    </div>
   </div>
+
+  <script>
+    // Function to parse URL parameters
+    function getUrlParameter(name) {
+        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+        var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+        var results = regex.exec(location.search);
+        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const navLinks = document.querySelectorAll('nav a'); // Select all nav links
+      const buyLinkMain = document.querySelector('.buy-link-main'); // Select the main buy button
+
+      const referrerId = getUrlParameter('ref'); // Get referrer from current URL
+
+      if (referrerId) {
+        // Update all navigation links
+        navLinks.forEach(link => {
+          const originalHref = link.getAttribute('href');
+          // Only modify if it's an internal link and not already pointing to current page's active state
+          if (originalHref && !originalHref.startsWith('http') && !link.classList.contains('active')) {
+            const newHref = originalHref.includes('?')
+                           ? `${originalHref}&ref=${referrerId}`
+                           : `${originalHref}?ref=${referrerId}`;
+            link.href = newHref;
+          }
+        });
+
+        // Update the main "Buy Ticket Now" button
+        if (buyLinkMain) {
+            const originalHref = buyLinkMain.getAttribute('href');
+            if (originalHref && !originalHref.startsWith('http')) {
+                const newHref = originalHref.includes('?')
+                               ? `${originalHref}&ref=${referrerId}`
+                               : `${originalHref}?ref=${referrerId}`;
+                buyLinkMain.href = newHref;
+            }
+        }
+      }
+    });
+  </script>
+
 </body>
 </html>
