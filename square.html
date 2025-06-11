@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Complete Your Purchase - Yeshivat Torat Yosef Raffle</title>
+    <style>
+        /* Re-use your existing styles for consistency */
+        :root {
+            --primary-bg: #ffffff;
+            --primary-text: rgb(0, 33, 65);
+            --secondary-bg: rgb(0, 33, 65);
+            --accent: #7F0031;
+            --hover: #590023;
+            --button-gradient-start: #a30040;
+            --button-gradient-end: #7F0031;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--primary-bg);
+            color: var(--primary-text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 600px;
+            padding: 20px;
+            background-color: #f8f8f8;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: var(--accent);
+            margin-bottom: 20px;
+        }
+
+        .payment-options {
+            margin-top: 30px;
+        }
+
+        .payment-option {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .payment-option h2 {
+            color: var(--secondary-bg);
+            font-size: 1.3em;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        /* Styles for embedding Square/Venmo (you'll need to style their actual embeds) */
+        .payment-embed {
+            border: 1px solid #eee;
+            min-height: 250px; /* Adjust as needed for your embed */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f0f0;
+            color: #888;
+            font-style: italic;
+        }
+
+        #referral-info {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #555;
+            padding: 10px;
+            background-color: #e6f7ff;
+            border-left: 5px solid var(--secondary-bg);
+            text-align: left;
+        }
+    </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+            authDomain: "torat-yosef.firebaseapp.com",
+            projectId: "torat-yosef",
+            storageBucket: "torat-yosef.firebasestorage.app",
+            messagingSenderId: "1033400220494",
+            appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+            measurementId: "G-331D9RHZWH"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+        // Function to parse URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        };
+
+        // Log referral event if 'ref' parameter exists
+        const referrer = getUrlParameter('ref');
+        if (referrer) {
+            logEvent(analytics, 'referred_purchase_page', { referrer: referrer });
+            document.addEventListener('DOMContentLoaded', () => {
+                const refInfoDiv = document.getElementById('referral-info');
+                refInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrer}. Thank you for supporting their efforts!`;
+                refInfoDiv.style.display = 'block';
+            });
+        } else {
+             document.addEventListener('DOMContentLoaded', () => {
+                document.getElementById('referral-info').style.display = 'none';
+            });
+        }
+
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Complete Your Raffle Ticket Purchase</h1>
+        <p>Thank you for supporting Yeshivat Torat Yosef! Please choose your preferred payment method below.</p>
+
+        <div id="referral-info" style="display: none;"></div>
+
+        <div class="payment-options">
+            <div class="payment-option">
+                <h2>Pay with Square</h2>
+                <div class="payment-embed">
+                    Your Square Payment Form / Button Code Here
+                    </div>
+                <p style="font-size: 0.85em; color: #666;">Securely process your payment via Square.</p>
+            </div>
+
+            <div class="payment-option">
+                <h2>Pay with Venmo</h2>
+                <div class="payment-embed">
+                    <a href="https://venmo.com/u/YOUR_VENMO_USERNAME" target="_blank" rel="noopener noreferrer" style="
+                        display: inline-block;
+                        padding: 10px 20px;
+                        background-color: #008CFF;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                    ">Pay with Venmo</a>
+                </div>
+                <p style="font-size: 0.85em; color: #666;">Send payment directly via Venmo to @YOUR_VENMO_USERNAME.</p>
+            </div>
+
+            </div>
+
+        <p style="margin-top: 30px; font-size: 0.9em;">If you have any questions, please <a href="mailto:info@yourwebsite.com" style="color: var(--accent); text-decoration: none;">contact us</a>.</p>
+    </div>
+</body>
+</html>
