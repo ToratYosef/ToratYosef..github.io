@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Sponsorship Opportunities - Yeshivat Torat Yosef</title>
+    <!-- Favicon links (updated based on user's request, pointing to assets/) -->
+    <link rel="apple-touch-icon" sizes="57x57" href="assets/apple-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="assets/apple-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="assets/apple-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="assets/apple-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="assets/apple-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="assets/apple-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="assets/apple-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="assets/apple-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-icon-180x180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+    <link rel="manifest" href="assets/manifest.json">
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <meta name="msapplication-TileImage" content="assets/ms-icon-144x144.png">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        /* CSS Variables from the template */
+        :root {
+            --primary-bg: #ffffff;
+            --primary-text: rgb(0, 33, 65);
+            --secondary-bg: rgb(0, 33, 65);
+            --accent: #7F0031;
+            --hover: #590023;
+            --button-gradient-start: #a30040;
+            --button-gradient-end: #7F0031;
+        }
+
+        /* Body styles from the template */
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--primary-text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding-bottom: 1rem;
+        }
+
+        /* Logo container styles from the template */
+        .logo-container {
+            text-align: center;
+            padding: 0.8rem 0 0.4rem;
+            flex-shrink: 0;
+            width: 100%; /* Ensure it spans full width */
+        }
+
+        /* Logo image styles from the template */
+        .logo {
+            max-width: 250px;
+            width: 80vw;
+            height: auto;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        /* Navigation styles from the template */
+        nav {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            padding: 0.8rem 0;
+            background-color: var(--secondary-bg);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 0.4rem 0.8rem;
+            font-weight: bold;
+            font-size: 1rem;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        nav a.active {
+            border-bottom: 3px solid var(--accent);
+            color: var(--accent);
+        }
+
+        nav a:hover {
+            color: var(--accent);
+        }
+
+        /* Main content container style, adapted from template's .container */
+        .main-content-wrapper {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 1rem;
+            text-align: center;
+            flex-grow: 1;
+            width: 100%;
+            box-sizing: border-box;
+            background-color: var(--primary-bg);
+            border-radius: 1.5rem; /* Rounded corners as in previous slideshow */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* Shadow as in previous slideshow */
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Heading 1 style from the template */
+        h1 {
+            color: var(--accent);
+            font-size: 1.6rem;
+            margin: 0.5rem 0;
+        }
+
+        /* Slideshow specific styles (from original immersive) */
+        .slideshow-image {
+            max-width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+        }
+        .dot {
+            height: 12px;
+            width: 12px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .dot.active {
+            background-color: var(--accent);
+        }
+
+        /* Button styles for slideshow navigation, adapted from template's .buy-links a */
+        .btn-nav {
+            display: block;
+            padding: 0.9rem 1.8rem;
+            background-image: linear-gradient(to right, var(--button-gradient-start), var(--button-gradient-end));
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            text-align: center;
+            box-shadow: 0 6px 12px rgba(127, 0, 49, 0.4);
+            border: 1px solid var(--hover);
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .btn-nav:hover {
+            background-image: linear-gradient(to right, var(--hover), var(--accent));
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(127, 0, 49, 0.6);
+        }
+        .btn-nav:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 8px rgba(127, 0, 49, 0.4);
+        }
+
+        /* Referral Info Box Styles (from template) */
+        #referral-info {
+            margin-top: 1.5rem;
+            font-size: 0.95rem;
+            color: #555;
+            padding: 12px 20px;
+            background-color: #e6f7ff;
+            border-left: 5px solid var(--secondary-bg);
+            text-align: left;
+            display: none; /* Hidden by default, controlled by JS */
+            max-width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 4px;
+        }
+
+        /* Responsive adjustments from template */
+        @media (max-width: 768px) {
+            nav a {
+                font-size: 0.9rem;
+                padding: 0.4rem 0.6rem;
+            }
+            .logo {
+                max-width: 200px;
+            }
+            .btn-nav {
+                padding: 0.7rem 1.2rem;
+                font-size: 0.9rem;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+
+        @media (max-width: 400px) {
+            h1 {
+                font-size: 1.4rem;
+            }
+            nav a {
+                font-size: 0.85rem;
+                padding: 0.3rem 0.5rem;
+            }
+            .btn-nav {
+                font-size: 0.8rem;
+                padding: 0.6rem;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div class="logo-container">
+        <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/refs/heads/main/assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
+    </div>
+
+    <nav>
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="prizes.html" class="nav-link">Prizes</a>
+        <a href="why.html" class="nav-link">Why Buy</a>
+        <a href="donors.html" class="nav-link">Donors</a>
+        <a href="sponsor.html" class="nav-link active">Sponsorship Opportunities</a>
+    </nav>
+
+    <main class="flex-grow main-content-wrapper">
+        <h1>Sponsorship Opportunities</h1>
+        <p style="margin-top: 1rem; font-size: 1.1rem; color: var(--primary-text);">We invite you to explore our sponsorship opportunities.</p>
+
+        <div id="referral-info" style="display: none;">
+            </div>
+
+        <div class="relative w-full overflow-hidden mb-6 mt-4">
+            <div id="slideshow-content" class="flex transition-transform duration-500 ease-in-out">
+                </div>
+        </div>
+
+        <div class="flex justify-center space-x-4 mb-6">
+            <button id="prev-btn" class="btn-nav">Previous</button>
+            <div id="dots-container" class="flex items-center">
+                </div>
+            <button id="next-btn" class="btn-nav">Next</button>
+        </div>
+
+        <p style="margin-top: 1rem; font-size: 1.1rem; color: var(--primary-text);">Thank you for considering a sponsorship with Yeshivat Torat Yosef. Your support makes a difference!</p>
+    </main>
+
+    <footer style="background-color: var(--secondary-bg); color: white; padding: 1.5rem; text-align: center; border-radius: 0.75rem 0.75rem 0 0; margin-top: auto; width: 100%;">
+        <p>&copy; 2024 Yeshivat Torat Yosef. All rights reserved.</p>
+        <div class="mt-2 text-sm">
+            <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; margin: 0 0.5rem; hover:text-white;">Privacy Policy</a> |
+            <a href="#" style="color: rgba(255, 255, 255, 0.7); text-decoration: none; margin: 0 0.5rem; hover:text-white;">Terms of Service</a>
+        </div>
+        <p style="margin-top: 0.5rem; color: rgba(255, 255, 255, 0.7); font-size: 0.75rem;">For more information, visit <a href="http://www.toratyosef.org" style="color: white; text-decoration: underline;">www.toratyosef.org</a></p>
+    </footer>
+
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+
+        // Firebase Configuration (IMPORTANT: REPLACE WITH YOUR OWN PROJECT'S CONFIG)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+            authDomain: "torat-yosef.firebaseapp.com",
+            projectId: "torat-yosef",
+            storageBucket: "torat-yosef.firebasestorage.app",
+            messagingSenderId: "1033400220494",
+            appId: "1:1033400220494:web:1437414bdad44399fd6bc1f",
+            measurementId: "G-331D9RHZWH"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+        // Function to parse URL parameters (from template)
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        };
+
+        // Data extracted from the PDF, updated with local image paths
+        const sponsorshipData = [
+            {
+                title: "Naming Of School",
+                amount: "In memory of Joseph and Olga Mizrahi",
+                status: "SOLD",
+                image: "assets/sponsor1.png"
+            },
+            {
+                title: "TRINA AND JOE CAYRE CAMPUS",
+                amount: "Donated by Joe and Trina Cayre",
+                status: "SOLD",
+                image: "assets/sponsor2.png"
+            },
+            {
+                title: "School Building Name",
+                amount: "$1,000,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor3.png"
+            },
+            {
+                title: "Auditorium",
+                amount: "$1,000,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor4.png"
+            },
+            {
+                title: "The Harry and Alice Adjmi Front Entrance",
+                amount: "",
+                status: "SOLD",
+                image: "assets/sponsor5.png"
+            },
+            {
+                title: "The Naming of the Bet Midrash",
+                amount: "$500,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor6.png"
+            },
+            {
+                title: "Art Room",
+                amount: "$200,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor7.png"
+            },
+            {
+                title: "Science Lab",
+                amount: "$200,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor8.png"
+            },
+            {
+                title: "Kitchen",
+                amount: "$250,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor9.png"
+            },
+            {
+                title: "Previously Donated Items (Page 11)",
+                amount: "Donated by Mr. & Mrs. Saul Tawil, Mr. & Mrs. Ikey Levy, Mr. & Mrs. Sammy Saka",
+                status: "SOLD",
+                image: "assets/sponsor10.png"
+            },
+            {
+                title: "Previously Donated Items (Page 12)",
+                amount: "Donated by Mr. & Mrs. Eli Dadoun, Joey & Marshall Mizrahi",
+                status: "SOLD",
+                image: "assets/sponsor11.png"
+            },
+            {
+                title: "Day Care",
+                amount: "$52,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor12.png"
+            },
+            {
+                title: "Playground",
+                amount: "$250,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor13.png"
+            },
+            {
+                title: "Basketball Court",
+                amount: "$250,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor14.png"
+            },
+            {
+                title: "Classrooms",
+                amount: "13 Classrooms available at $72,000.00 each",
+                status: "AVAILABLE",
+                image: "assets/sponsor15.png"
+            },
+            {
+                title: "Front Door Mezuzah",
+                amount: "$26,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor16.png"
+            },
+            {
+                title: "Classrooms Mezuzot",
+                amount: "8 Classrooms available at $18,000.00 / Mezuzah",
+                status: "AVAILABLE",
+                image: "assets/sponsor17.png"
+            },
+            {
+                title: "Campus Lake with Nature Center",
+                amount: "$250,000.00",
+                status: "AVAILABLE",
+                image: "assets/sponsor18.png"
+            }
+        ];
+
+        let currentSlide = 0;
+        const slideshowContent = document.getElementById('slideshow-content');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const dotsContainer = document.getElementById('dots-container');
+
+        /**
+         * Generates the HTML for a single slide based on the sponsorship data.
+         * @param {object} item - The sponsorship data object.
+         * @returns {string} The HTML string for the slide.
+         */
+        const createSlide = (item) => {
+            const statusColor = item.status === "SOLD" ? "text-red-500" : "text-green-600";
+            // Add onerror to image tag for fallback
+            return `
+                <div class="flex-shrink-0 w-full p-4">
+                    ${item.image ? `<img src="${item.image}" alt="${item.title}" class="slideshow-image mx-auto" onerror="this.onerror=null;this.src='https://placehold.co/600x400/CCCCCC/000000?text=Image+Not+Found';">` : ''}
+                    <h2 style="font-size: 1.5rem; font-weight: bold; color: var(--primary-text); margin-bottom: 0.5rem;">${item.title}</h2>
+                    <p style="font-size: 1.1rem; color: #555; margin-bottom: 0.5rem;">${item.amount}</p>
+                    <p style="font-size: 1.1rem; font-weight: 600; color: ${statusColor === 'text-red-500' ? 'red' : 'green'};">${item.status}</p>
+                    ${item.status === "SOLD" && item.donors ? `<p style="color: #666; margin-top: 0.5rem;">Donated by: ${item.donors}</p>` : ''}
+                </div>
+            `;
+        };
+
+        /**
+         * Renders all slides into the slideshow container.
+         */
+        const renderSlides = () => {
+            slideshowContent.innerHTML = sponsorshipData.map(createSlide).join('');
+            slideshowContent.style.width = `${sponsorshipData.length * 100}%`;
+        };
+
+        /**
+         * Updates the display to show the current slide.
+         */
+        const updateSlideshow = () => {
+            const offset = -currentSlide * (100 / sponsorshipData.length);
+            slideshowContent.style.transform = `translateX(${offset}%)`;
+            updateDots();
+        };
+
+        /**
+         * Creates and updates the navigation dots for the slideshow.
+         */
+        const updateDots = () => {
+            dotsContainer.innerHTML = '';
+            sponsorshipData.forEach((_, index) => {
+                const dot = document.createElement('span');
+                dot.classList.add('dot');
+                if (index === currentSlide) {
+                    dot.classList.add('active');
+                }
+                dot.addEventListener('click', () => {
+                    currentSlide = index;
+                    updateSlideshow();
+                });
+                dotsContainer.appendChild(dot);
+            });
+        };
+
+        /**
+         * Handles the click event for the "Previous" button.
+         */
+        prevBtn.addEventListener('click', () => {
+            currentSlide = (currentSlide === 0) ? sponsorshipData.length - 1 : currentSlide - 1;
+            updateSlideshow();
+        });
+
+        /**
+         * Handles the click event for the "Next" button.
+         */
+        nextBtn.addEventListener('click', () => {
+            currentSlide = (currentSlide === sponsorshipData.length - 1) ? 0 : currentSlide + 1;
+            updateSlideshow();
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize slideshow
+            renderSlides();
+            updateSlideshow();
+
+            // Referral logic (from template)
+            const navLinks = document.querySelectorAll('nav a');
+            const referrerId = getUrlParameter('ref');
+            const referralInfoDiv = document.getElementById('referral-info');
+
+            if (referrerId) {
+                referralInfoDiv.style.display = 'block';
+                referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
+
+                navLinks.forEach(link => {
+                    const originalHref = link.getAttribute('href');
+                    if (originalHref && !originalHref.startsWith('http')) {
+                        const newHref = originalHref.includes('?')
+                                        ? `${originalHref}&ref=${referrerId}`
+                                        : `${originalHref}?ref=${referrerId}`;
+                        link.href = newHref;
+                    }
+                });
+            }
+
+            // Log Firebase Analytics event when the page loads (from template)
+            logEvent(analytics, 'sponsorship_page_loaded', { referrer: referrerId || 'none' });
+        });
+
+        // Handle window resize for slideshow
+        window.addEventListener('resize', updateSlideshow);
+    </script>
+</body>
+</html>
