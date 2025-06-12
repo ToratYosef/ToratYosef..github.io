@@ -120,12 +120,43 @@
         }
 
         /* Slideshow specific styles (from original immersive) */
+        .slideshow-container-outer {
+            position: relative; /* For absolute positioning of nav buttons */
+            width: 100%;
+            overflow: hidden;
+            margin-bottom: 6rem; /* Add space for dots container below */
+            padding-top: 1rem; /* Padding for top of image */
+            padding-bottom: 1rem; /* Padding for bottom of image */
+        }
+
+        .slideshow-content {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .slideshow-slide {
+            flex-shrink: 0;
+            width: 100%;
+            padding: 0 1rem; /* Add some horizontal padding to slides */
+        }
+
         .slideshow-image {
             max-width: 100%;
-            height: 200px;
-            object-fit: cover;
+            height: auto; /* Changed from fixed height */
+            max-height: 400px; /* Max height to control vertical size */
+            object-fit: contain; /* Changed to contain to show full image, could be cover */
             border-radius: 1rem;
-            margin-bottom: 1rem;
+            margin: 0 auto; /* Center image horizontally */
+            display: block; /* Ensures margin auto works */
+        }
+        .dot-container {
+            position: absolute;
+            bottom: 1rem; /* Position below slideshow */
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: center;
+            width: 100%;
         }
         .dot {
             height: 12px;
@@ -142,35 +173,45 @@
         }
 
         /* Button styles for slideshow navigation, adapted from template's .buy-links a */
-        .btn-nav {
-            display: block;
-            padding: 0.9rem 1.8rem;
+        .btn-nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 45px; /* Smaller button size */
+            height: 45px; /* Smaller button size */
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background-image: linear-gradient(to right, var(--button-gradient-start), var(--button-gradient-end));
             color: white;
             text-decoration: none;
-            border-radius: 8px;
+            border-radius: 50%; /* Make them circular */
             font-weight: 700;
-            font-size: 1.1rem;
+            font-size: 1.5rem; /* Larger arrow size */
             text-transform: uppercase;
             transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
-            text-align: center;
-            box-shadow: 0 6px 12px rgba(127, 0, 49, 0.4);
+            box-shadow: 0 4px 8px rgba(127, 0, 49, 0.4);
             border: 1px solid var(--hover);
-            position: relative;
-            overflow: hidden;
-            user-select: none;
             cursor: pointer;
+            z-index: 10; /* Ensure buttons are above slides */
+        }
+        .btn-nav-arrow.prev {
+            left: 1rem;
+        }
+        .btn-nav-arrow.next {
+            right: 1rem;
         }
 
-        .btn-nav:hover {
+        .btn-nav-arrow:hover {
             background-image: linear-gradient(to right, var(--hover), var(--accent));
-            transform: translateY(-3px);
-            box-shadow: 0 8px 16px rgba(127, 0, 49, 0.6);
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 6px 12px rgba(127, 0, 49, 0.6);
         }
-        .btn-nav:active {
-            transform: translateY(0);
-            box-shadow: 0 4px 8px rgba(127, 0, 49, 0.4);
+        .btn-nav-arrow:active {
+            transform: translateY(-50%) scale(1);
+            box-shadow: 0 2px 4px rgba(127, 0, 49, 0.4);
         }
+
 
         /* Referral Info Box Styles (from template) */
         #referral-info {
@@ -197,9 +238,16 @@
             .logo {
                 max-width: 200px;
             }
-            .btn-nav {
-                padding: 0.7rem 1.2rem;
-                font-size: 0.9rem;
+            .btn-nav-arrow {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2rem;
+            }
+            .btn-nav-arrow.prev {
+                left: 0.5rem;
+            }
+            .btn-nav-arrow.next {
+                right: 0.5rem;
             }
             h1 {
                 font-size: 1.5rem;
@@ -214,9 +262,16 @@
                 font-size: 0.85rem;
                 padding: 0.3rem 0.5rem;
             }
-            .btn-nav {
-                font-size: 0.8rem;
-                padding: 0.6rem;
+            .btn-nav-arrow {
+                width: 35px;
+                height: 35px;
+                font-size: 1rem;
+            }
+            .btn-nav-arrow.prev {
+                left: 0.25rem;
+            }
+            .btn-nav-arrow.next {
+                right: 0.25rem;
             }
         }
     </style>
@@ -242,16 +297,13 @@
         <div id="referral-info" style="display: none;">
             </div>
 
-        <div class="relative w-full overflow-hidden mb-6 mt-4">
-            <div id="slideshow-content" class="flex transition-transform duration-500 ease-in-out">
+        <div class="slideshow-container-outer">
+            <div id="slideshow-content" class="slideshow-content">
                 </div>
-        </div>
-
-        <div class="flex justify-center space-x-4 mb-6">
-            <button id="prev-btn" class="btn-nav">Previous</button>
-            <div id="dots-container" class="flex items-center">
+            <button id="prev-btn" class="btn-nav-arrow prev">&#x25C0;</button> <!-- Left arrow -->
+            <button id="next-btn" class="btn-nav-arrow next">&#x25B6;</button> <!-- Right arrow -->
+            <div id="dots-container" class="dot-container">
                 </div>
-            <button id="next-btn" class="btn-nav">Next</button>
         </div>
 
         <p style="margin-top: 1rem; font-size: 1.1rem; color: var(--primary-text);">Thank you for considering a sponsorship with Yeshivat Torat Yosef. Your support makes a difference!</p>
@@ -419,10 +471,9 @@
          */
         const createSlide = (item) => {
             const statusColor = item.status === "SOLD" ? "text-red-500" : "text-green-600";
-            // Add onerror to image tag for fallback
             return `
-                <div class="flex-shrink-0 w-full p-4">
-                    ${item.image ? `<img src="${item.image}" alt="${item.title}" class="slideshow-image mx-auto" onerror="this.onerror=null;this.src='https://placehold.co/600x400/CCCCCC/000000?text=Image+Not+Found';">` : ''}
+                <div class="slideshow-slide">
+                    ${item.image ? `<img src="${item.image}" alt="${item.title}" class="slideshow-image" onerror="this.onerror=null;this.src='https://placehold.co/600x400/CCCCCC/000000?text=Image+Not+Found';">` : ''}
                     <h2 style="font-size: 1.5rem; font-weight: bold; color: var(--primary-text); margin-bottom: 0.5rem;">${item.title}</h2>
                     <p style="font-size: 1.1rem; color: #555; margin-bottom: 0.5rem;">${item.amount}</p>
                     <p style="font-size: 1.1rem; font-weight: 600; color: ${statusColor === 'text-red-500' ? 'red' : 'green'};">${item.status}</p>
