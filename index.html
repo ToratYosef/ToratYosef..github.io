@@ -72,7 +72,7 @@
       position: relative;
       width: 100vw;
       flex-grow: 1;
-      max-height: calc(100vh - 130px);
+      max-height: calc(100vh - 130px); /* Adjust based on logo and nav height */
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -88,7 +88,7 @@
 
     .slide img {
       width: 100%;
-      height: 90%;
+      height: 90%; /* Adjust image height to fit within container */
       object-fit: cover;
     }
 
@@ -179,15 +179,15 @@
       <div class="slide-text">Support Torah & Tradition</div>
     </div>
     <div class="slide">
-      <img src="assets/slide4.jpg" alt="Slide 4">
+      <img src="assets/slide4.jpeg" alt="Slide 4">
       <div class="slide-text">Building Leaders for Tomorrow</div>
     </div>
     <div class="slide">
-      <img src="assets/slide5.jpg" alt="Slide 5">
+      <img src="assets/slide5.jpeg" alt="Slide 5">
       <div class="slide-text">Invest in Eternal Torah</div>
     </div>
     <div class="slide">
-      <img src="assets/slide6.jpg" alt="Slide 6">
+      <img src="assets/slide6.jpeg" alt="Slide 6">
       <div class="slide-text">Secure Our Spiritual Future</div>
     </div>
 
@@ -195,37 +195,43 @@
   </div>
 
   <script>
-    const slides = document.querySelectorAll('.slide');
-    let current = 0;
+    document.addEventListener('DOMContentLoaded', () => {
+      const slides = document.querySelectorAll('.slide');
+      let current = 0;
 
-    function showSlide(index) {
-      slides.forEach((slide, i) => {
-        slide.classList.toggle('active', i === index);
-      });
-    }
+      function showSlide(index) {
+        slides.forEach((slide, i) => {
+          slide.classList.toggle('active', i === index);
+        });
+      }
 
-    setInterval(() => {
-      current = (current + 1) % slides.length;
+      // Show the first slide immediately on load
       showSlide(current);
-    }, 3000);
 
-    // Function to parse URL parameters
-    function getUrlParameter(name) {
+      // Start the interval for automatic slideshow
+      setInterval(() => {
+        current = (current + 1) % slides.length;
+        showSlide(current);
+      }, 3000); // Change slide every 3 seconds
+
+      // Function to parse URL parameters
+      function getUrlParameter(name) {
         name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
         var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
         var results = regex.exec(location.search);
         return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-    };
+      };
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const navLinks = document.querySelectorAll('nav .nav-link');
+      const navLinks = document.querySelectorAll('nav a'); // Select all nav links (including active)
       const buyTicketBtn = document.querySelector('.buy-ticket-btn');
 
       const referrerId = getUrlParameter('ref');
 
       if (referrerId) {
+        // Update all navigation links
         navLinks.forEach(link => {
           const originalHref = link.getAttribute('href');
+          // Only modify if it's an internal link and not already pointing to the current page's active state
           if (originalHref && !originalHref.startsWith('http')) {
             const newHref = originalHref.includes('?')
                                ? `${originalHref}&ref=${referrerId}`
@@ -234,10 +240,12 @@
           }
         });
 
+        // Update the 'Buy Ticket' button below the slideshow
         if (buyTicketBtn) {
           const originalHref = buyTicketBtn.getAttribute('href');
           if (originalHref && !originalHref.startsWith('http')) {
             const newHref = originalHref.includes('?')
+                               ? `${originalHref}&ref=${referrerId}`
                                : `${originalHref}?ref=${referrerId}`;
             buyTicketBtn.href = newHref;
           }
