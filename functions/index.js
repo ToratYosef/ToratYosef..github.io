@@ -54,7 +54,14 @@ exports.recordReferral = functions
 exports.createStripeCheckoutSession = functions
   .runWith({ runtime: 'nodejs20' })
   .https.onRequest((req, res) => {
-    corsHandler(req, res, async () => {
+    cors({ origin: 'https://www.toratyosefsummerraffle.com' })(req, res, async () => {
+      if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Origin', 'https://www.toratyosefsummerraffle.com');
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        return res.status(204).send('');
+      }
+
       if (req.method !== 'POST') {
         return res.status(405).send('Only POST requests are allowed.');
       }
@@ -83,11 +90,12 @@ exports.createStripeCheckoutSession = functions
           return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
         });
 
-        res.status(200).json({ clientSecret: session.client_secret });
-
+        res.set('Access-Control-Allow-Origin', 'https://www.toratyosefsummerraffle.com');
+        return res.status(200).json({ clientSecret: session.client_secret });
       } catch (error) {
-        console.error('Error creating Stripe Checkout Session:', error);
-        res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
+        console.error('Stripe Checkout Error:', error);
+        res.set('Access-Control-Allow-Origin', 'https://www.toratyosefsummerraffle.com');
+        return res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
       }
     });
   });
