@@ -1,13 +1,14 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const cors = require('cors')({ origin: true });
+const cors = require('cors')({ origin: 'https://www.toratyosefsummerraffle.com' }); // IMPORTANT: For production, specify your exact domain
+// For development, you could use { origin: true } to allow all origins temporarily, but change for production.
 const stripe = require('stripe');
 
 // Initialize Firebase
 admin.initializeApp();
 const db = admin.firestore();
 
-// Stripe environment variables
+// Stripe environment variables (MUST BE SET VIA `firebase functions:config:set`)
 const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
 const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
 
@@ -16,46 +17,50 @@ const stripeClient = stripe(STRIPE_SECRET_KEY);
 
 // ------------------- Referral Tracker -------------------
 exports.recordReferral = functions
-  .runWith({ runtime: 'nodejs20' })
+  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
   .https.onRequest(async (req, res) => {
-    if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
+    // Add CORS for GET requests if they also come from a different origin
+    cors(req, res, async () => { // Added cors wrapper for consistency
+      if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
 
-    const referrerId = req.query.ref;
-    if (!referrerId) return res.status(400).send('Missing referral ID');
+      const referrerId = req.query.ref;
+      if (!referrerId) return res.status(400).send('Missing referral ID');
 
-    try {
-      const refDoc = db.collection('referrals').doc(referrerId);
-      await db.runTransaction(async (tx) => {
-        const doc = await tx.get(refDoc);
-        if (!doc.exists) {
-          tx.set(refDoc, {
-            count: 1,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastClick: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        } else {
-          tx.update(refDoc, {
-            count: (doc.data().count || 0) + 1,
-            lastClick: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      });
-      res.status(200).send(`Referral for ${referrerId} recorded.`);
-    } catch (error) {
-      console.error('Error recording referral:', error);
-      res.status(500).send('Internal Server Error');
-    }
+      try {
+        const refDoc = db.collection('referrals').doc(referrerId);
+        await db.runTransaction(async (tx) => {
+          const doc = await tx.get(refDoc);
+          if (!doc.exists) {
+            tx.set(refDoc, {
+              count: 1,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastClick: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          } else {
+            tx.update(refDoc, {
+              count: (doc.data().count || 0) + 1,
+              lastClick: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        });
+        res.status(200).send(`Referral for ${referrerId} recorded.`);
+      } catch (error) {
+        console.error('Error recording referral:', error);
+        res.status(500).send('Internal Server Error');
+      }
+    });
   });
 
 // ------------------- Stripe Checkout Session Creation -------------------
 exports.createStripeCheckoutSession = functions
-  .runWith({ runtime: 'nodejs20' })
+  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
   .https.onRequest(async (req, res) => {
-    cors(req, res, async () => {
+    cors(req, res, async () => { // CORS middleware handles preflight and main request headers
       if (req.method !== 'POST') {
         return res.status(405).send('Only POST requests are allowed.');
       }
 
+      // Changed 'tickets' to 'quantity' to match frontend, ensure your frontend sends 'quantity'
       const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl } = req.body;
 
       if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl) {
@@ -82,7 +87,7 @@ exports.createStripeCheckoutSession = functions
           client_reference_id: referrerId || 'unknown',
           return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
           // You can also add a cancel_url if needed, or let the embedded checkout handle it.
-          // cancel_url: cancelUrl,
+          // cancel_url: cancelUrl, // Uncomment if you want a separate cancel URL
         });
 
         res.status(200).json({ clientSecret: session.client_secret });
@@ -96,7 +101,7 @@ exports.createStripeCheckoutSession = functions
 
 // ------------------- Stripe Webhook Handler -------------------
 exports.handleStripeWebhook = functions
-  .runWith({ runtime: 'nodejs20' })
+  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
   .https.onRequest(async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
@@ -118,7 +123,7 @@ exports.handleStripeWebhook = functions
         const customerEmail = session.customer_details?.email || 'N/A';
         const amountTotal = session.amount_total;
         const currency = session.currency;
-        const referrerId = session.client_reference_id || 'unknown';
+        const referrerId = session.client_reference_id || 'unknown'; // Retrieve referrerId from client_reference_id
 
         const paymentData = {
           stripeSessionId: session.id,
@@ -153,13 +158,8 @@ exports.handleStripeWebhook = functions
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object;
         console.log('Payment Intent Succeeded:', paymentIntent.id);
-        // This event might also be triggered for Checkout Sessions.
-        // You might want to deduplicate if both `checkout.session.completed` and
-        // `payment_intent.succeeded` are used to record payments.
-        // For simplicity, `checkout.session.completed` is often sufficient for Checkout.
-
-        // If you were using Payment Element directly, you would primarily use this webhook.
-        // You would retrieve the client_reference_id from the PaymentIntent if you set it there.
+        // If you rely only on `checkout.session.completed` for Checkout Sessions,
+        // you might log this but not perform further actions here to avoid duplication.
         break;
 
       // Handle other event types if needed
@@ -171,11 +171,11 @@ exports.handleStripeWebhook = functions
     res.status(200).send('OK');
   });
 
-// ------------------- Manual Entry Submission (CORS Fixed) -------------------
+// ------------------- Manual Entry Submission -------------------
 exports.submitEntry = functions
-  .runWith({ runtime: 'nodejs20' })
+  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
   .https.onRequest((req, res) => {
-    cors(req, res, async () => {
+    cors(req, res, async () => { // CORS middleware handles preflight and main request headers
       if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
       const { name, email, phone, referrerId } = req.body;
