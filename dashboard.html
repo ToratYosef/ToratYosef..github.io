@@ -11,99 +11,116 @@
 <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.3png">
 <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <meta name="msapplication-TileColor" content="#ffffff">
 <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
 <meta name="theme-color" content="#ffffff">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agent Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 40px; }
-    .dashboard-container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    h1, h2 { color: #002141; }
-    p { font-size: 1.1rem; }
-    .link-box {
-      margin-top: 15px; 
-      padding: 10px; 
-      background: #e0e7ff; 
-      border-radius: 5px; 
-      word-break: break-all;
-      font-family: monospace;
-    }
-  </style>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 40px; }
+    .dashboard-container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1, h2 { color: #002141; }
+    p { font-size: 1.1rem; }
+    .link-box {
+      margin-top: 15px; 
+      padding: 10px; 
+      background: #e0e7ff; 
+      border-radius: 5px; 
+      word-break: break-all;
+      font-family: monospace;
+    }
+  </style>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
-      authDomain: "torat-yosef.firebaseapp.com",
-      projectId: "torat-yosef",
-      storageBucket: "torat-yosef.appspot.com",
-      messagingSenderId: "1033400220494",
-      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f"
-    };
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.appspot.com",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f"
+    };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-    window.addEventListener('DOMContentLoaded', () => {
-      const agentNameEl = document.getElementById('agentName');
-      const totalReferralsEl = document.getElementById('totalReferrals');
-      const shareableLinkEl = document.getElementById('shareableLink');
-      const logoutBtn = document.getElementById('logoutBtn');
+    window.addEventListener('DOMContentLoaded', () => {
+      const agentNameEl = document.getElementById('agentName');
+      const totalReferralsEl = document.getElementById('totalReferrals');
+      const stripePaymentsRefIdEl = document.getElementById('stripePaymentsRefId'); // New element
+      const shareableLinkEl = document.getElementById('shareableLink');
+      const logoutBtn = document.getElementById('logoutBtn');
 
-      logoutBtn.addEventListener('click', async () => {
-        await signOut(auth);
-        window.location.href = 'agent-login.html';
-      });
+      logoutBtn.addEventListener('click', async () => {
+        await signOut(auth);
+        window.location.href = 'agent-login.html';
+      });
 
-      onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-          // Not logged in, redirect to login page
-          window.location.href = 'agent-login.html';
-          return;
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          // Not logged in, redirect to login page
+          window.location.href = 'agent-login.html';
+          return;
+        }
+
+        // Find the agent record by user UID
+        const agentsRef = collection(db, 'agents');
+        const q = query(agentsRef, where('uid', '==', user.uid));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          agentNameEl.textContent = "No agent record found.";
+          totalReferralsEl.textContent = "";
+          shareableLinkEl.textContent = "";
+          stripePaymentsRefIdEl.textContent = ""; // Clear the new element
+          return;
+        }
+
+        const agentDoc = querySnapshot.docs[0];
+        const agentData = agentDoc.data();
+
+        const name = agentData.name || "Agent";
+        const refId = agentData.referrerId || "UNKNOWN";
+
+        agentNameEl.textContent = `Welcome, ${name}!`;
+        totalReferralsEl.textContent = `Total Referrals: ${agentData.totalReferrals ?? 0}`;
+
+        const link = `https://toratyosefsummerraffle.com/checkout.html?ref=${encodeURIComponent(refId)}`;
+        shareableLinkEl.textContent = link;
+
+        // --- New code to fetch refId from stripe_payments ---
+        const stripePaymentsRef = collection(db, 'stripe_payments');
+        const stripePaymentsQuery = query(stripePaymentsRef, where('referrerId', '==', refId)); // Assuming referrerId in stripe_payments
+        const stripePaymentsSnapshot = await getDocs(stripePaymentsQuery);
+
+        if (!stripePaymentsSnapshot.empty) {
+            // Assuming there might be multiple payments, you might want to show the refId from the first one
+            const firstPaymentDoc = stripePaymentsSnapshot.docs[0];
+            const paymentData = firstPaymentDoc.data();
+            stripePaymentsRefIdEl.textContent = `Stripe Payment Ref ID: ${paymentData.referrerId}`;
+        } else {
+            stripePaymentsRefIdEl.textContent = "Stripe Payment Ref ID: Not found";
         }
-
-        // Find the agent record by user UID
-        const agentsRef = collection(db, 'agents');
-        const q = query(agentsRef, where('uid', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          agentNameEl.textContent = "No agent record found.";
-          totalReferralsEl.textContent = "";
-          shareableLinkEl.textContent = "";
-          return;
-        }
-
-        const agentDoc = querySnapshot.docs[0];
-        const agentData = agentDoc.data();
-
-        const name = agentData.name || "Agent";
-        const refId = agentData.referrerId || "UNKNOWN";
-
-        agentNameEl.textContent = `Welcome, ${name}!`;
-        totalReferralsEl.textContent = `Total Referrals: ${agentData.totalReferrals ?? 0}`;
-
-        const link = `https://toratyosefsummerraffle.com/checkout.html?ref=${encodeURIComponent(refId)}`;
-        shareableLinkEl.textContent = link;
-      });
-    });
-  </script>
+        // --- End of new code ---
+      });
+    });
+  </script>
 </head>
 <body>
-  <div class="dashboard-container">
-    <h1 id="agentName">Loading...</h1>
-    <h2 id="totalReferrals"></h2>
-    <p>Your personal shareable link:</p>
-    <div class="link-box" id="shareableLink"></div>
-    <button id="logoutBtn" style="margin-top:20px; padding: 10px 20px; background-color: #7F0031; color: white; border: none; border-radius: 5px; cursor: pointer;">Logout</button>
-  </div>
+  <div class="dashboard-container">
+    <h1 id="agentName">Loading...</h1>
+    <h2 id="totalReferrals"></h2>
+    <p>Your personal shareable link:</p>
+    <div class="link-box" id="shareableLink"></div>
+    <p id="stripePaymentsRefId"></p>     <button id="logoutBtn" style="margin-top:20px; padding: 10px 20px; background-color: #7F0031; color: white; border: none; border-radius: 5px; cursor: pointer;">Logout</button>
+  </div>
 </body>
 </html>
