@@ -429,28 +429,18 @@
             const clientSecret = data.clientSecret; // Extract clientSecret after checking for error
 
             // Initialize Stripe with your publishable key
-            // REPLACE 'pk_test_YOUR_PUBLISHABLE_KEY' with your actual Stripe publishable key
-            // You can find this in your Stripe Dashboard under Developers > API keys (starts with pk_test_...)
-            const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP'); // <<< REPLACE WITH YOUR ACTUAL PUBLISHABLE KEY
+            const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP');
             
             // Initialize embedded Checkout
             const checkout = await stripe.initEmbeddedCheckout({
               clientSecret,
-              // Optional: Add callbacks for when payment is completed or failed if you want client-side feedback
-              // For proper fulfillment, you MUST rely on your server-side webhook handler (handleStripeWebhook function)
               onComplete: function(result) {
                 if (result.error) {
-                  // Handle client-side error, e.g., validation errors on the form
                   console.error('Payment failed on client side:', result.error);
-                  // Display user-friendly message in the modal, not an alert()
-                  // For a real application, you'd show a user-friendly error message on the page
                   embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Payment failed: ${result.error.message || 'Please check your payment details.'}</p>`;
                   loadingIndicator.style.display = 'none';
                 } else if (result.status === 'complete') {
                   console.log('Payment complete! Stripe will handle redirection based on successUrl.');
-                  // The successUrl provided in the body (window.location.origin + '/success.html')
-                  // will be used by Stripe to redirect the user after payment is finished.
-                  // No need for client-side redirection here.
                 }
               }
             });
@@ -458,8 +448,6 @@
             // Mount the embedded Checkout form
             checkout.mount('#embedded-checkout');
             loadingIndicator.style.display = 'none'; // Hide loading indicator
-            // Adjust modal size after Stripe form is mounted. Stripe's form is designed to be responsive.
-            // Setting height/width to 'auto' allows it to adjust.
             modal.style.height = 'auto'; 
             modal.style.width = 'auto'; 
 
@@ -484,11 +472,9 @@
       });
 
       // --- Navigation Link Referrer Logic ---
-      // This part ensures that referrerId is appended to all internal navigation links
-      const navLinks = document.querySelectorAll('nav a'); // Select all nav links (including active)
+      const navLinks = document.querySelectorAll('nav a');
       navLinks.forEach(link => {
         const originalHref = link.getAttribute('href');
-        // Only modify if it's an internal link and not already pointing to the current page's active state
         if (referrerId && originalHref && !originalHref.startsWith('http')) {
           const newHref = originalHref.includes('?')
                              ? `${originalHref}&ref=${referrerId}`
@@ -496,7 +482,6 @@
           link.href = newHref;
         }
       });
-
 
       function closeModal() {
         modal.style.display = 'none';
