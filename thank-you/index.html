@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Thank You for Your Purchase</title>
+</head>
+<body>
+  <h1>Thank You!</h1>
+  <p>Complete your raffle entry by filling in your details:</p>
+
+  <form id="entryForm">
+    <input type="hidden" name="referrerId" id="referrerId">
+
+    <label for="name">Full Name:</label><br />
+    <input type="text" id="name" name="name" required><br /><br />
+
+    <label for="email">Email:</label><br />
+    <input type="email" id="email" name="email" required><br /><br />
+
+    <label for="phone">Phone Number:</label><br />
+    <input type="text" id="phone" name="phone" required><br /><br />
+
+    <button type="submit">Submit Entry</button>
+  </form>
+
+  <p id="statusMessage" style="color: green;"></p>
+
+  <script>
+    const form = document.getElementById('entryForm');
+    const referrerId = new URLSearchParams(window.location.search).get('ref') || 'unknown';
+    document.getElementById('referrerId').value = referrerId;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const data = {
+        name: form.name.value,
+        email: form.email.value,
+        phone: form.phone.value,
+        referrerId: form.referrerId.value,
+      };
+
+      try {
+        const response = await fetch('https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/submitEntry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        const text = await response.text();
+        document.getElementById('statusMessage').textContent = text;
+        form.reset();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('statusMessage').textContent = 'Something went wrong.';
+      }
+    });
+  </script>
+</body>
+</html>
