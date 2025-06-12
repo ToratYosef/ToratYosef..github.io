@@ -1,3 +1,4 @@
+<!-- Replace the full content of square.html with this cleaned version -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -72,13 +73,12 @@
       text-align: left;
       display: none;
     }
-    /* Buttons */
     .pay-button {
       display: flex;
       justify-content: center;
       align-items: center;
       padding: 12px 30px;
-      background-color: #006aff;
+      background-color: #635bff;
       color: white;
       font-size: 18px;
       font-weight: 600;
@@ -94,7 +94,53 @@
       height: 48px;
     }
     .pay-button:hover {
-      background-color: #0051cc;
+      background-color: #5048e7;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0,0,0,0.6);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      position: relative;
+      width: 450px;
+      height: 700px;
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      overflow: hidden;
+      max-width: 95vw;
+      max-height: 90vh;
+    }
+    .modal-content iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 12px;
+    }
+    .close-button {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 28px;
+      font-weight: bold;
+      color: #333;
+      cursor: pointer;
+      user-select: none;
+      background: transparent;
+      border: none;
+      line-height: 1;
+      z-index: 10;
+    }
+    .close-button:hover {
+      color: var(--accent);
     }
   </style>
 </head>
@@ -107,10 +153,13 @@
 
     <div class="payment-options">
       <div class="payment-option">
+        <h2>Pay with Stripe</h2>
+        <button class="pay-button" data-url="https://donate.stripe.com/test_eVq9ASgYBeyw75r1Tz0gw00" data-method="Stripe" type="button">Pay with Card</button>
+      </div>
+      <div class="payment-option">
         <h2>Pay with Square</h2>
         <button class="pay-button" data-url="https://square.link/u/57GWCj8C" data-method="Square" type="button">Pay with Card</button>
       </div>
-
       <div class="payment-option">
         <h2>Pay with Venmo</h2>
         <button class="pay-button" data-url="https://venmo.com/u/YOUR_VENMO_USERNAME" data-method="Venmo" type="button">Pay with Venmo</button>
@@ -124,6 +173,13 @@
       If you have any questions, please
       <a href="mailto:info@yourwebsite.com" style="color: var(--accent); text-decoration: none;">contact us</a>.
     </p>
+  </div>
+
+  <div id="paymentModal" class="modal">
+    <div class="modal-content">
+      <button id="closeModalBtn" class="close-button">&times;</button>
+      <iframe id="paymentIframe" src=""></iframe>
+    </div>
   </div>
 
   <script type="module">
@@ -148,7 +204,7 @@
       const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
       const results = regex.exec(location.search);
       return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-    };
+    }
 
     const referrerId = getUrlParameter('ref');
     const referralInfoDiv = document.getElementById('referral-info');
@@ -157,28 +213,45 @@
       referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
     }
 
-    logEvent(analytics, 'square_page_loaded', { referrer: referrerId || 'none' });
+    logEvent(analytics, 'payment_page_loaded', { referrer: referrerId || 'none' });
 
     document.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('paymentModal');
+      const iframe = document.getElementById('paymentIframe');
+      const closeBtn = document.getElementById('closeModalBtn');
+
+      modal.style.display = 'none';
+
       document.querySelectorAll('.pay-button').forEach(button => {
         button.addEventListener('click', () => {
           let url = button.getAttribute('data-url');
-          const paymentMethod = button.getAttribute('data-method');
+          const method = button.getAttribute('data-method');
 
-          // Add ref param to Square URL if applicable
-          if (paymentMethod === "Square" && referrerId) {
-            const separator = url.includes('?') ? '&' : '?';
+          const separator = url.includes('?') ? '&' : '?';
+          if (referrerId && method === "Stripe") {
+            url = `${url}${separator}client_reference_id=${encodeURIComponent(referrerId)}`;
+          } else if (referrerId && method === "Square") {
             url = `${url}${separator}ref=${encodeURIComponent(referrerId)}`;
           }
 
           logEvent(analytics, 'payment_button_clicked', {
-            payment_method: paymentMethod,
+            payment_method: method,
             referrer: referrerId || 'none'
           });
 
-          window.open(url, '_blank');
+          iframe.src = url;
+          modal.style.display = 'flex';
         });
       });
+
+      function closeModal() {
+        modal.style.display = 'none';
+        iframe.src = '';
+      }
+
+      closeBtn.addEventListener('click', closeModal);
+      modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.style.display === 'flex') closeModal(); });
     });
   </script>
 </body>

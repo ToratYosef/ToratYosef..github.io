@@ -1,267 +1,200 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const crypto = require('crypto');
-const square = require('square');
+const cors = require('cors')({ origin: true });
+const stripe = require('stripe');
 
-// --- START DIAGNOSTIC LOGS (Remove these lines 8-20 after successful deployment) ---
-console.log('--- STARTING FUNCTIONS LOAD ---');
-console.log('Type of square:', typeof square);
-if (typeof square === 'object' && square !== null) {
-  console.log('Keys in square object:', Object.keys(square));
-  console.log('square.Client exists:', typeof square.Client);
-  console.log('square.Environment exists:', typeof square.Environment);
-  console.log('square.SquareClient exists:', typeof square.SquareClient);
-  console.log('square.SquareEnvironment exists:', typeof square.SquareEnvironment);
-  if (typeof square.SquareEnvironment === 'object' && square.SquareEnvironment !== null) {
-      console.log('square.SquareEnvironment.Sandbox exists:', typeof square.SquareEnvironment.Sandbox);
-  }
-} else {
-    console.log('Square module did not load as an object or is null/undefined.');
-}
-console.log('--- END DIAGNOSTIC LOGS ---');
-
-// Initialize Firebase Admin SDK
+// Initialize Firebase
 admin.initializeApp();
 const db = admin.firestore();
 
-// --- IMPORTANT: Your Square Webhook Signature Key ---
-const SQUARE_WEBHOOK_SIGNATURE_KEY = 'qVJwLsbNH_QA8RHSZQ9vRQ';
+// Stripe environment variables
+const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
+const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
 
-// --- Configure Square SDK Client ---
-const squareClient = new square.SquareClient({
-    environment: square.SquareEnvironment.Sandbox,
-    accessToken: process.env.SQUARE_ACCESS_TOKEN,
-});
-const squareAppId = process.env.SQUARE_APP_ID;
-const squareLocationId = process.env.SQUARE_LOCATION_ID;
+// Initialize Stripe client
+const stripeClient = stripe(STRIPE_SECRET_KEY);
 
-// --- Firebase Cloud Function: recordReferral ---
-exports.recordReferral = functions.https.onRequest(async (req, res) => {
-  if (req.method !== 'GET') {
-    return res.status(405).send('Method Not Allowed. This endpoint only accepts GET requests.');
-  }
+// ------------------- Referral Tracker -------------------
+exports.recordReferral = functions
+  .runWith({ runtime: 'nodejs20' })
+  .https.onRequest(async (req, res) => {
+    if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
 
-  const referrerId = req.query.ref;
-
-  if (!referrerId) {
-    console.warn('recordReferral: Missing referral ID in query parameters.');
-    return res.status(400).send('Missing referral ID.');
-  }
-
-  try {
-    const refDoc = db.collection('referrals').doc(referrerId);
-
-    await db.runTransaction(async (transaction) => {
-      const doc = await transaction.get(refDoc);
-      if (!doc.exists) {
-        transaction.set(refDoc, { count: 1, createdAt: admin.firestore.FieldValue.serverTimestamp(), lastClick: admin.firestore.FieldValue.serverTimestamp() });
-      } else {
-        const newCount = (doc.data().count || 0) + 1;
-        transaction.update(refDoc, { count: newCount, lastClick: admin.firestore.FieldValue.serverTimestamp() });
-      }
-    });
-
-    res.status(200).send(`Referral for ${referrerId} recorded successfully.`);
-  } catch (error) {
-    console.error('Error recording referral:', error);
-    res.status(500).send('Internal Server Error. Check server logs for details.');
-  }
-});
-
-// --- NEW Firebase Cloud Function: createSquareOrder ---
-exports.createSquareOrder = functions.https.onRequest(async (req, res) => {
-    // --- START: CORS HEADERS (Must be at the very beginning of the function) ---
-    // Allow requests from your Firebase Hosting domain
-    res.set('Access-Control-Allow-Origin', 'https://torat-yosef.web.app'); // <--- Your domain
-    
-    // Handle preflight OPTIONS request (sent by browsers before POST requests)
-    if (req.method === 'OPTIONS') {
-        res.set('Access-Control-Allow-Methods', 'POST'); // Methods your function allows
-        res.set('Access-Control-Allow-Headers', 'Content-Type'); // Headers your function allows
-        res.set('Access-Control-Max-Age', '3600'); // Cache preflight response for 1 hour
-        return res.status(204).send(''); // Respond with 204 No Content for OPTIONS
-    }
-    // --- END: CORS HEADERS ---
-
-    if (req.method !== 'POST') {
-        return res.status(405).send('Method Not Allowed. This endpoint only accepts POST requests.');
-    }
-
-    const { referrerId, tickets = 1, prize = "Raffle Ticket" } = req.body;
-
-    if (!referrerId || !process.env.SQUARE_LOCATION_ID || !process.env.SQUARE_ACCESS_TOKEN) {
-        console.error("createSquareOrder: Missing referrerId or Square Location ID/Access Token environment variables.");
-        return res.status(400).json({ error: 'Missing required data or Square config.' });
-    }
+    const referrerId = req.query.ref;
+    if (!referrerId) return res.status(400).send('Missing referral ID');
 
     try {
-        const idempotencyKey = crypto.randomUUID();
-
-        const orderBody = {
-            idempotencyKey: idempotencyKey,
-            order: {
-                locationId: process.env.SQUARE_LOCATION_ID,
-                lineItems: [
-                    {
-                        name: prize,
-                        quantity: tickets.toString(),
-                        basePriceMoney: {
-                            amount: 12600, // $126.00 in cents
-                            currency: 'USD',
-                        },
-                    },
-                ],
-                metadata: {
-                    referrer_id: referrerId,
-                }
-            },
-        };
-
-        const { result: createOrderResult } = await squareClient.ordersApi.createOrder(orderBody);
-        const order = createOrderResult.order;
-
-        if (!order) {
-            console.error("createSquareOrder: Failed to create order in Square:", createOrderResult);
-            return res.status(500).json({ error: 'Failed to create Square order.' });
+      const refDoc = db.collection('referrals').doc(referrerId);
+      await db.runTransaction(async (tx) => {
+        const doc = await tx.get(refDoc);
+        if (!doc.exists) {
+          tx.set(refDoc, {
+            count: 1,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastClick: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          tx.update(refDoc, {
+            count: (doc.data().count || 0) + 1,
+            lastClick: admin.firestore.FieldValue.serverTimestamp(),
+          });
         }
-
-        const checkoutBody = {
-            idempotencyKey: crypto.randomUUID(),
-            checkout: {
-                orderId: order.id,
-                askForShippingAddress: false,
-                merchantSupportEmail: 'info@yourwebsite.com',
-                redirectUrl: process.env.SQUARE_REDIRECT_URL || 'https://your-website.com/thankyou.html',
-            },
-        };
-
-        const { result: createCheckoutResult } = await squareClient.checkoutApi.createCheckout(
-            process.env.SQUARE_LOCATION_ID,
-            checkoutBody
-        );
-
-        const checkoutPageUrl = createCheckoutResult.checkout?.checkoutPageUrl;
-
-        if (!checkoutPageUrl) {
-            console.error("createSquareOrder: Failed to create Square checkout URL:", createCheckoutResult);
-            return res.status(500).json({ error: 'Failed to generate Square checkout URL.' });
-        }
-
-        console.log(`createSquareOrder: Created Square Order ${order.id} for referrer ${referrerId}. Checkout URL generated.`);
-        res.status(200).json({ checkoutUrl: checkoutPageUrl, orderId: order.id });
-
+      });
+      res.status(200).send(`Referral for ${referrerId} recorded.`);
     } catch (error) {
-        console.error('createSquareOrder: Error creating Square order or checkout:', error);
-        if (error.result?.errors) {
-            error.result.errors.forEach(e => console.error(`Square API Error: ${e.category} - ${e.code} - ${e.detail}`));
-        }
-        res.status(500).json({ error: 'Internal Server Error creating Square checkout.' });
+      console.error('Error recording referral:', error);
+      res.status(500).send('Internal Server Error');
     }
-});
+  });
 
-// --- Firebase Cloud Function: handleSquareWebhook ---
-exports.handleSquareWebhook = functions.https.onRequest(async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method Not Allowed. Square webhooks are POST requests.');
-  }
-
-  const signature = req.header('x-square-signature');
-  const bodyString = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
-
-  if (!signature || !SQUARE_WEBHOOK_SIGNATURE_KEY) {
-    console.warn('handleSquareWebhook: Missing x-square-signature header or SQUARE_WEBHOOK_SIGNATURE_KEY is not set.');
-    return res.status(401).send('Unauthorized: Missing signature or key.');
-  }
-
-  try {
-    const hmac = crypto.createHmac('sha1', SQUARE_WEBHOOK_SIGNATURE_KEY);
-    hmac.update(bodyString);
-    const expectedSignature = hmac.digest('base64');
-
-    if (signature !== expectedSignature) {
-    console.warn('handleSquareWebhook: Invalid signature on Square webhook. Received:', signature, 'Expected:', expectedSignature);
-      return res.status(401).send('Unauthorized: Invalid webhook signature.');
-    }
-  } catch (error) {
-    console.error('handleSquareWebhook: Error during signature verification:', error);
-    return res.status(500).send('Error verifying signature.');
-  }
-
-  const event = req.body;
-  console.log('handleSquareWebhook: Received Square Webhook Event Type:', event.type);
-
-  try {
-    if (event.type === 'payment.created' || event.type === 'payment.updated') {
-      const payment = event.data.object.payment;
-
-      if (!payment.order_id) {
-          console.log(`handleSquareWebhook: Payment ${payment.id} has no associated order. Skipping metadata retrieval for referrer.`);
-          return res.status(200).send('Payment has no linked order. Webhook acknowledged.');
+// ------------------- Stripe Checkout Session Creation -------------------
+exports.createStripeCheckoutSession = functions
+  .runWith({ runtime: 'nodejs20' })
+  .https.onRequest(async (req, res) => {
+    cors(req, res, async () => {
+      if (req.method !== 'POST') {
+        return res.status(405).send('Only POST requests are allowed.');
       }
 
-      let referrerId = 'unknown';
+      const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl } = req.body;
+
+      if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl) {
+        return res.status(400).json({ error: 'Missing required fields for Stripe Checkout Session.' });
+      }
 
       try {
-          const { result: retrieveOrderResult } = await squareClient.ordersApi.retrieveOrder(payment.order_id);
-          const order = retrieveOrderResult.order;
+        const session = await stripeClient.checkout.sessions.create({
+          ui_mode: 'embedded',
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: prizeDescription,
+                },
+                unit_amount: amount, // Amount in cents (e.g., 12600 for $126.00)
+              },
+              quantity: quantity,
+            },
+          ],
+          mode: 'payment',
+          // Pass referrerId as client_reference_id
+          client_reference_id: referrerId || 'unknown',
+          return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+          // You can also add a cancel_url if needed, or let the embedded checkout handle it.
+          // cancel_url: cancelUrl,
+        });
 
-          if (order && order.metadata) {
-              referrerId = order.metadata.referrer_id || 'unknown';
-              console.log(`handleSquareWebhook: Retrieved referrer_id "${referrerId}" from Order ${order.id} metadata.`);
-          }
+        res.status(200).json({ clientSecret: session.client_secret });
+
       } catch (error) {
-          console.error(`handleSquareWebhook: Error retrieving Order ${payment.order_id} metadata:`, error);
-          if (error.result?.errors) {
-              error.result.errors.forEach(e => console.error(`Square API Error during order retrieve: ${e.category} - ${e.code} - ${e.detail}`));
-          }
+        console.error('Error creating Stripe Checkout Session:', error);
+        res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
       }
+    });
+  });
 
-      const customerName = payment.buyer_supplied_info?.buyer_name || 'N/A';
-      const customerEmail = payment.receipt_email || payment.buyer_email_address || 'N/A';
-      const customerPhone = payment.buyer_phone_number || 'N/A';
-      const paymentStatus = payment.status;
+// ------------------- Stripe Webhook Handler -------------------
+exports.handleStripeWebhook = functions
+  .runWith({ runtime: 'nodejs20' })
+  .https.onRequest(async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
 
-      const transactionData = {
-          squarePaymentId: payment.id,
-          customerName: customerName,
-          customerEmail: customerEmail,
-          customerPhone: customerPhone,
-          amountMoney: payment.amount_money,
-          paymentStatus: paymentStatus,
-          sourceType: payment.source_type,
-          receiptUrl: payment.receipt_url || null,
-          orderId: payment.order_id,
-          referrerId: referrerId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp()
-      };
-
-      await db.collection('square_payments').doc(payment.id).set(transactionData, { merge: true });
-      console.log(`handleSquareWebhook: Payment ${payment.id} (${paymentStatus}) processed and saved to Firestore for ${customerEmail}. Referrer: ${referrerId}`);
-
-      if (paymentStatus === 'COMPLETED' && referrerId !== 'unknown') {
-        try {
-          await db.collection('referrals').doc(referrerId).update({
-            successfulPayments: admin.firestore.FieldValue.increment(1)
-          });
-          console.log(`handleSquareWebhook: Incremented successful payments for referrer ${referrerId}.`);
-        } catch (updateError) {
-          console.error(`handleSquareWebhook: Error updating successful payments for referrer ${referrerId}:`, updateError);
-        }
-      }
-
-    } else if (event.type === 'refund.created') {
-      const refund = event.data.object.refund;
-      console.log('handleSquareWebhook: Refund created event received:', refund.id, refund.amount_money);
-      await db.collection('square_payments').doc(refund.payment_id).update({ status: 'REFUNDED', refundedAt: admin.firestore.FieldValue.serverTimestamp() });
-
-    } else {
-      console.log(`handleSquareWebhook: Received unhandled event type: ${event.type}`);
+    try {
+      event = stripeClient.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      console.error(`Webhook Error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    res.status(200).send('Webhook processed successfully.');
+    // Handle the event
+    switch (event.type) {
+      case 'checkout.session.completed':
+        const session = event.data.object;
+        console.log('Checkout Session Completed:', session.id);
 
-  } catch (error) {
-    console.error('handleSquareWebhook: Critical error processing Square webhook event:', error);
-    res.status(500).send('Internal Server Error during webhook processing.');
-  }
-});
+        const paymentIntentId = session.payment_intent;
+        const customerEmail = session.customer_details?.email || 'N/A';
+        const amountTotal = session.amount_total;
+        const currency = session.currency;
+        const referrerId = session.client_reference_id || 'unknown';
+
+        const paymentData = {
+          stripeSessionId: session.id,
+          paymentIntentId: paymentIntentId,
+          customerEmail: customerEmail,
+          amountTotal: amountTotal,
+          currency: currency,
+          paymentStatus: session.payment_status,
+          referrerId: referrerId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        try {
+          await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
+          console.log(`Stripe payment recorded for session: ${session.id}`);
+
+          // Increment successful payments for the referrer if not 'unknown'
+          if (referrerId !== 'unknown') {
+            const referralRef = db.collection('referrals').doc(referrerId);
+            await referralRef.update({
+              successfulPayments: admin.firestore.FieldValue.increment(1),
+            });
+            console.log(`Referral count incremented for: ${referrerId}`);
+          }
+
+        } catch (error) {
+          console.error('Error saving Stripe payment or updating referral:', error);
+          return res.status(500).send('Internal Server Error processing event.');
+        }
+        break;
+
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        console.log('Payment Intent Succeeded:', paymentIntent.id);
+        // This event might also be triggered for Checkout Sessions.
+        // You might want to deduplicate if both `checkout.session.completed` and
+        // `payment_intent.succeeded` are used to record payments.
+        // For simplicity, `checkout.session.completed` is often sufficient for Checkout.
+
+        // If you were using Payment Element directly, you would primarily use this webhook.
+        // You would retrieve the client_reference_id from the PaymentIntent if you set it there.
+        break;
+
+      // Handle other event types if needed
+      default:
+        console.log(`Unhandled event type ${event.type}`);
+    }
+
+    // Return a 200 response to acknowledge receipt of the event
+    res.status(200).send('OK');
+  });
+
+// ------------------- Manual Entry Submission (CORS Fixed) -------------------
+exports.submitEntry = functions
+  .runWith({ runtime: 'nodejs20' })
+  .https.onRequest((req, res) => {
+    cors(req, res, async () => {
+      if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
+
+      const { name, email, phone, referrerId } = req.body;
+      if (!name || !email || !phone) {
+        return res.status(400).send('Missing required fields.');
+      }
+
+      try {
+        await db.collection('raffle_entries').add({
+          name,
+          email,
+          phone,
+          referrerId: referrerId || 'unknown',
+          submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        res.status(200).send('Entry submitted successfully.');
+      } catch (err) {
+        console.error('Error saving entry:', err);
+        res.status(500).send('Internal Server Error');
+      }
+    });
+  });
