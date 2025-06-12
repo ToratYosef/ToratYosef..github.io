@@ -1,24 +1,25 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const cors = require('cors')({ origin: 'https://www.toratyosefsummerraffle.com' }); // For production
+const cors = require('cors');
 const stripe = require('stripe');
 
 // Initialize Firebase
 admin.initializeApp();
 const db = admin.firestore();
 
-// Stripe environment variables (set via `firebase functions:config:set`)
+// Stripe environment variables
 const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
 const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
-
-// Initialize Stripe client
 const stripeClient = stripe(STRIPE_SECRET_KEY);
+
+// CORS middleware for all functions
+const corsHandler = cors({ origin: 'https://www.toratyosefsummerraffle.com' });
 
 // ------------------- Referral Tracker -------------------
 exports.recordReferral = functions
   .runWith({ runtime: 'nodejs20' })
-  .https.onRequest(async (req, res) => {
-    cors(req, res, async () => {
+  .https.onRequest((req, res) => {
+    corsHandler(req, res, async () => {
       if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
 
       const referrerId = req.query.ref;
@@ -49,20 +50,11 @@ exports.recordReferral = functions
     });
   });
 
-// ------------------- Stripe Checkout Session Creation -------------------
+// ------------------- Stripe Checkout -------------------
 exports.createStripeCheckoutSession = functions
   .runWith({ runtime: 'nodejs20' })
   .https.onRequest((req, res) => {
-    cors(req, res, async () => {
-      // ✅ Handle preflight request
-      if (req.method === 'OPTIONS') {
-        res.set('Access-Control-Allow-Origin', 'https://www.toratyosefsummerraffle.com');
-        res.set('Access-Control-Allow-Methods', 'POST');
-        res.set('Access-Control-Allow-Headers', 'Content-Type');
-        res.status(204).send('');
-        return;
-      }
-
+    corsHandler(req, res, async () => {
       if (req.method !== 'POST') {
         return res.status(405).send('Only POST requests are allowed.');
       }
@@ -80,9 +72,7 @@ exports.createStripeCheckoutSession = functions
             {
               price_data: {
                 currency: 'usd',
-                product_data: {
-                  name: prizeDescription,
-                },
+                product_data: { name: prizeDescription },
                 unit_amount: amount,
               },
               quantity,
@@ -97,15 +87,12 @@ exports.createStripeCheckoutSession = functions
 
       } catch (error) {
         console.error('Error creating Stripe Checkout Session:', error);
-        res.status(500).json({
-          error: 'Failed to create Stripe Checkout Session.',
-          details: error.message,
-        });
+        res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
       }
     });
   });
 
-// ------------------- Stripe Webhook Handler -------------------
+// ------------------- Stripe Webhook -------------------
 exports.handleStripeWebhook = functions
   .runWith({ runtime: 'nodejs20' })
   .https.onRequest(async (req, res) => {
@@ -143,14 +130,12 @@ exports.handleStripeWebhook = functions
 
         try {
           await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
-          console.log(`Stripe payment recorded for session: ${session.id}`);
 
           if (referrerId !== 'unknown') {
             const referralRef = db.collection('referrals').doc(referrerId);
             await referralRef.update({
               successfulPayments: admin.firestore.FieldValue.increment(1),
             });
-            console.log(`Referral count incremented for: ${referrerId}`);
           }
         } catch (error) {
           console.error('Error saving Stripe payment or updating referral:', error);
@@ -170,11 +155,11 @@ exports.handleStripeWebhook = functions
     res.status(200).send('OK');
   });
 
-// ------------------- Manual Entry Submission -------------------
+// ------------------- Manual Entry -------------------
 exports.submitEntry = functions
   .runWith({ runtime: 'nodejs20' })
   .https.onRequest((req, res) => {
-    cors(req, res, async () => {
+    corsHandler(req, res, async () => {
       if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
       const { name, email, phone, referrerId } = req.body;
