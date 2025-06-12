@@ -92,21 +92,21 @@
 
     .container {
       max-width: 600px;
-      margin: 2rem auto; /* Adjusted margin for better centering */
+      margin: 2rem auto;
       padding: 20px;
       background-color: #f8f8f8;
       border-radius: 10px;
       box-shadow: 0 0 15px rgba(0,0,0,0.2);
-      text-align: center; /* Centering for main text */
-      flex-grow: 1; /* Allow container to grow and push footer down */
-      width: 90%; /* Ensure it takes reasonable width on smaller screens */
+      text-align: center;
+      flex-grow: 1;
+      width: 90%;
       box-sizing: border-box;
     }
 
     h1 {
       color: var(--accent);
       margin-bottom: 20px;
-      font-size: 1.6rem; /* Consistent heading size */
+      font-size: 1.6rem;
     }
 
     .payment-options {
@@ -161,78 +161,35 @@
       transition: background-color 0.3s ease;
       user-select: none;
       text-align: center;
-      line-height: normal; /* Allow text to wrap if button is small */
-      min-width: 180px; /* Adjusted from 212px to give more flex room */
+      line-height: normal;
+      min-width: 180px;
       height: 48px;
     }
     .pay-button:hover {
       background-color: #5048e7; /* Darker Stripe purple */
     }
-    /* Modal Styles */
-    .modal {
-      display: none; /* hidden by default */
-      position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100vw;
-      height: 100vh;
-      background-color: rgba(0,0,0,0.6);
-      justify-content: center;
+
+    /* Styles for embedded checkout */
+    #embedded-checkout-container {
+      width: 100%;
+      margin-top: 20px; /* Space between button and form */
+      display: none; /* Hidden by default, shown when Stripe button is clicked */
+      flex-direction: column; /* Ensure loading and checkout div stack */
       align-items: center;
-      padding: 10px; /* Padding for modal itself on small screens */
-    }
-    .modal-content {
-      position: relative;
-      width: 450px; /* Fixed width, but max-width below handles responsiveness */
-      background-color: white;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
-      overflow: hidden;
-      max-width: 95vw; /* Responsive width */
-      max-height: 90vh; /* Responsive height */
-      display: flex;
-      flex-direction: column;
-      padding: 20px;
-      box-sizing: border-box; /* Include padding in width/height */
-    }
-    .modal-content h3 {
-      color: var(--secondary-bg);
-      margin-top: 0;
-      margin-bottom: 15px;
-      font-size: 1.5em;
     }
     #embedded-checkout {
-      min-height: 400px;
+      min-height: 400px; /* Ensure sufficient height for the form */
       width: 100%;
       display: flex;
       justify-content: center;
       align-items: center;
-      flex-grow: 1;
-      overflow-y: auto; /* Allow scrolling if content is too tall */
+      /* overflow-y: auto; Not needed if min-height is sufficient */
     }
     #loading-indicator {
-      display: none;
+      display: none; /* Hidden by default, shown when fetching client secret */
       font-size: 1.1em;
       color: #666;
-      margin-top: 20px;
-    }
-    .close-button {
-      position: absolute;
-      top: 8px;
-      right: 12px;
-      font-size: 28px;
-      font-weight: bold;
-      color: #333;
-      cursor: pointer;
-      user-select: none;
-      background: transparent;
-      border: none;
-      line-height: 1;
-      z-index: 10;
-    }
-    .close-button:hover {
-      color: var(--accent);
+      margin-bottom: 15px;
     }
 
     /* Responsive adjustments */
@@ -240,11 +197,11 @@
       .pay-button {
         padding: 10px 20px;
         font-size: 16px;
-        min-width: unset; /* Remove min-width to allow more flexibility */
-        width: 100%; /* Make buttons full width in smaller columns */
+        min-width: unset;
+        width: 100%;
       }
       .payment-option {
-        flex: 1 1 100%; /* Stack payment options on very small screens */
+        flex: 1 1 100%;
       }
       .container {
         padding: 15px;
@@ -287,6 +244,11 @@
       <div class="payment-option">
         <h2>Pay with Card (Stripe)</h2>
         <button id="stripePayButton" class="pay-button" data-method="Stripe" type="button">Pay with Card</button>
+        <div id="embedded-checkout-container">
+          <p id="loading-indicator">Loading payment form...</p>
+          <div id="embedded-checkout">
+          </div>
+        </div>
       </div>
 
       <div class="payment-option">
@@ -303,16 +265,6 @@
       If you have any questions, please
       <a href="mailto:info@yourwebsite.com" style="color: var(--accent); text-decoration: none;">contact us</a>.
     </p>
-  </div>
-
-  <div id="paymentModal" class="modal" role="dialog" aria-modal="true" tabindex="-1">
-    <div class="modal-content">
-      <button id="closeModalBtn" class="close-button" aria-label="Close payment modal">&times;</button>
-      <h3>Complete Payment</h3>
-      <p id="loading-indicator">Loading payment form...</p>
-      <div id="embedded-checkout">
-        </div>
-    </div>
   </div>
 
   <script src="https://js.stripe.com/v3/"></script>
@@ -358,13 +310,10 @@
     logEvent(analytics, 'payment_page_loaded', { referrer: referrerId || 'none' });
 
     document.addEventListener('DOMContentLoaded', () => {
-      const modal = document.getElementById('paymentModal');
-      const closeBtn = document.getElementById('closeModalBtn');
+      const stripePayButton = document.getElementById('stripePayButton');
+      const embeddedCheckoutContainer = document.getElementById('embedded-checkout-container');
       const embeddedCheckoutDiv = document.getElementById('embedded-checkout');
       const loadingIndicator = document.getElementById('loading-indicator');
-      const stripePayButton = document.getElementById('stripePayButton');
-
-      modal.style.display = 'none';
 
       // --- Stripe Payment Logic ---
       if (stripePayButton) {
@@ -374,15 +323,16 @@
             referrer: referrerId || 'none'
           });
 
-          // Show modal and loading indicator
-          modal.style.display = 'flex';
+          // Show the container and loading indicator, hide the button
+          stripePayButton.style.display = 'none'; // Hide the button once clicked
+          embeddedCheckoutContainer.style.display = 'flex';
           loadingIndicator.style.display = 'block';
           embeddedCheckoutDiv.innerHTML = ''; // Clear previous content
 
           try {
             // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
-            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession'; 
-            console.log('Attempting to fetch clientSecret from:', createSessionUrl); // Added for debugging
+            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession';
+            console.log('Attempting to fetch clientSecret from:', createSessionUrl);
 
             // Make a request to your Firebase Cloud Function
             const response = await fetch(createSessionUrl, {
@@ -425,12 +375,12 @@
               loadingIndicator.style.display = 'none';
               return;
             }
-            
+
             const clientSecret = data.clientSecret; // Extract clientSecret after checking for error
 
             // Initialize Stripe with your publishable key
             const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP');
-            
+
             // Initialize embedded Checkout
             const checkout = await stripe.initEmbeddedCheckout({
               clientSecret,
@@ -448,8 +398,6 @@
             // Mount the embedded Checkout form
             checkout.mount('#embedded-checkout');
             loadingIndicator.style.display = 'none'; // Hide loading indicator
-            modal.style.height = 'auto'; 
-            modal.style.width = 'auto'; 
 
           } catch (error) {
             console.error('Error during Stripe checkout process (network or unexpected response):', error);
@@ -481,22 +429,6 @@
                              : `${originalHref}?ref=${referrerId}`;
           link.href = newHref;
         }
-      });
-
-      function closeModal() {
-        modal.style.display = 'none';
-        embeddedCheckoutDiv.innerHTML = ''; // Clear Stripe form content
-        loadingIndicator.style.display = 'none';
-      }
-
-      closeBtn.addEventListener('click', closeModal);
-
-      modal.addEventListener('click', e => {
-        if (e.target === modal) closeModal();
-      });
-
-      document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
       });
     });
   </script>
