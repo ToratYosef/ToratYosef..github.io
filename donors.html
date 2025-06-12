@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Our Valued Donors - Yeshivat Torat Yosef</title>
+  <style>
+    :root {
+      --primary-bg: #ffffff;
+      --primary-text: rgb(0, 33, 65);
+      --secondary-bg: rgb(0, 33, 65);
+      --accent: #7F0031;
+      --hover: #590023;
+      --button-gradient-start: #a30040;
+      --button-gradient-end: #7F0031;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--primary-bg);
+      color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-bottom: 1rem;
+    }
+
+    .logo-container {
+      text-align: center;
+      padding: 0.8rem 0 0.4rem;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      max-width: 250px;
+      width: 80vw;
+      height: auto;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding: 0.8rem 0;
+      background-color: var(--secondary-bg);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 0.4rem 0.8rem;
+      font-weight: bold;
+      font-size: 1rem;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    nav a.active {
+      border-bottom: 3px solid var(--accent);
+      color: var(--accent);
+    }
+
+    nav a:hover {
+      color: var(--accent);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 1rem;
+      text-align: center;
+      flex-grow: 1;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      color: var(--accent);
+      font-size: 1.6rem;
+      margin: 0.5rem 0;
+    }
+
+    .donors-section {
+      margin-top: 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsive grid */
+      gap: 1.5rem;
+      justify-content: center;
+      padding: 0 1rem; /* Add padding for smaller screens */
+    }
+
+    .donor-card {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .donor-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+
+    .donor-avatar {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 1rem;
+      border: 3px solid var(--accent);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .donor-name {
+      color: var(--secondary-bg);
+      font-size: 1.4rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+
+    .donor-description {
+      color: #666;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    /* Referral Info Box Styles (consistent with previous pages) */
+    #referral-info {
+      margin-top: 1.5rem;
+      font-size: 0.95rem;
+      color: #555;
+      padding: 12px 20px;
+      background-color: #e6f7ff;
+      border-left: 5px solid var(--secondary-bg);
+      text-align: left;
+      display: none; /* Hidden by default */
+      max-width: 80%; /* Limit width for better readability */
+      margin-left: auto;
+      margin-right: auto;
+      border-radius: 4px;
+    }
+
+    .cta {
+      margin-top: 2rem;
+      font-weight: bold;
+      font-size: 1.2rem;
+      color: var(--secondary-bg);
+    }
+
+    .buy-links {
+      margin-top: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+      max-width: 350px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .buy-links a {
+      display: block;
+      padding: 0.9rem 1.8rem;
+      background-image: linear-gradient(to right, var(--button-gradient-start), var(--button-gradient-end));
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      text-align: center;
+      box-shadow: 0 6px 12px rgba(127, 0, 49, 0.4);
+      border: 1px solid var(--hover);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .buy-links a:hover {
+      background-image: linear-gradient(to right, var(--hover), var(--accent));
+      transform: translateY(-3px);
+      box-shadow: 0 8px 16px rgba(127, 0, 49, 0.6);
+    }
+
+    @media (max-width: 768px) {
+      .donors-section {
+        grid-template-columns: 1fr; /* Stack on smaller screens */
+      }
+      .donor-card {
+        padding: 1.2rem;
+      }
+      .donor-avatar {
+        width: 70px;
+        height: 70px;
+      }
+      .donor-name {
+        font-size: 1.2rem;
+      }
+      .donor-description {
+        font-size: 0.9rem;
+      }
+      nav a {
+        font-size: 0.9rem;
+        padding: 0.4rem 0.6rem;
+      }
+      .logo {
+        max-width: 200px;
+      }
+    }
+
+    @media (max-width: 400px) {
+      h1 {
+        font-size: 1.4rem;
+      }
+      nav a {
+        font-size: 0.85rem;
+        padding: 0.3rem 0.5rem;
+      }
+      .buy-links {
+        max-width: 250px;
+      }
+      .buy-links a {
+        font-size: 0.9rem;
+        padding: 0.6rem;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .buy-links {
+        flex-direction: row;
+        justify-content: center;
+        max-width: none;
+        gap: 1.5rem; /* Increased gap for desktop */
+      }
+      .buy-links a {
+        width: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/refs/heads/main/assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
+  </div>
+
+  <nav>
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="prizes.html" class="nav-link">Prizes</a>
+    <a href="why.html" class="nav-link">Why Buy</a>
+    <a href="donors.html" class="active">Donors</a>
+    <a href="sponsor.html" class="nav-link">Sponsorship Opportunities</a>
+  </nav>
+
+  <div class="container">
+    <h1>Our Valued Donors</h1>
+    <p style="margin-top: 1rem; font-size: 1.1rem; color: var(--primary-text);">We extend our heartfelt gratitude to the generous individuals whose support makes our mission possible.</p>
+
+    <div id="referral-info" style="display: none;">
+      </div>
+
+    <div class="donors-section">
+      <div class="donor-card">
+        <img src="https://placehold.co/90x90/7F0031/ffffff?text=HA" alt="Harry Adjmi" class="donor-avatar" onerror="this.onerror=null;this.src='https://placehold.co/90x90/7F0031/ffffff?text=Donor';"/>
+        <h2 class="donor-name">Harry Adjmi</h2>
+        <p class="donor-description">A pillar of our community, whose generosity illuminates countless paths for our students and programs.</p>
+      </div>
+
+      <div class="donor-card">
+        <img src="https://placehold.co/90x90/002141/ffffff?text=MK" alt="Mickey Karie" class="donor-avatar" onerror="this.onerror=null;this.src='https://placehold.co/90x90/002141/ffffff?text=Donor';"/>
+        <h2 class="donor-name">Mickey Karie</h2>
+        <p class="donor-description">His unwavering support is a testament to his dedication to Torah education and the growth of true Bnei Torah.</p>
+      </div>
+
+      </div>
+
+    <div class="cta">
+      Join these esteemed supporters and make a lasting impact.
+    </div>
+
+    <div class="buy-links">
+        <a href="square.html" rel="noopener" class="buy-link-main">Purchase Your Ticket</a>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+    import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+
+    // Firebase Configuration (IMPORTANT: REPLACE WITH YOUR OWN PROJECT'S CONFIG)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng", // <--- REPLACE THIS
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad44399fd6bc1f", // Check this carefully
+      measurementId: "G-331D9RHZWH" // <--- REPLACE THIS
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+
+    // Function to parse URL parameters
+    function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      var results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const navLinks = document.querySelectorAll('nav a');
+      const buyLinkMain = document.querySelector('.buy-link-main');
+      const referrerId = getUrlParameter('ref');
+      const referralInfoDiv = document.getElementById('referral-info');
+
+      if (referrerId) {
+        // Display referral info
+        referralInfoDiv.style.display = 'block'; // Show the div
+        referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
+
+        // Update all navigation links
+        navLinks.forEach(link => {
+          const originalHref = link.getAttribute('href');
+          if (originalHref && !originalHref.startsWith('http')) {
+            const newHref = originalHref.includes('?')
+                              ? `${originalHref}&ref=${referrerId}`
+                              : `${originalHref}?ref=${referrerId}`;
+            link.href = newHref;
+          }
+        });
+
+        // Update the main "Purchase Your Ticket" button
+        if (buyLinkMain) {
+            const originalHref = buyLinkMain.getAttribute('href');
+            if (originalHref && !originalHref.startsWith('http')) {
+                const newHref = originalHref.includes('?')
+                                ? `${originalHref}&ref=${referrerId}`
+                                : `${originalHref}?ref=${referrerId}`;
+                buyLinkMain.href = newHref;
+            }
+        }
+      }
+
+      // --- Log Firebase Analytics event when the page loads ---
+      logEvent(analytics, 'donors_page_loaded', { referrer: referrerId || 'none' });
+    });
+  </script>
+</body>
+</html>
