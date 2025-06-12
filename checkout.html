@@ -1,210 +1,519 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const cors = require('cors')({ origin: 'https://torat-yosef.web.app' }); // <--- CORRECTED CORS ORIGIN
-// For multiple origins (e.g., your custom domain and .web.app), you could use an array or a function:
-// const allowedOrigins = ['https://torat-yosef.web.app', 'https://www.toratyosefsummerraffle.com'];
-// const cors = require('cors')({
-//   origin: (origin, callback) => {
-//     if (allowedOrigins.indexOf(origin) !== -1 || !origin) { // !origin allows same-origin requests
-//       callback(null, true);
-//     } else {
-//       callback(new Error('Not allowed by CORS'));
-//     }
-//   }
-// });
-
-const stripe = require('stripe');
-
-// Initialize Firebase
-admin.initializeApp();
-const db = admin.firestore();
-
-// Stripe environment variables (MUST BE SET VIA `firebase functions:config:set`)
-const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
-const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
-
-// Initialize Stripe client
-const stripeClient = stripe(STRIPE_SECRET_KEY);
-
-// ------------------- Referral Tracker -------------------
-exports.recordReferral = functions
-  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
-  .https.onRequest(async (req, res) => {
-    // Add CORS for GET requests if they also come from a different origin
-    cors(req, res, async () => { // Added cors wrapper for consistency
-      if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
-
-      const referrerId = req.query.ref;
-      if (!referrerId) return res.status(400).send('Missing referral ID');
-
-      try {
-        const refDoc = db.collection('referrals').doc(referrerId);
-        await db.runTransaction(async (tx) => {
-          const doc = await tx.get(refDoc);
-          if (!doc.exists) {
-            tx.set(refDoc, {
-              count: 1,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              lastClick: admin.firestore.FieldValue.serverTimestamp(),
-            });
-          } else {
-            tx.update(refDoc, {
-              count: (doc.data().count || 0) + 1,
-              lastClick: admin.firestore.FieldValue.serverTimestamp(),
-            });
-          }
-        });
-        res.status(200).send(`Referral for ${referrerId} recorded.`);
-      } catch (error) {
-        console.error('Error recording referral:', error);
-        res.status(500).send('Internal Server Error');
-      }
-    });
-  });
-
-// ------------------- Stripe Checkout Session Creation -------------------
-exports.createStripeCheckoutSession = functions
-  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
-  .https.onRequest(async (req, res) => {
-    cors(req, res, async () => { // CORS middleware handles preflight and main request headers
-      if (req.method !== 'POST') {
-        return res.status(405).send('Only POST requests are allowed.');
-      }
-
-      const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl } = req.body;
-
-      if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl) {
-        return res.status(400).json({ error: 'Missing required fields for Stripe Checkout Session.' });
-      }
-
-      try {
-        const session = await stripeClient.checkout.sessions.create({
-          ui_mode: 'embedded',
-          line_items: [
-            {
-              price_data: {
-                currency: 'usd',
-                product_data: {
-                  name: prizeDescription,
-                },
-                unit_amount: amount, // Amount in cents (e.g., 12600 for $126.00)
-              },
-              quantity: quantity,
-            },
-          ],
-          mode: 'payment',
-          // Pass referrerId as client_reference_id
-          client_reference_id: referrerId || 'unknown',
-          return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-          // You can also add a cancel_url if needed, or let the embedded checkout handle it.
-          // cancel_url: cancelUrl, // Uncomment if you want a separate cancel URL
-        });
-
-        res.status(200).json({ clientSecret: session.client_secret });
-
-      } catch (error) {
-        console.error('Error creating Stripe Checkout Session:', error);
-        res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
-      }
-    });
-  });
-
-// ------------------- Stripe Webhook Handler -------------------
-exports.handleStripeWebhook = functions
-  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
-  .https.onRequest(async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    let event;
-
-    try {
-      event = stripeClient.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-      console.error(`Webhook Error: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complete Your Purchase - Yeshivat Torat Yosef Raffle</title>
+  <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
+  <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
+  <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
+  <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
+  <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
+  <meta name="theme-color" content="#ffffff">
+  <style>
+    :root {
+      --primary-bg: #ffffff;
+      --primary-text: rgb(0, 33, 65);
+      --secondary-bg: rgb(0, 33, 65);
+      --accent: #7F0031;
+      --hover: #590023;
+      --button-gradient-start: #a30040;
+      --button-gradient-end: #7F0031;
     }
 
-    // Handle the event
-    switch (event.type) {
-      case 'checkout.session.completed':
-        const session = event.data.object;
-        console.log('Checkout Session Completed:', session.id);
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--primary-bg);
+      color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-bottom: 1rem;
+    }
 
-        const paymentIntentId = session.payment_intent;
-        const customerEmail = session.customer_details?.email || 'N/A';
-        const amountTotal = session.amount_total;
-        const currency = session.currency;
-        const referrerId = session.client_reference_id || 'unknown'; // Retrieve referrerId from client_reference_id
+    /* Logo Container styles */
+    .logo-container {
+      text-align: center;
+      padding: 0.8rem 0 0.4rem;
+      flex-shrink: 0;
+    }
 
-        const paymentData = {
-          stripeSessionId: session.id,
-          paymentIntentId: paymentIntentId,
-          customerEmail: customerEmail,
-          amountTotal: amountTotal,
-          currency: currency,
-          paymentStatus: session.payment_status,
-          referrerId: referrerId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        };
+    .logo {
+      max-width: 250px;
+      width: 80vw;
+      height: auto;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
 
-        try {
-          await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
-          console.log(`Stripe payment recorded for session: ${session.id}`);
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding: 0.8rem 0;
+      background-color: var(--secondary-bg);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+      width: 100%;
+      flex-wrap: wrap;
+    }
 
-          // Increment successful payments for the referrer if not 'unknown'
-          if (referrerId !== 'unknown') {
-            const referralRef = db.collection('referrals').doc(referrerId);
-            await referralRef.update({
-              successfulPayments: admin.firestore.FieldValue.increment(1),
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 0.4rem 0.8rem;
+      font-weight: bold;
+      font-size: 1rem;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    nav a.active {
+      border-bottom: 3px solid var(--accent);
+      color: var(--accent);
+    }
+
+    nav a:hover {
+      color: var(--accent);
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 2rem auto; /* Adjusted margin for better centering */
+      padding: 20px;
+      background-color: #f8f8f8;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      text-align: center; /* Centering for main text */
+      flex-grow: 1; /* Allow container to grow and push footer down */
+      width: 90%; /* Ensure it takes reasonable width on smaller screens */
+      box-sizing: border-box;
+    }
+
+    h1 {
+      color: var(--accent);
+      margin-bottom: 20px;
+      font-size: 1.6rem; /* Consistent heading size */
+    }
+
+    .payment-options {
+      margin-top: 30px;
+      display: flex;
+      justify-content: space-around;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .payment-option {
+      flex: 1 1 260px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .payment-option h2 {
+      color: var(--secondary-bg);
+      font-size: 1.3em;
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+    #referral-info {
+      margin-top: 20px;
+      font-size: 0.9em;
+      color: #555;
+      padding: 10px;
+      background-color: #e6f7ff;
+      border-left: 5px solid var(--secondary-bg);
+      text-align: left;
+      display: none;
+      border-radius: 4px;
+    }
+    /* Buttons */
+    .pay-button {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 12px 30px;
+      background-color: #635bff; /* Stripe purple */
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.1) inset;
+      transition: background-color 0.3s ease;
+      user-select: none;
+      text-align: center;
+      line-height: normal; /* Allow text to wrap if button is small */
+      min-width: 180px; /* Adjusted from 212px to give more flex room */
+      height: 48px;
+    }
+    .pay-button:hover {
+      background-color: #5048e7; /* Darker Stripe purple */
+    }
+    /* Modal Styles */
+    .modal {
+      display: none; /* hidden by default */
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0,0,0,0.6);
+      justify-content: center;
+      align-items: center;
+      padding: 10px; /* Padding for modal itself on small screens */
+    }
+    .modal-content {
+      position: relative;
+      width: 450px; /* Fixed width, but max-width below handles responsiveness */
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      overflow: hidden;
+      max-width: 95vw; /* Responsive width */
+      max-height: 90vh; /* Responsive height */
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      box-sizing: border-box; /* Include padding in width/height */
+    }
+    .modal-content h3 {
+      color: var(--secondary-bg);
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+    }
+    #embedded-checkout {
+      min-height: 400px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-grow: 1;
+      overflow-y: auto; /* Allow scrolling if content is too tall */
+    }
+    #loading-indicator {
+      display: none;
+      font-size: 1.1em;
+      color: #666;
+      margin-top: 20px;
+    }
+    .close-button {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 28px;
+      font-weight: bold;
+      color: #333;
+      cursor: pointer;
+      user-select: none;
+      background: transparent;
+      border: none;
+      line-height: 1;
+      z-index: 10;
+    }
+    .close-button:hover {
+      color: var(--accent);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      .pay-button {
+        padding: 10px 20px;
+        font-size: 16px;
+        min-width: unset; /* Remove min-width to allow more flexibility */
+        width: 100%; /* Make buttons full width in smaller columns */
+      }
+      .payment-option {
+        flex: 1 1 100%; /* Stack payment options on very small screens */
+      }
+      .container {
+        padding: 15px;
+        margin: 1rem auto;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      nav a {
+        font-size: 0.9rem;
+        padding: 0.3rem 0.5rem;
+        gap: 0.5rem;
+      }
+      .logo {
+        max-width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
+  </div>
+
+  <nav>
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="prizes.html" class="nav-link">Prizes</a>
+    <a href="why.html" class="nav-link">Why Buy</a>
+    <a href="donors.html" class="nav-link">Donors</a>
+    <a href="sponsor.html" class="nav-link">Sponsorship Opportunities</a>
+  </nav>
+
+  <div class="container">
+    <h1>Complete Your Raffle Ticket Purchase</h1>
+    <p>Thank you for supporting Yeshivat Torat Yosef! Please choose your preferred payment method below.</p>
+
+    <div id="referral-info"></div>
+
+    <div class="payment-options">
+      <div class="payment-option">
+        <h2>Pay with Card (Stripe)</h2>
+        <button id="stripePayButton" class="pay-button" data-method="Stripe" type="button">Pay with Card</button>
+      </div>
+
+      <div class="payment-option">
+        <h2>Pay with Venmo</h2>
+        <button class="pay-button" data-url="https://venmo.com/u/YOUR_VENMO_USERNAME" data-method="Venmo" type="button">Pay with Venmo</button>
+        <p style="font-size: 0.85em; color: #666; margin-top: 15px;">
+          Send payment directly via Venmo to @YOUR_VENMO_USERNAME.
+          <br>Please include your full name and "raffle" in the memo.
+        </p>
+      </div>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.9em;">
+      If you have any questions, please
+      <a href="mailto:info@yourwebsite.com" style="color: var(--accent); text-decoration: none;">contact us</a>.
+    </p>
+  </div>
+
+  <div id="paymentModal" class="modal" role="dialog" aria-modal="true" tabindex="-1">
+    <div class="modal-content">
+      <button id="closeModalBtn" class="close-button" aria-label="Close payment modal">&times;</button>
+      <h3>Complete Payment</h3>
+      <p id="loading-indicator">Loading payment form...</p>
+      <div id="embedded-checkout">
+        </div>
+    </div>
+  </div>
+
+  <script src="https://js.stripe.com/v3/"></script>
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+    import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f", // CORRECTED App ID
+      measurementId: "G-331D9RHZWH"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+
+    // Function to parse URL parameters
+    function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      var results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    };
+
+    // Get the referrer ID from the current page's URL
+    const referrerId = getUrlParameter('ref');
+
+    // Display referral info if present on the page
+    const referralInfoDiv = document.getElementById('referral-info');
+    if (referrerId) {
+      referralInfoDiv.style.display = 'block';
+      referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
+    }
+
+    // --- Log Firebase Analytics event when the page loads ---
+    logEvent(analytics, 'payment_page_loaded', { referrer: referrerId || 'none' });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('paymentModal');
+      const closeBtn = document.getElementById('closeModalBtn');
+      const embeddedCheckoutDiv = document.getElementById('embedded-checkout');
+      const loadingIndicator = document.getElementById('loading-indicator');
+      const stripePayButton = document.getElementById('stripePayButton');
+
+      modal.style.display = 'none';
+
+      // --- Stripe Payment Logic ---
+      if (stripePayButton) {
+        stripePayButton.addEventListener('click', async () => {
+          logEvent(analytics, 'payment_button_clicked', {
+            payment_method: 'Stripe',
+            referrer: referrerId || 'none'
+          });
+
+          // Show modal and loading indicator
+          modal.style.display = 'flex';
+          loadingIndicator.style.display = 'block';
+          embeddedCheckoutDiv.innerHTML = ''; // Clear previous content
+
+          try {
+            // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
+            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession'; 
+            console.log('Attempting to fetch clientSecret from:', createSessionUrl); // Added for debugging
+
+            // Make a request to your Firebase Cloud Function
+            const response = await fetch(createSessionUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              // IMPORTANT: Customize amount, quantity, prize description, success/cancel URLs as needed
+              body: JSON.stringify({
+                referrerId: referrerId || 'none',
+                quantity: 1, // Changed from 'tickets' to 'quantity' to match Cloud Function
+                amount: 12600, // Amount in cents ($126.00) per ticket. Your function takes 'amount'
+                prizeDescription: 'Raffle Ticket',
+                successUrl: window.location.origin + '/success.html', // Redirect here on success
+                cancelUrl: window.location.origin + '/cancel.html'   // Redirect here on cancel
+              })
             });
-            console.log(`Referral count incremented for: ${referrerId}`);
-          }
 
-        } catch (error) {
-          console.error('Error saving Stripe payment or updating referral:', error);
-          return res.status(500).send('Internal Server Error processing event.');
+            // Check if the network request itself was successful (status 200-299)
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`Network request failed: HTTP Status ${response.status} ${response.statusText}`, errorText);
+              // Provide more user-friendly feedback based on status
+              let userMessage = `Error: Could not start payment process. Please try again.`;
+              if (response.status === 400) {
+                 userMessage = `Error: Invalid request sent to payment service. Please contact support.`;
+              } else if (response.status === 403) {
+                 userMessage = `Error: Payment service access denied. Check project permissions.`;
+              } else if (response.status >= 500) {
+                 userMessage = `Error: Payment service is temporarily unavailable. Please try again later.`;
+              }
+              embeddedCheckoutDiv.innerHTML = `<p style="color: red;">${userMessage}</p>`;
+              loadingIndicator.style.display = 'none';
+              return;
+            }
+
+            const data = await response.json(); // Parse response once
+
+            if (data.error) {
+              console.error('Error from Cloud Function:', data.error);
+              embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+              loadingIndicator.style.display = 'none';
+              return;
+            }
+            
+            const clientSecret = data.clientSecret; // Extract clientSecret after checking for error
+
+            // Initialize Stripe with your publishable key
+            // REPLACE 'pk_test_YOUR_PUBLISHABLE_KEY' with your actual Stripe publishable key
+            // You can find this in your Stripe Dashboard under Developers > API keys (starts with pk_test_...)
+            const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP'); // <<< REPLACE WITH YOUR ACTUAL PUBLISHABLE KEY
+            
+            // Initialize embedded Checkout
+            const checkout = await stripe.initEmbeddedCheckout({
+              clientSecret,
+              // Optional: Add callbacks for when payment is completed or failed if you want client-side feedback
+              // For proper fulfillment, you MUST rely on your server-side webhook handler (handleStripeWebhook function)
+              onComplete: function(result) {
+                if (result.error) {
+                  // Handle client-side error, e.g., validation errors on the form
+                  console.error('Payment failed on client side:', result.error);
+                  // Display user-friendly message in the modal, not an alert()
+                  // For a real application, you'd show a user-friendly error message on the page
+                  embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Payment failed: ${result.error.message || 'Please check your payment details.'}</p>`;
+                  loadingIndicator.style.display = 'none';
+                } else if (result.status === 'complete') {
+                  console.log('Payment complete! Stripe will handle redirection based on successUrl.');
+                  // The successUrl provided in the body (window.location.origin + '/success.html')
+                  // will be used by Stripe to redirect the user after payment is finished.
+                  // No need for client-side redirection here.
+                }
+              }
+            });
+
+            // Mount the embedded Checkout form
+            checkout.mount('#embedded-checkout');
+            loadingIndicator.style.display = 'none'; // Hide loading indicator
+            // Adjust modal size after Stripe form is mounted. Stripe's form is designed to be responsive.
+            // Setting height/width to 'auto' allows it to adjust.
+            modal.style.height = 'auto'; 
+            modal.style.width = 'auto'; 
+
+          } catch (error) {
+            console.error('Error during Stripe checkout process (network or unexpected response):', error);
+            embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Failed to load payment form due to a network or server issue. Please check your browser's console for details.</p>`;
+            loadingIndicator.style.display = 'none';
+          }
+        });
+      }
+
+      // --- Venmo Payment Logic (Opens in new tab/window) ---
+      document.querySelectorAll('.pay-button[data-method="Venmo"]').forEach(button => {
+        button.addEventListener('click', () => {
+          const venmoUrl = button.getAttribute('data-url');
+          logEvent(analytics, 'payment_button_clicked', {
+            payment_method: 'Venmo',
+            referrer: referrerId || 'none'
+          });
+          window.open(venmoUrl, '_blank'); // Open Venmo link in a new tab/window
+        });
+      });
+
+      // --- Navigation Link Referrer Logic ---
+      // This part ensures that referrerId is appended to all internal navigation links
+      const navLinks = document.querySelectorAll('nav a'); // Select all nav links (including active)
+      navLinks.forEach(link => {
+        const originalHref = link.getAttribute('href');
+        // Only modify if it's an internal link and not already pointing to the current page's active state
+        if (referrerId && originalHref && !originalHref.startsWith('http')) {
+          const newHref = originalHref.includes('?')
+                             ? `${originalHref}&ref=${referrerId}`
+                             : `${originalHref}?ref=${referrerId}`;
+          link.href = newHref;
         }
-        break;
+      });
 
-      case 'payment_intent.succeeded':
-        const paymentIntent = event.data.object;
-        console.log('Payment Intent Succeeded:', paymentIntent.id);
-        // If you rely only on `checkout.session.completed` for Checkout Sessions,
-        // you might log this but not perform further actions here to avoid duplication.
-        break;
 
-      // Handle other event types if needed
-      default:
-        console.log(`Unhandled event type ${event.type}`);
-    }
-
-    // Return a 200 response to acknowledge receipt of the event
-    res.status(200).send('OK');
-  });
-
-// ------------------- Manual Entry Submission -------------------
-exports.submitEntry = functions
-  .runWith({ runtime: 'nodejs20' }) // Using Node.js 20 runtime
-  .https.onRequest((req, res) => {
-    cors(req, res, async () => { // CORS middleware handles preflight and main request headers
-      if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
-
-      const { name, email, phone, referrerId } = req.body;
-      if (!name || !email || !phone) {
-        return res.status(400).send('Missing required fields.');
+      function closeModal() {
+        modal.style.display = 'none';
+        embeddedCheckoutDiv.innerHTML = ''; // Clear Stripe form content
+        loadingIndicator.style.display = 'none';
       }
 
-      try {
-        await db.collection('raffle_entries').add({
-          name,
-          email,
-          phone,
-          referrerId: referrerId || 'unknown',
-          submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        res.status(200).send('Entry submitted successfully.');
-      } catch (err) {
-        console.error('Error saving entry:', err);
-        res.status(500).send('Internal Server Error');
-      }
+      closeBtn.addEventListener('click', closeModal);
+
+      modal.addEventListener('click', e => {
+        if (e.target === modal) closeModal();
+      });
+
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
+      });
     });
-  });
+  </script>
+</body>
+</html>
