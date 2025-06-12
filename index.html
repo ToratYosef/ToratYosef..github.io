@@ -162,21 +162,33 @@
     <a href="prizes.html" class="nav-link">Prizes</a>
     <a href="why.html" class="nav-link">Why Buy</a>
     <a href="donors.html" class="nav-link">Donors</a>
-    <a href="sponsor.html" class="nav-link">Sponship Oportunities</a>
+    <a href="sponsor.html" class="nav-link">Sponsorship Opportunities</a>
   </nav>
 
   <div class="slideshow-container">
     <div class="slide active">
-      <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/main/assets/2de2be_add869007b8e48ceae4323d22cbedf44~mv2.jpg" alt="Slide 1">
+      <img src="assets/slide1.jpg" alt="Slide 1">
       <div class="slide-text">Join the Yeshiva Family</div>
     </div>
     <div class="slide">
-      <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/main/assets/2de2be_a8f5a5e4d1434cee8b4561b79e43fad8~mv2.jpg" alt="Slide 2">
+      <img src="assets/slide2.jpg" alt="Slide 2">
       <div class="slide-text">Empowering Sephardic Youth</div>
     </div>
     <div class="slide">
-      <img src="https://raw.githubusercontent.com/BinyanShalem/Support-Yeshivat-Torat-Yosef.github.io/main/assets/2de2be_32a2f1b14b574245b350783b34~mv2.jpg" alt="Slide 3">
+      <img src="assets/slide3.jpg" alt="Slide 3">
       <div class="slide-text">Support Torah & Tradition</div>
+    </div>
+    <div class="slide">
+      <img src="assets/slide4.jpg" alt="Slide 4">
+      <div class="slide-text">Building Leaders for Tomorrow</div>
+    </div>
+    <div class="slide">
+      <img src="assets/slide5.jpg" alt="Slide 5">
+      <div class="slide-text">Invest in Eternal Torah</div>
+    </div>
+    <div class="slide">
+      <img src="assets/slide6.jpg" alt="Slide 6">
+      <div class="slide-text">Secure Our Spiritual Future</div>
     </div>
 
     <a href="prizes.html" class="buy-ticket-btn">Buy Ticket</a>
@@ -206,31 +218,27 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
-      const navLinks = document.querySelectorAll('nav .nav-link'); // Select all internal nav links
-      const buyTicketBtn = document.querySelector('.buy-ticket-btn'); // Get the Buy Ticket button
+      const navLinks = document.querySelectorAll('nav .nav-link');
+      const buyTicketBtn = document.querySelector('.buy-ticket-btn');
 
-      const referrerId = getUrlParameter('ref'); // Get referrer from current URL
+      const referrerId = getUrlParameter('ref');
 
       if (referrerId) {
-        // Update all navigation links
         navLinks.forEach(link => {
           const originalHref = link.getAttribute('href');
-          // Only modify if it's an internal link (e.g., not an external URL starting with http)
           if (originalHref && !originalHref.startsWith('http')) {
-            const newHref = originalHref.includes('?') 
-                           ? `${originalHref}&ref=${referrerId}` 
-                           : `${originalHref}?ref=${referrerId}`;
+            const newHref = originalHref.includes('?')
+                               ? `${originalHref}&ref=${referrerId}`
+                               : `${originalHref}?ref=${referrerId}`;
             link.href = newHref;
           }
         });
 
-        // Update the 'Buy Ticket' button below the slideshow
         if (buyTicketBtn) {
           const originalHref = buyTicketBtn.getAttribute('href');
           if (originalHref && !originalHref.startsWith('http')) {
-            const newHref = originalHref.includes('?') 
-                           ? `${originalHref}&ref=${referrerId}` 
-                           : `${originalHref}?ref=${referrerId}`;
+            const newHref = originalHref.includes('?')
+                               : `${originalHref}?ref=${referrerId}`;
             buyTicketBtn.href = newHref;
           }
         }
