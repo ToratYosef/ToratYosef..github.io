@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Complete Your Purchase - Yeshivat Torat Yosef Raffle</title>
-  <!-- Favicon Links (Comprehensive) -->
   <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
   <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
   <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
@@ -21,7 +20,6 @@
   <meta name="msapplication-TileColor" content="#ffffff">
   <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
   <meta name="theme-color" content="#ffffff">
-  <!-- End Favicon Links -->
   <style>
     :root {
       --primary-bg: #ffffff;
@@ -323,15 +321,15 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
     import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
 
-    // Firebase Configuration (IMPORTANT: REPLACE WITH YOUR OWN PROJECT'S CONFIG)
+    // Firebase Configuration
     const firebaseConfig = {
-      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng", // <--- REPLACE THIS
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
       authDomain: "torat-yosef.firebaseapp.com",
       projectId: "torat-yosef",
       storageBucket: "torat-yosef.firebasestorage.app",
       messagingSenderId: "1033400220494",
-      appId: "1:1033400220494:web:1437414bdad44399fd6bc1f", // Check this carefully
-      measurementId: "G-331D9RHZWH" // <--- REPLACE THIS
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f", // CORRECTED App ID
+      measurementId: "G-331D9RHZWH"
     };
 
     // Initialize Firebase
@@ -383,7 +381,6 @@
 
           try {
             // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
-            // You can find this in the Firebase Console under Functions -> Dashboard, copy the URL for 'createStripeCheckoutSession'.
             const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession'; 
             console.log('Attempting to fetch clientSecret from:', createSessionUrl); // Added for debugging
 
@@ -394,7 +391,7 @@
               // IMPORTANT: Customize amount, quantity, prize description, success/cancel URLs as needed
               body: JSON.stringify({
                 referrerId: referrerId || 'none',
-                tickets: 1, // Number of raffle tickets, passed to the Cloud Function
+                quantity: 1, // Changed from 'tickets' to 'quantity' to match Cloud Function
                 amount: 12600, // Amount in cents ($126.00) per ticket. Your function takes 'amount'
                 prizeDescription: 'Raffle Ticket',
                 successUrl: window.location.origin + '/success.html', // Redirect here on success
