@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Complete Your Purchase - Yeshivat Torat Yosef Raffle</title>
+  <style>
+    :root {
+      --primary-bg: #ffffff;
+      --primary-text: rgb(0, 33, 65);
+      --secondary-bg: rgb(0, 33, 65);
+      --accent: #7F0031;
+      --hover: #590023;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--primary-bg);
+      color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+    }
+    .container {
+      max-width: 600px;
+      padding: 20px;
+      background-color: #f8f8f8;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+    h1 {
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .payment-options {
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+    }
+    .payment-option {
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .payment-option h2 {
+      color: var(--secondary-bg);
+      font-size: 1.3em;
+      margin-bottom: 15px;
+    }
+    .pay-button {
+      padding: 12px 30px;
+      background-color: #635bff;
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      min-width: 212px;
+    }
+    .pay-button:hover {
+      background-color: #5048e7;
+    }
+    #referral-info {
+      margin-top: 20px;
+      font-size: 0.9em;
+      color: #555;
+      padding: 10px;
+      background-color: #e6f7ff;
+      border-left: 5px solid var(--secondary-bg);
+      text-align: left;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Complete Your Raffle Ticket Purchase</h1>
+    <p>Thank you for supporting Yeshivat Torat Yosef! Click below to complete your payment.</p>
+
+    <div id="referral-info"></div>
+
+    <div class="payment-options">
+      <div class="payment-option">
+        <h2>Pay with Stripe</h2>
+        <button class="pay-button" data-url="https://donate.stripe.com/test_eVq9ASgYBeyw75r1Tz0gw00" data-method="Stripe" type="button">Pay with Card</button>
+      </div>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.9em;">
+      If you have any questions, please
+      <a href="mailto:info@yourwebsite.com" style="color: var(--accent); text-decoration: none;">contact us</a>.
+    </p>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+    import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+      measurementId: "G-331D9RHZWH"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+
+    function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      const results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    };
+
+    const referrerId = getUrlParameter('ref');
+    const referralInfoDiv = document.getElementById('referral-info');
+    if (referrerId) {
+      referralInfoDiv.style.display = 'block';
+      referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
+    }
+
+    logEvent(analytics, 'payment_page_loaded', { referrer: referrerId || 'none' });
+
+    document.querySelector('.pay-button').addEventListener('click', () => {
+      let url = document.querySelector('.pay-button').getAttribute('data-url');
+      if (referrerId) {
+        const separator = url.includes('?') ? '&' : '?';
+        url = `${url}${separator}client_reference_id=${encodeURIComponent(referrerId)}`;
+      }
+      logEvent(analytics, 'payment_button_clicked', {
+        payment_method: 'Stripe',
+        referrer: referrerId || 'none'
+      });
+      window.open(url, '_blank');
+    });
+  </script>
+</body>
+</html>
