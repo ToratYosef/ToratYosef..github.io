@@ -1,6 +1,5 @@
 // Required modules
-const { onRequest } = require('firebase-functions/v2/https');
-const { setGlobalOptions } = require('firebase-functions/v2');
+const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const stripe = require('stripe');
 const corsLib = require('cors');
@@ -9,19 +8,17 @@ const corsLib = require('cors');
 admin.initializeApp();
 const db = admin.firestore();
 
-// Global options for all functions (you can customize)
-setGlobalOptions({ region: 'us-central1', timeoutSeconds: 60, memory: '256MiB' });
-
 // Stripe environment variables
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || require('firebase-functions').config().stripe.secret_key;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || require('firebase-functions').config().stripe.webhook_secret;
+const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
+const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
 const stripeClient = stripe(STRIPE_SECRET_KEY);
 
-// CORS Setup
+// Allowed CORS origins
 const allowedOrigins = [
   'https://torat-yosef.web.app',
   'https://www.toratyosefsummerraffle.com',
 ];
+
 const cors = corsLib({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -34,8 +31,8 @@ const cors = corsLib({
   allowedHeaders: ['Content-Type'],
 });
 
-// ------------------- Referral Tracker -------------------
-exports.recordReferral = onRequest((req, res) => {
+// ------------------- Referral Tracker (1st Gen) -------------------
+exports.recordReferral = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
     const referrerId = req.query.ref;
@@ -67,11 +64,14 @@ exports.recordReferral = onRequest((req, res) => {
 });
 
 // ------------------- Stripe Checkout Session Creation -------------------
-exports.createStripeCheckoutSession = onRequest((req, res) => {
+exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
+    if (req.method !== 'POST') {
+      return res.status(405).send('Only POST allowed');
+    }
 
     const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, email, phoneNumber } = req.body;
+
     if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl || !fullName || !email) {
       const missingFields = [];
       if (!amount) missingFields.push('amount');
@@ -90,7 +90,8 @@ exports.createStripeCheckoutSession = onRequest((req, res) => {
 
     try {
       const newRaffleEntryRef = db.collection('raffle_entries').doc();
-      await newRaffleEntryRef.set({
+
+      const raffleEntryData = {
         fullName,
         email,
         phoneNumber: phoneNumber || null,
@@ -102,18 +103,22 @@ exports.createStripeCheckoutSession = onRequest((req, res) => {
         status: 'checkout_initiated',
         stripeCheckoutSessionId: null,
         stripePaymentIntentId: null,
-      });
+      };
+
+      await newRaffleEntryRef.set(raffleEntryData);
 
       const session = await stripeClient.checkout.sessions.create({
         ui_mode: 'embedded',
-        line_items: [{
-          price_data: {
-            currency: 'usd',
-            product_data: { name: prizeDescription },
-            unit_amount: amount
-          },
-          quantity
-        }],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: { name: prizeDescription },
+              unit_amount: amount
+            },
+            quantity
+          }
+        ],
         mode: 'payment',
         client_reference_id: referrerId || 'unknown',
         customer_email: email,
@@ -128,7 +133,10 @@ exports.createStripeCheckoutSession = onRequest((req, res) => {
         cancel_url: `${cancelUrl}?entry_id=${newRaffleEntryRef.id}`
       });
 
-      await newRaffleEntryRef.update({ stripeCheckoutSessionId: session.id });
+      await newRaffleEntryRef.update({
+        stripeCheckoutSessionId: session.id,
+      });
+
       res.status(200).json({ clientSecret: session.client_secret });
 
     } catch (error) {
@@ -139,7 +147,7 @@ exports.createStripeCheckoutSession = onRequest((req, res) => {
 });
 
 // ------------------- Stripe Webhook Handler -------------------
-exports.handleStripeWebhook = onRequest(async (req, res) => {
+exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.onRequest(async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -154,7 +162,11 @@ exports.handleStripeWebhook = onRequest(async (req, res) => {
     case 'checkout.session.completed':
       const session = event.data.object;
       const firebaseEntryId = session.metadata.firebaseEntryId;
-      if (!firebaseEntryId) return res.status(400).send('Missing firebaseEntryId.');
+
+      if (!firebaseEntryId) {
+        console.error('Missing firebaseEntryId in metadata');
+        return res.status(400).send('Missing firebaseEntryId.');
+      }
 
       const paymentData = {
         stripeSessionId: session.id,
@@ -182,9 +194,10 @@ exports.handleStripeWebhook = onRequest(async (req, res) => {
             successfulPayments: admin.firestore.FieldValue.increment(1)
           });
         }
+
       } catch (error) {
         console.error(`Error updating raffle entry ${firebaseEntryId}:`, error);
-        return res.status(500).send('Internal Error');
+        return res.status(500).send('Error processing event.');
       }
       break;
 
@@ -207,7 +220,7 @@ exports.handleStripeWebhook = onRequest(async (req, res) => {
             failureReason: failedSession.payment_status || 'unknown'
           });
         } catch (error) {
-          console.error(`Failed updating raffle entry ${failedFirebaseEntryId}:`, error);
+          console.error(`Error marking failure for entry ${failedFirebaseEntryId}:`, error);
         }
       }
       break;
@@ -220,7 +233,7 @@ exports.handleStripeWebhook = onRequest(async (req, res) => {
 });
 
 // ------------------- Manual Entry Submission -------------------
-exports.submitEntry = onRequest((req, res) => {
+exports.submitEntry = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
