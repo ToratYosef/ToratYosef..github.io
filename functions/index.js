@@ -19,6 +19,7 @@ const stripeClient = stripe(STRIPE_SECRET_KEY);
 const allowedOrigins = [
   'https://torat-yosef.web.app',
   'https://www.toratyosefsummerraffle.com'
+  // Add other development/staging origins if needed, e.g., 'http://localhost:5000'
 ];
 
 const cors = corsLib({
@@ -28,7 +29,9 @@ const cors = corsLib({
     } else {
       callback(new Error('Not allowed by CORS'));
     }
-  }
+  },
+  methods: ['GET', 'POST', 'OPTIONS'], // Explicitly allow methods
+  allowedHeaders: ['Content-Type'], // Explicitly allow headers
 });
 
 // ------------------- Referral Tracker -------------------
@@ -68,12 +71,45 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
   cors(req, res, async () => {
     if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
-    const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl } = req.body;
-    if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl) {
-      return res.status(400).json({ error: 'Missing required fields for Stripe Checkout Session.' });
+    // Destructure new fields: fullName, email, phoneNumber
+    const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, email, phoneNumber } = req.body;
+
+    // Server-side validation for all required fields
+    if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl || !fullName || !email) {
+      return res.status(400).json({ error: 'Missing required fields: amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, and email are all required.' });
+    }
+
+    // Basic email format validation
+    if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format.' });
     }
 
     try {
+      // 1. Store this information in your database (Firestore) BEFORE creating Stripe session
+      // This creates a record even if the user abandons the Stripe checkout
+      const newRaffleEntryRef = db.collection('raffle_entries').doc(); // Auto-generated ID
+
+      const raffleEntryData = {
+        // Data collected from the frontend
+        fullName: fullName,
+        email: email,
+        phoneNumber: phoneNumber || null, // Store null if not provided
+        referrerId: referrerId || 'unknown',
+        quantity: quantity,
+        amount: amount, // Amount in cents
+        prizeDescription: prizeDescription,
+        // Transaction details
+        timestamp: admin.firestore.FieldValue.serverTimestamp(), // When initiated
+        status: 'checkout_initiated', // Initial status
+        stripeCheckoutSessionId: null, // Will be updated after session creation
+        stripePaymentIntentId: null, // Will be updated by webhook
+      };
+
+      await newRaffleEntryRef.set(raffleEntryData);
+      console.log('Raffle entry initiation stored in Firestore with ID:', newRaffleEntryRef.id);
+
+
+      // 2. Create the Stripe Checkout Session
       const session = await stripeClient.checkout.sessions.create({
         ui_mode: 'embedded',
         line_items: [
@@ -81,19 +117,47 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
             price_data: {
               currency: 'usd',
               product_data: { name: prizeDescription },
-              unit_amount: amount
+              unit_amount: amount // Amount in cents
             },
             quantity
           }
         ],
         mode: 'payment',
+        // Use `client_reference_id` for your internal referral ID
+        // This links the Stripe session to your internal referral tracking if needed
         client_reference_id: referrerId || 'unknown',
-        return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`
+        // Optional: Pre-fill customer email on Stripe Checkout page
+        customer_email: email,
+
+        // Pass custom data to Stripe metadata - this is crucial for webhooks
+        metadata: {
+          firebaseEntryId: newRaffleEntryRef.id, // Your Firestore document ID
+          referrerId: referrerId || 'unknown',
+          fullName: fullName,
+          email: email,
+          phoneNumber: phoneNumber || '', // Ensure it's a string for metadata
+        },
+
+        // Update return_url to include the Firestore entry ID for success/cancel pages
+        return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&entry_id=${newRaffleEntryRef.id}`,
+        // For cancel URL, you might want a similar pattern if you have a specific cancel page
+        // If your cancelUrl is just a static page, the entry_id can still be useful there
+        cancel_url: `${cancelUrl}?entry_id=${newRaffleEntryRef.id}`
       });
 
+      // Update the Firestore document with the Stripe Checkout Session ID
+      await newRaffleEntryRef.update({
+        stripeCheckoutSessionId: session.id,
+      });
+      console.log('Stripe Checkout Session created:', session.id);
+
+
+      // 3. Send the client_secret back to the frontend
       res.status(200).json({ clientSecret: session.client_secret });
+
     } catch (error) {
       console.error('Error creating Stripe Checkout Session:', error);
+      // Log more details in dev, but send generic error to client
       res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
     }
   });
@@ -111,34 +175,65 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // Handle the event
   switch (event.type) {
     case 'checkout.session.completed':
       const session = event.data.object;
+      console.log('Checkout Session Completed:', session.id);
+
+      // Extract metadata (which includes your firebaseEntryId)
+      const firebaseEntryId = session.metadata.firebaseEntryId;
+
+      if (!firebaseEntryId) {
+        console.error('Webhook Error: Missing firebaseEntryId in metadata for session:', session.id);
+        return res.status(400).send('Webhook Error: Missing firebaseEntryId.');
+      }
+
       const paymentData = {
         stripeSessionId: session.id,
         paymentIntentId: session.payment_intent,
-        customerEmail: session.customer_details?.email || 'N/A',
+        customerEmail: session.customer_details?.email || session.metadata?.email || 'N/A', // Prioritize session email, then metadata
         amountTotal: session.amount_total,
         currency: session.currency,
-        paymentStatus: session.payment_status,
-        referrerId: session.client_reference_id || 'unknown',
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        paymentStatus: session.payment_status, // Should be 'paid'
+        referrerId: session.client_reference_id || session.metadata?.referrerId || 'unknown',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        // Also capture the collected full name and phone number from metadata
+        fullName: session.metadata?.fullName || 'N/A',
+        phoneNumber: session.metadata?.phoneNumber || 'N/A',
       };
 
       try {
-        await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
+        // Update the existing raffle_entry document
+        const raffleEntryRef = db.collection('raffle_entries').doc(firebaseEntryId);
+        await raffleEntryRef.update({
+          status: 'completed', // Mark as completed
+          paymentDetails: paymentData, // Store full payment details within the entry
+          completedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`Raffle entry ${firebaseEntryId} updated to 'completed'.`);
+
+        // If you still want a separate collection for all Stripe payments, you can keep this
+        // but linking to raffle_entries is more direct for your use case.
+        // await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
+
+        // Update referral count for successful payments
         if (paymentData.referrerId !== 'unknown') {
           await db.collection('referrals').doc(paymentData.referrerId).update({
             successfulPayments: admin.firestore.FieldValue.increment(1)
           });
+          console.log(`Referral ${paymentData.referrerId} successful payments incremented.`);
         }
+
       } catch (error) {
-        console.error('Error saving Stripe payment or updating referral:', error);
+        console.error(`Error saving Stripe payment or updating raffle entry ${firebaseEntryId}:`, error);
         return res.status(500).send('Internal Server Error processing event.');
       }
       break;
 
     case 'payment_intent.succeeded':
+      // This event often follows checkout.session.completed.
+      // You can use this to update status if needed, but checkout.session.completed is usually sufficient for single payments.
       console.log('Payment Intent Succeeded:', event.data.object.id);
       break;
 
@@ -146,24 +241,27 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
       console.log(`Unhandled event type ${event.type}`);
   }
 
+  // Return a 200 response to acknowledge receipt of the event
   res.status(200).send('OK');
 });
 
-// ------------------- Manual Entry Submission -------------------
+// ------------------- Manual Entry Submission (No changes needed here unless you want to add referrerId validation) -------------------
 exports.submitEntry = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
-    const { name, email, phone, referrerId } = req.body;
+    const { name, email, phone, referrerId } = req.body; // Added referrerId here for consistency, though not used in existing frontend
     if (!name || !email || !phone) return res.status(400).send('Missing required fields.');
 
     try {
       await db.collection('raffle_entries').add({
-        name,
+        name, // Assuming 'name' here is the full name for manual entries
         email,
         phone,
-        referrerId: referrerId || 'unknown',
-        submittedAt: admin.firestore.FieldValue.serverTimestamp()
+        referrerId: referrerId || 'unknown', // Store referrerId if passed
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        // Add a status for manual entries too, e.g., 'manual_entry'
+        status: 'manual_entry'
       });
       res.status(200).send('Entry submitted successfully.');
     } catch (err) {
