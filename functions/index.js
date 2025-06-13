@@ -3,18 +3,20 @@ const admin = require('firebase-admin');
 const stripe = require('stripe');
 const corsLib = require('cors');
 
+// Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
 
+// Stripe Configs (Set with `firebase functions:config:set`)
 const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
 const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
 const stripeClient = stripe(STRIPE_SECRET_KEY);
 
+// CORS config
 const allowedOrigins = [
   'https://torat-yosef.web.app',
   'https://www.toratyosefsummerraffle.com'
 ];
-
 const cors = corsLib({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -57,39 +59,27 @@ exports.recordReferral = functions.runWith({ runtime: 'nodejs20' }).https.onRequ
   });
 });
 
-// ------------------- Stripe Checkout Session Creation -------------------
+// ------------------- Create Stripe Checkout Session -------------------
 exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
-    const {
-      referrerId,
-      amount,
-      quantity,
-      prizeDescription,
-      successUrl,
-      cancelUrl,
-      fullName,
-      email
-    } = req.body;
-
-    if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl) {
+    const { referrerId, amount, quantity, prizeDescription, successUrl, fullName, email } = req.body;
+    if (!amount || !quantity || !prizeDescription || !successUrl) {
       return res.status(400).json({ error: 'Missing required fields for Stripe Checkout Session.' });
     }
 
     try {
       const session = await stripeClient.checkout.sessions.create({
         ui_mode: 'embedded',
-        line_items: [
-          {
-            price_data: {
-              currency: 'usd',
-              product_data: { name: prizeDescription },
-              unit_amount: amount
-            },
-            quantity
-          }
-        ],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: prizeDescription },
+            unit_amount: amount
+          },
+          quantity
+        }],
         mode: 'payment',
         client_reference_id: referrerId || 'unknown',
         return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
@@ -102,7 +92,10 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
       res.status(200).json({ clientSecret: session.client_secret });
     } catch (error) {
       console.error('Error creating Stripe Checkout Session:', error);
-      res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
+      res.status(500).json({
+        error: 'Failed to create Stripe Checkout Session.',
+        details: error.message
+      });
     }
   });
 });
@@ -125,8 +118,7 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
       const paymentData = {
         stripeSessionId: session.id,
         paymentIntentId: session.payment_intent,
-        customerEmail: session.metadata?.email || session.customer_details?.email || 'N/A',
-        customerName: session.metadata?.fullName || 'N/A',
+        customerEmail: session.customer_details?.email || 'N/A',
         amountTotal: session.amount_total,
         currency: session.currency,
         paymentStatus: session.payment_status,
@@ -136,13 +128,14 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
 
       try {
         await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
+
         if (paymentData.referrerId !== 'unknown') {
           await db.collection('referrals').doc(paymentData.referrerId).update({
             successfulPayments: admin.firestore.FieldValue.increment(1)
           });
         }
       } catch (error) {
-        console.error(`Error saving Stripe payment for session ${session.id}:`, error);
+        console.error('Error saving payment or updating referral:', error);
         return res.status(500).send('Internal Server Error processing event.');
       }
       break;
