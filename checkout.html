@@ -411,7 +411,8 @@
 
           try {
             // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
-            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession';
+            // Replace with your actual deployed function URL (e.g., from Firebase console)
+            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession'; 
             console.log('Attempting to fetch clientSecret from:', createSessionUrl);
 
             // Make a request to your Firebase Cloud Function
@@ -425,9 +426,9 @@
                 amount: 12600, // Amount in cents ($126.00) per ticket. Your function takes 'amount'
                 prizeDescription: 'Raffle Ticket',
                 successUrl: window.location.origin + '/success.html', // Redirect here on success
-                cancelUrl: window.location.origin + '/cancel.html',   // Redirect here on cancel
-                fullName: fullNameInput.value.trim(),     // ADDED
-                email: emailInput.value.trim(),           // ADDED
+                cancelUrl: window.location.origin + '/cancel.html',    // Redirect here on cancel
+                fullName: fullNameInput.value.trim(),      // ADDED
+                email: emailInput.value.trim(),            // ADDED
                 phoneNumber: phoneNumberInput.value.trim() || null // ADDED (send null if empty)
               })
             });
@@ -464,6 +465,7 @@
             const clientSecret = data.clientSecret; // Extract clientSecret after checking for error
 
             // Initialize Stripe with your publishable key
+            // IMPORTANT: Replace with your actual PUBLISHABLE key (starts with pk_test_ or pk_live_)
             const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP');
 
             // Initialize embedded Checkout
@@ -514,11 +516,6 @@
           });
           window.open(venmoUrl, '_blank'); // Open Venmo link in a new tab/window
 
-          // OPTIONAL: For Venmo, you might want to save the user's intent to pay
-          // to Firestore even though it's not a direct payment callback.
-          // This would require another Cloud Function endpoint or client-side Firebase access
-          // to record a 'venmo_initiated' status with the user's details.
-          // For now, we'll assume the user just clicks and goes to Venmo.
           console.log('Venmo payment initiated by user:', fullNameInput.value.trim(), emailInput.value.trim());
         });
       });

@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "cors": "^2.8.5",
+    "firebase-admin": "^13.4.0",
     "firebase-functions": "^6.3.2",
     "square": "^42.3.0",
     "stripe": "^18.2.1"
