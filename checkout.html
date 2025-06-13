@@ -331,7 +331,7 @@
 
           try {
             // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
-            const createSessionUrl = 'https://donate.stripe.com/test_eVq9ASgYBeyw75r1Tz0gw00';
+            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession';
             console.log('Attempting to fetch clientSecret from:', createSessionUrl);
 
             // Make a request to your Firebase Cloud Function
@@ -356,11 +356,11 @@
               // Provide more user-friendly feedback based on status
               let userMessage = `Error: Could not start payment process. Please try again.`;
               if (response.status === 400) {
-                  userMessage = `Error: Invalid request sent to payment service. Please contact support.`;
+                 userMessage = `Error: Invalid request sent to payment service. Please contact support.`;
               } else if (response.status === 403) {
-                  userMessage = `Error: Payment service access denied. Check project permissions.`;
+                 userMessage = `Error: Payment service access denied. Check project permissions.`;
               } else if (response.status >= 500) {
-                  userMessage = `Error: Payment service is temporarily unavailable. Please try again later.`;
+                 userMessage = `Error: Payment service is temporarily unavailable. Please try again later.`;
               }
               embeddedCheckoutDiv.innerHTML = `<p style="color: red;">${userMessage}</p>`;
               loadingIndicator.style.display = 'none';
@@ -425,8 +425,8 @@
         const originalHref = link.getAttribute('href');
         if (referrerId && originalHref && !originalHref.startsWith('http')) {
           const newHref = originalHref.includes('?')
-                                  ? `${originalHref}&ref=${referrerId}`
-                                  : `${originalHref}?ref=${referrerId}`;
+                             ? `${originalHref}&ref=${referrerId}`
+                             : `${originalHref}?ref=${referrerId}`;
           link.href = newHref;
         }
       });
