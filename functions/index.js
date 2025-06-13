@@ -4,30 +4,36 @@ const admin = require('firebase-admin');
 const stripe = require('stripe');
 const corsLib = require('cors');
 
-// Initialize Firebase
+// Initialize Firebase Admin SDK
 admin.initializeApp();
 const db = admin.firestore();
 
 // Stripe environment variables (MUST BE SET VIA `firebase functions:config:set`)
+// Ensure these are set in your Firebase project config:
+// firebase functions:config:set stripe.secret_key="sk_test_YOUR_STRIPE_SECRET_KEY"
+// firebase functions:config:set stripe.webhook_secret="whsec_YOUR_STRIPE_WEBHOOK_SECRET"
 const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
 const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
 
 // Initialize Stripe client
 const stripeClient = stripe(STRIPE_SECRET_KEY);
 
-// Allowed CORS origins
+// Allowed CORS origins for your frontend
 const allowedOrigins = [
   'https://torat-yosef.web.app',
-  'https://www.toratyosefsummerraffle.com'
-  // Add other development/staging origins if needed, e.g., 'http://localhost:5000'
+  'https://www.toratyosefsummerraffle.com',
+  // IMPORTANT: Add any other domains where your frontend is hosted (e.g., local development)
+  // Example for local development: 'http://localhost:5000' or 'http://127.0.0.1:5000'
 ];
 
 const cors = corsLib({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS for origin: ${origin}`));
     }
   },
   methods: ['GET', 'POST', 'OPTIONS'], // Explicitly allow methods
@@ -37,9 +43,21 @@ const cors = corsLib({
 // ------------------- Referral Tracker -------------------
 exports.recordReferral = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
+    // Handle preflight OPTIONS requests immediately
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      return res.status(405).send('Only GET allowed');
+    }
+
     const referrerId = req.query.ref;
-    if (!referrerId) return res.status(400).send('Missing referral ID');
+    if (!referrerId) {
+      console.warn('Missing referral ID for recordReferral.');
+      return res.status(400).send('Missing referral ID');
+    }
 
     try {
       const refDoc = db.collection('referrals').doc(referrerId);
@@ -69,18 +87,29 @@ exports.recordReferral = functions.runWith({ runtime: 'nodejs20' }).https.onRequ
 // ------------------- Stripe Checkout Session Creation -------------------
 exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
+    // Handle preflight OPTIONS requests immediately
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
 
-    // Destructure new fields: fullName, email, phoneNumber
+    if (req.method !== 'POST') {
+      return res.status(405).send('Only POST allowed');
+    }
+
+    // Destructure all expected fields, including the new ones
     const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, email, phoneNumber } = req.body;
 
     // Server-side validation for all required fields
-    if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl || !fullName || !email) {
-      return res.status(400).json({ error: 'Missing required fields: amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, and email are all required.' });
+    if (!amount || !quantity || !prizeDescription || !successUrl || !fullName || !email) {
+      // Note: cancelUrl is not strictly required for embedded mode, but successUrl is
+      console.error('Missing required fields for Stripe Checkout Session:', { amount, quantity, prizeDescription, successUrl, fullName, email });
+      return res.status(400).json({ error: 'Missing required fields: amount, quantity, prizeDescription, successUrl, fullName, and email are all required.' });
     }
 
     // Basic email format validation
     if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+      console.error('Invalid email format received:', email);
       return res.status(400).json({ error: 'Invalid email format.' });
     }
 
@@ -124,7 +153,6 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
         ],
         mode: 'payment',
         // Use `client_reference_id` for your internal referral ID
-        // This links the Stripe session to your internal referral tracking if needed
         client_reference_id: referrerId || 'unknown',
         // Optional: Pre-fill customer email on Stripe Checkout page
         customer_email: email,
@@ -138,11 +166,11 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
           phoneNumber: phoneNumber || '', // Ensure it's a string for metadata
         },
 
-        // Update return_url to include the Firestore entry ID for success/cancel pages
+        // For embedded mode, return_url is used to redirect if the user completes checkout
+        // and is outside the iframe, or if you handle it manually.
         return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&entry_id=${newRaffleEntryRef.id}`,
-        // For cancel URL, you might want a similar pattern if you have a specific cancel page
-        // If your cancelUrl is just a static page, the entry_id can still be useful there
-        cancel_url: `${cancelUrl}?entry_id=${newRaffleEntryRef.id}`
+        // IMPORTANT: cancel_url is NOT SUPPORTED with ui_mode: 'embedded'.
+        // The embedded checkout handles cancellations client-side via its UI.
       });
 
       // Update the Firestore document with the Stripe Checkout Session ID
@@ -169,6 +197,7 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
   let event;
 
   try {
+    // Stripe expects the raw body for signature verification
     event = stripeClient.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error(`Webhook Error: ${err.message}`);
@@ -179,14 +208,15 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
   switch (event.type) {
     case 'checkout.session.completed':
       const session = event.data.object;
-      console.log('Checkout Session Completed:', session.id);
+      console.log('Stripe Checkout Session Completed:', session.id);
 
-      // Extract metadata (which includes your firebaseEntryId)
-      const firebaseEntryId = session.metadata.firebaseEntryId;
+      // Extract the firebaseEntryId from metadata
+      const firebaseEntryId = session.metadata?.firebaseEntryId; // Using optional chaining
 
       if (!firebaseEntryId) {
         console.error('Webhook Error: Missing firebaseEntryId in metadata for session:', session.id);
-        return res.status(400).send('Webhook Error: Missing firebaseEntryId.');
+        // Respond with 200 so Stripe doesn't retry, but log the error for investigation
+        return res.status(200).send('OK (Missing firebaseEntryId)');
       }
 
       const paymentData = {
@@ -204,21 +234,17 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
       };
 
       try {
-        // Update the existing raffle_entry document
+        // Update the existing raffle_entry document in Firestore
         const raffleEntryRef = db.collection('raffle_entries').doc(firebaseEntryId);
         await raffleEntryRef.update({
           status: 'completed', // Mark as completed
           paymentDetails: paymentData, // Store full payment details within the entry
-          completedAt: admin.firestore.FieldValue.serverTimestamp()
+          completedAt: admin.firestore.FieldValue.serverTimestamp() // When payment actually completed
         });
         console.log(`Raffle entry ${firebaseEntryId} updated to 'completed'.`);
 
-        // If you still want a separate collection for all Stripe payments, you can keep this
-        // but linking to raffle_entries is more direct for your use case.
-        // await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
-
         // Update referral count for successful payments
-        if (paymentData.referrerId !== 'unknown') {
+        if (paymentData.referrerId && paymentData.referrerId !== 'unknown') {
           await db.collection('referrals').doc(paymentData.referrerId).update({
             successfulPayments: admin.firestore.FieldValue.increment(1)
           });
@@ -233,39 +259,54 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
 
     case 'payment_intent.succeeded':
       // This event often follows checkout.session.completed.
-      // You can use this to update status if needed, but checkout.session.completed is usually sufficient for single payments.
-      console.log('Payment Intent Succeeded:', event.data.object.id);
+      // You can use this to update status if needed, but `checkout.session.completed`
+      // is usually sufficient for one-time payments.
+      console.log('Stripe Payment Intent Succeeded:', event.data.object.id);
       break;
 
+    // You might want to handle other events like 'checkout.session.async_payment_succeeded',
+    // 'checkout.session.async_payment_failed', etc., for more robust status updates.
+    // For now, focusing on completed session.
+
     default:
-      console.log(`Unhandled event type ${event.type}`);
+      console.log(`Unhandled Stripe event type ${event.type}`);
   }
 
-  // Return a 200 response to acknowledge receipt of the event
+  // Return a 200 response to acknowledge receipt of the event by Stripe
   res.status(200).send('OK');
 });
 
-// ------------------- Manual Entry Submission (No changes needed here unless you want to add referrerId validation) -------------------
+// ------------------- Manual Entry Submission -------------------
 exports.submitEntry = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
+    // Handle preflight OPTIONS requests immediately
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
 
-    const { name, email, phone, referrerId } = req.body; // Added referrerId here for consistency, though not used in existing frontend
-    if (!name || !email || !phone) return res.status(400).send('Missing required fields.');
+    if (req.method !== 'POST') {
+      return res.status(405).send('Only POST allowed');
+    }
+
+    const { name, email, phone, referrerId } = req.body;
+    if (!name || !email || !phone) {
+      console.error('Missing required fields for manual entry:', { name, email, phone });
+      return res.status(400).send('Missing required fields: name, email, and phone.');
+    }
 
     try {
       await db.collection('raffle_entries').add({
-        name, // Assuming 'name' here is the full name for manual entries
+        name,
         email,
         phone,
-        referrerId: referrerId || 'unknown', // Store referrerId if passed
+        referrerId: referrerId || 'unknown',
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-        // Add a status for manual entries too, e.g., 'manual_entry'
-        status: 'manual_entry'
+        status: 'manual_entry' // Assign a status for manual entries
       });
       res.status(200).send('Entry submitted successfully.');
     } catch (err) {
-      console.error('Error saving entry:', err);
+      console.error('Error saving manual entry:', err);
       res.status(500).send('Internal Server Error');
     }
   });
