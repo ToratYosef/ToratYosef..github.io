@@ -410,9 +410,8 @@
           embeddedCheckoutDiv.innerHTML = ''; // Clear previous content
 
           try {
-            // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
-            // Replace with your actual deployed function URL (e.g., from Firebase console)
-            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession'; 
+            // IMPORTANT: This URL should now use the rewritten path from firebase.json
+            const createSessionUrl = '/create-checkout-session'; //  <<<<--- THIS LINE WAS CHANGED
             console.log('Attempting to fetch clientSecret from:', createSessionUrl);
 
             // Make a request to your Firebase Cloud Function
