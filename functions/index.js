@@ -9,6 +9,10 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // Stripe environment variables (MUST BE SET VIA `firebase functions:config:set`)
+// To set these:
+// firebase functions:config:set stripe.secret_key="sk_live_YOUR_SECRET_KEY" stripe.webhook_secret="whsec_YOUR_WEBHOOK_SECRET"
+// For testing, use test keys:
+// firebase functions:config:set stripe.secret_key="sk_test_YOUR_TEST_SECRET_KEY" stripe.webhook_secret="whsec_YOUR_TEST_WEBHOOK_SECRET"
 const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
 const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
 
@@ -18,8 +22,11 @@ const stripeClient = stripe(STRIPE_SECRET_KEY);
 // Allowed CORS origins
 const allowedOrigins = [
   'https://torat-yosef.web.app',
-  'https://www.toratyosefsummerraffle.com'
-  // Add other development/staging origins if needed, e.g., 'http://localhost:5000'
+  'https://www.toratyosefsummerraffle.com',
+  // Add other development/staging origins if needed
+  // For local development, uncomment the line below and adjust port if necessary:
+  // 'http://localhost:5000', // Example for Firebase Hosting local emulator
+  // 'http://localhost:3000' // Example for a React/Vue/Angular dev server
 ];
 
 const cors = corsLib({
@@ -69,14 +76,31 @@ exports.recordReferral = functions.runWith({ runtime: 'nodejs20' }).https.onRequ
 // ------------------- Stripe Checkout Session Creation -------------------
 exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
   cors(req, res, async () => {
-    if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
+    if (req.method !== 'POST') {
+      return res.status(405).send('Only POST allowed');
+    }
+    // Ensure the content type is application/json for CORS preflight and actual request
+    if (req.headers['content-type'] !== 'application/json') {
+      console.warn('Unexpected Content-Type:', req.headers['content-type']);
+      // return res.status(400).json({ error: 'Content-Type must be application/json' });
+      // Leaving this commented out to allow for potential browser differences in local testing,
+      // but in production, you might want it strict.
+    }
 
-    // Destructure new fields: fullName, email, phoneNumber
+    // Destructure fullName, email, phoneNumber along with existing fields
     const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, email, phoneNumber } = req.body;
 
     // Server-side validation for all required fields
     if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl || !fullName || !email) {
-      return res.status(400).json({ error: 'Missing required fields: amount, quantity, prizeDescription, successUrl, cancelUrl, fullName, and email are all required.' });
+      const missingFields = [];
+      if (!amount) missingFields.push('amount');
+      if (!quantity) missingFields.push('quantity');
+      if (!prizeDescription) missingFields.push('prizeDescription');
+      if (!successUrl) missingFields.push('successUrl');
+      if (!cancelUrl) missingFields.push('cancelUrl');
+      if (!fullName) missingFields.push('fullName');
+      if (!email) missingFields.push('email');
+      return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
     }
 
     // Basic email format validation
@@ -213,10 +237,6 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
         });
         console.log(`Raffle entry ${firebaseEntryId} updated to 'completed'.`);
 
-        // If you still want a separate collection for all Stripe payments, you can keep this
-        // but linking to raffle_entries is more direct for your use case.
-        // await db.collection('stripe_payments').doc(session.id).set(paymentData, { merge: true });
-
         // Update referral count for successful payments
         if (paymentData.referrerId !== 'unknown') {
           await db.collection('referrals').doc(paymentData.referrerId).update({
@@ -236,6 +256,33 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
       // You can use this to update status if needed, but checkout.session.completed is usually sufficient for single payments.
       console.log('Payment Intent Succeeded:', event.data.object.id);
       break;
+
+    case 'checkout.session.async_payment_succeeded':
+        // Handle deferred payment methods (e.g., SEPA Debit)
+        console.log('Checkout Session Async Payment Succeeded:', event.data.object.id);
+        // You might want to update the status to 'pending_payment' earlier and then 'completed' here
+        // if the payment is confirmed after some delay.
+        // The 'checkout.session.completed' event might fire with payment_status 'unpaid' initially for async methods.
+        break;
+
+    case 'checkout.session.async_payment_failed':
+        // Handle failed deferred payment methods
+        console.log('Checkout Session Async Payment Failed:', event.data.object.id);
+        const failedSession = event.data.object;
+        const failedFirebaseEntryId = failedSession.metadata.firebaseEntryId;
+        if (failedFirebaseEntryId) {
+            try {
+                await db.collection('raffle_entries').doc(failedFirebaseEntryId).update({
+                    status: 'payment_failed',
+                    failedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    failureReason: failedSession.payment_status || 'unknown'
+                });
+                console.log(`Raffle entry ${failedFirebaseEntryId} updated to 'payment_failed'.`);
+            } catch (error) {
+                console.error(`Error updating raffle entry ${failedFirebaseEntryId} to failed status:`, error);
+            }
+        }
+        break;
 
     default:
       console.log(`Unhandled event type ${event.type}`);
