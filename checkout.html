@@ -236,23 +236,18 @@
 
   <div class="container">
     <h1>Complete Your Raffle Ticket Purchase</h1>
-    <p>Thank you for supporting Yeshivat Torat Yosef! Please fill in your details and choose a payment method.</p>
+    <p>Thank you for supporting Yeshivat Torat Yosef! Please choose your preferred payment method below.</p>
 
     <div id="referral-info"></div>
-
-    <!-- Name & Email Form -->
-    <div class="user-info-form">
-      <input type="text" id="fullNameInput" placeholder="Full Name" required />
-      <input type="email" id="emailInput" placeholder="Email Address" required />
-    </div>
 
     <div class="payment-options">
       <div class="payment-option">
         <h2>Pay with Card (Stripe)</h2>
         <button id="stripePayButton" class="pay-button" data-method="Stripe" type="button">Pay with Card</button>
         <div id="embedded-checkout-container">
-          <p id="loading-indicator" style="display:none;">Loading payment form...</p>
-          <div id="embedded-checkout"></div>
+          <p id="loading-indicator">Loading payment form...</p>
+          <div id="embedded-checkout">
+          </div>
         </div>
       </div>
 
@@ -272,136 +267,170 @@
     </p>
   </div>
 
-<script src="https://js.stripe.com/v3/"></script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-  import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+  <script src="https://js.stripe.com/v3/"></script>
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+    import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
-    authDomain: "torat-yosef.firebaseapp.com",
-    projectId: "torat-yosef",
-    storageBucket: "torat-yosef.appspot.com",
-    messagingSenderId: "1033400220494",
-    appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
-    measurementId: "G-331D9RHZWH"
-  };
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f", // CORRECTED App ID
+      measurementId: "G-331D9RHZWH"
+    };
 
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
 
-  function getUrlParameter(name) {
-    name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-    const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-    const results = regex.exec(location.search);
-    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-  }
+    // Function to parse URL parameters
+    function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      var results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    };
 
-  const referrerId = getUrlParameter('ref');
-  const referralInfoDiv = document.getElementById('referral-info');
-  if (referrerId) {
-    referralInfoDiv.style.display = 'block';
-    referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
-  }
+    // Get the referrer ID from the current page's URL
+    const referrerId = getUrlParameter('ref');
 
-  logEvent(analytics, 'payment_page_loaded', { referrer: referrerId || 'none' });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const stripePayButton = document.getElementById('stripePayButton');
-    const embeddedCheckoutContainer = document.getElementById('embedded-checkout-container');
-    const embeddedCheckoutDiv = document.getElementById('embedded-checkout');
-    const loadingIndicator = document.getElementById('loading-indicator');
-
-    if (stripePayButton) {
-      stripePayButton.addEventListener('click', async () => {
-        const fullName = document.getElementById('fullNameInput').value.trim();
-        const email = document.getElementById('emailInput').value.trim();
-
-        if (!fullName || !email) {
-          alert("Please enter both your full name and email.");
-          return;
-        }
-
-        logEvent(analytics, 'payment_button_clicked', {
-          payment_method: 'Stripe',
-          referrer: referrerId || 'none'
-        });
-
-        stripePayButton.style.display = 'none';
-        embeddedCheckoutContainer.style.display = 'flex';
-        loadingIndicator.style.display = 'block';
-        embeddedCheckoutDiv.innerHTML = '';
-
-        try {
-          const response = await fetch('https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              referrerId: referrerId || 'none',
-              quantity: 1,
-              amount: 12600,
-              prizeDescription: 'Raffle Ticket',
-              successUrl: window.location.origin + '/success.html',
-              fullName,
-              email
-            })
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`HTTP ${response.status}:`, errorText);
-            embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Error: Could not initiate payment. (${response.status})</p>`;
-            loadingIndicator.style.display = 'none';
-            return;
-          }
-
-          const data = await response.json();
-          if (data.error) {
-            embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
-            loadingIndicator.style.display = 'none';
-            return;
-          }
-
-          const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP');
-          const checkout = await stripe.initEmbeddedCheckout({
-            clientSecret: data.clientSecret,
-            onComplete(result) {
-              if (result.error) {
-                embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Payment failed: ${result.error.message}</p>`;
-              }
-            }
-          });
-          checkout.mount('#embedded-checkout');
-          loadingIndicator.style.display = 'none';
-
-        } catch (err) {
-          console.error('Unexpected error:', err);
-          embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Unexpected error occurred. Try again later.</p>`;
-          loadingIndicator.style.display = 'none';
-        }
-      });
+    // Display referral info if present on the page
+    const referralInfoDiv = document.getElementById('referral-info');
+    if (referrerId) {
+      referralInfoDiv.style.display = 'block';
+      referralInfoDiv.innerHTML = `<strong>You were referred by:</strong> ${referrerId}. Thank you for supporting their efforts!`;
     }
 
-    // Handle Venmo or other method buttons
-    document.querySelectorAll('.pay-button[data-method="Venmo"]').forEach(button => {
-      button.addEventListener('click', () => {
-        const venmoUrl = button.getAttribute('data-url');
-        logEvent(analytics, 'payment_button_clicked', {
-          payment_method: 'Venmo',
-          referrer: referrerId || 'none'
+    // --- Log Firebase Analytics event when the page loads ---
+    logEvent(analytics, 'payment_page_loaded', { referrer: referrerId || 'none' });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const stripePayButton = document.getElementById('stripePayButton');
+      const embeddedCheckoutContainer = document.getElementById('embedded-checkout-container');
+      const embeddedCheckoutDiv = document.getElementById('embedded-checkout');
+      const loadingIndicator = document.getElementById('loading-indicator');
+
+      // --- Stripe Payment Logic ---
+      if (stripePayButton) {
+        stripePayButton.addEventListener('click', async () => {
+          logEvent(analytics, 'payment_button_clicked', {
+            payment_method: 'Stripe',
+            referrer: referrerId || 'none'
+          });
+
+          // Show the container and loading indicator, hide the button
+          stripePayButton.style.display = 'none'; // Hide the button once clicked
+          embeddedCheckoutContainer.style.display = 'flex';
+          loadingIndicator.style.display = 'block';
+          embeddedCheckoutDiv.innerHTML = ''; // Clear previous content
+
+          try {
+            // IMPORTANT: Verify this URL. It MUST be the exact deployed URL of your Firebase Cloud Function.
+            const createSessionUrl = 'https://us-central1-torat-yosef.cloudfunctions.net/createStripeCheckoutSession';
+            console.log('Attempting to fetch clientSecret from:', createSessionUrl);
+
+            // Make a request to your Firebase Cloud Function
+            const response = await fetch(createSessionUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              // IMPORTANT: Customize amount, quantity, prize description, success/cancel URLs as needed
+              body: JSON.stringify({
+                referrerId: referrerId || 'none',
+                quantity: 1, // Changed from 'tickets' to 'quantity' to match Cloud Function
+                amount: 12600, // Amount in cents ($126.00) per ticket. Your function takes 'amount'
+                prizeDescription: 'Raffle Ticket',
+                successUrl: window.location.origin + '/success.html', // Redirect here on success
+                cancelUrl: window.location.origin + '/cancel.html'   // Redirect here on cancel
+              })
+            });
+
+            // Check if the network request itself was successful (status 200-299)
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`Network request failed: HTTP Status ${response.status} ${response.statusText}`, errorText);
+              // Provide more user-friendly feedback based on status
+              let userMessage = `Error: Could not start payment process. Please try again.`;
+              if (response.status === 400) {
+                 userMessage = `Error: Invalid request sent to payment service. Please contact support.`;
+              } else if (response.status === 403) {
+                 userMessage = `Error: Payment service access denied. Check project permissions.`;
+              } else if (response.status >= 500) {
+                 userMessage = `Error: Payment service is temporarily unavailable. Please try again later.`;
+              }
+              embeddedCheckoutDiv.innerHTML = `<p style="color: red;">${userMessage}</p>`;
+              loadingIndicator.style.display = 'none';
+              return;
+            }
+
+            const data = await response.json(); // Parse response once
+
+            if (data.error) {
+              console.error('Error from Cloud Function:', data.error);
+              embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+              loadingIndicator.style.display = 'none';
+              return;
+            }
+
+            const clientSecret = data.clientSecret; // Extract clientSecret after checking for error
+
+            // Initialize Stripe with your publishable key
+            const stripe = Stripe('pk_test_51RZEPeCMmspEQNuYXLdVBGpSSPewOBaH5d4eSIwrSDBeEsW9pBh7WAyDwFn8IzNyrYIY2SuV3pDXiNTmvJnr7YpC00JPzJh1lP');
+
+            // Initialize embedded Checkout
+            const checkout = await stripe.initEmbeddedCheckout({
+              clientSecret,
+              onComplete: function(result) {
+                if (result.error) {
+                  console.error('Payment failed on client side:', result.error);
+                  embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Payment failed: ${result.error.message || 'Please check your payment details.'}</p>`;
+                  loadingIndicator.style.display = 'none';
+                } else if (result.status === 'complete') {
+                  console.log('Payment complete! Stripe will handle redirection based on successUrl.');
+                }
+              }
+            });
+
+            // Mount the embedded Checkout form
+            checkout.mount('#embedded-checkout');
+            loadingIndicator.style.display = 'none'; // Hide loading indicator
+
+          } catch (error) {
+            console.error('Error during Stripe checkout process (network or unexpected response):', error);
+            embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Failed to load payment form due to a network or server issue. Please check your browser's console for details.</p>`;
+            loadingIndicator.style.display = 'none';
+          }
         });
-        window.open(venmoUrl, '_blank');
+      }
+
+      // --- Venmo Payment Logic (Opens in new tab/window) ---
+      document.querySelectorAll('.pay-button[data-method="Venmo"]').forEach(button => {
+        button.addEventListener('click', () => {
+          const venmoUrl = button.getAttribute('data-url');
+          logEvent(analytics, 'payment_button_clicked', {
+            payment_method: 'Venmo',
+            referrer: referrerId || 'none'
+          });
+          window.open(venmoUrl, '_blank'); // Open Venmo link in a new tab/window
+        });
+      });
+
+      // --- Navigation Link Referrer Logic ---
+      const navLinks = document.querySelectorAll('nav a');
+      navLinks.forEach(link => {
+        const originalHref = link.getAttribute('href');
+        if (referrerId && originalHref && !originalHref.startsWith('http')) {
+          const newHref = originalHref.includes('?')
+                             ? `${originalHref}&ref=${referrerId}`
+                             : `${originalHref}?ref=${referrerId}`;
+          link.href = newHref;
+        }
       });
     });
-
-    // Propagate ref param through navigation
-    document.querySelectorAll('nav a').forEach(link => {
-      const href = link.getAttribute('href');
-      if (referrerId && href && !href.startsWith('http')) {
-        link.href = href.includes('?') ? `${href}&ref=${referrerId}` : `${href}?ref=${referrerId}`;
-      }
-    });
-  });
-</script>
+  </script>
 </body>
 </html>
