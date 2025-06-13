@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.3png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <meta name="msapplication-TileColor" content="#ffffff">
@@ -55,7 +55,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       const agentNameEl = document.getElementById('agentName');
       const totalReferralsEl = document.getElementById('totalReferrals');
-      const stripePaymentsRefIdEl = document.getElementById('stripePaymentsRefId'); // New element
+      const stripePaymentsRefIdEl = document.getElementById('stripePaymentsRefId');
       const shareableLinkEl = document.getElementById('shareableLink');
       const logoutBtn = document.getElementById('logoutBtn');
 
@@ -80,7 +80,7 @@
           agentNameEl.textContent = "No agent record found.";
           totalReferralsEl.textContent = "";
           shareableLinkEl.textContent = "";
-          stripePaymentsRefIdEl.textContent = ""; // Clear the new element
+          stripePaymentsRefIdEl.textContent = "";
           return;
         }
 
@@ -91,25 +91,25 @@
         const refId = agentData.referrerId || "UNKNOWN";
 
         agentNameEl.textContent = `Welcome, ${name}!`;
-        totalReferralsEl.textContent = `Total Referrals: ${agentData.totalReferrals ?? 0}`;
 
         const link = `https://toratyosefsummerraffle.com/checkout.html?ref=${encodeURIComponent(refId)}`;
         shareableLinkEl.textContent = link;
 
-        // --- New code to fetch refId from stripe_payments ---
-        const stripePaymentsRef = collection(db, 'stripe_payments');
-        const stripePaymentsQuery = query(stripePaymentsRef, where('referrerId', '==', refId)); // Assuming referrerId in stripe_payments
-        const stripePaymentsSnapshot = await getDocs(stripePaymentsQuery);
+        // --- Fetch payments from stripe_payments to calculate total referrals ---
+        const stripePaymentsRef = collection(db, 'stripe_payments');
+        const stripePaymentsQuery = query(stripePaymentsRef, where('referrerId', '==', refId));
+        const stripePaymentsSnapshot = await getDocs(stripePaymentsQuery);
 
-        if (!stripePaymentsSnapshot.empty) {
-            // Assuming there might be multiple payments, you might want to show the refId from the first one
-            const firstPaymentDoc = stripePaymentsSnapshot.docs[0];
-            const paymentData = firstPaymentDoc.data();
-            stripePaymentsRefIdEl.textContent = `Stripe Payment Ref ID: ${paymentData.referrerId}`;
-        } else {
-            stripePaymentsRefIdEl.textContent = "Stripe Payment Ref ID: Not found";
-        }
-        // --- End of new code ---
+        const numberOfPayments = stripePaymentsSnapshot.size;
+        totalReferralsEl.textContent = `Total Referrals: ${numberOfPayments}`;
+
+        if (!stripePaymentsSnapshot.empty) {
+            const firstPaymentDoc = stripePaymentsSnapshot.docs[0];
+            const paymentData = firstPaymentDoc.data();
+            stripePaymentsRefIdEl.textContent = `Stripe Payment Ref ID: ${paymentData.referrerId}`;
+        } else {
+            stripePaymentsRefIdEl.textContent = "Stripe Payment Ref ID: Not found";
+        }
       });
     });
   </script>
@@ -120,7 +120,8 @@
     <h2 id="totalReferrals"></h2>
     <p>Your personal shareable link:</p>
     <div class="link-box" id="shareableLink"></div>
-    <p id="stripePaymentsRefId"></p>     <button id="logoutBtn" style="margin-top:20px; padding: 10px 20px; background-color: #7F0031; color: white; border: none; border-radius: 5px; cursor: pointer;">Logout</button>
+    <p id="stripePaymentsRefId"></p>
+    <button id="logoutBtn" style="margin-top:20px; padding: 10px 20px; background-color: #7F0031; color: white; border: none; border-radius: 5px; cursor: pointer;">Logout</button>
   </div>
 </body>
 </html>
