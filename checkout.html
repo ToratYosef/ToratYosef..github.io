@@ -109,6 +109,41 @@
       font-size: 1.6rem;
     }
 
+    /* NEW: Styles for form elements */
+    .form-group {
+      margin-bottom: 15px;
+      text-align: left; /* Align labels/inputs to the left */
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: var(--primary-text);
+    }
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="tel"] {
+      width: calc(100% - 20px); /* Adjust for padding */
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1em;
+      box-sizing: border-box; /* Include padding in width */
+    }
+    .form-group input[type="text"]:focus,
+    .form-group input[type="email"]:focus,
+    .form-group input[type="tel"]:focus {
+      border-color: var(--accent);
+      outline: none;
+      box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
+    }
+    .error-message {
+      color: red;
+      font-size: 0.85em;
+      margin-top: 5px;
+      display: none; /* Hidden by default */
+    }
+
     .payment-options {
       margin-top: 30px;
       display: flex;
@@ -240,6 +275,21 @@
 
     <div id="referral-info"></div>
 
+    <div class="form-group">
+      <label for="fullName">Full Name:</label>
+      <input type="text" id="fullName" placeholder="Your Full Name" required>
+      <div class="error-message" id="fullNameError">Full Name is required.</div>
+    </div>
+    <div class="form-group">
+      <label for="email">Email Address:</label>
+      <input type="email" id="email" placeholder="your@email.com" required>
+      <div class="error-message" id="emailError">Valid Email is required.</div>
+    </div>
+    <div class="form-group">
+      <label for="phoneNumber">Phone Number (Optional):</label>
+      <input type="tel" id="phoneNumber" placeholder="(123) 456-7890">
+    </div>
+
     <div class="payment-options">
       <div class="payment-option">
         <h2>Pay with Card (Stripe)</h2>
@@ -315,9 +365,39 @@
       const embeddedCheckoutDiv = document.getElementById('embedded-checkout');
       const loadingIndicator = document.getElementById('loading-indicator');
 
+      // NEW: Get references to the new input fields and error messages
+      const fullNameInput = document.getElementById('fullName');
+      const emailInput = document.getElementById('email');
+      const phoneNumberInput = document.getElementById('phoneNumber');
+      const fullNameError = document.getElementById('fullNameError');
+      const emailError = document.getElementById('emailError');
+
       // --- Stripe Payment Logic ---
       if (stripePayButton) {
         stripePayButton.addEventListener('click', async () => {
+
+          // NEW: Client-side validation
+          let isValid = true;
+
+          if (!fullNameInput.value.trim()) {
+            fullNameError.style.display = 'block';
+            isValid = false;
+          } else {
+            fullNameError.style.display = 'none';
+          }
+
+          if (!emailInput.value.trim() || !/^[^@]+@[^@]+\.[^@]+$/.test(emailInput.value.trim())) {
+            emailError.style.display = 'block';
+            isValid = false;
+          } else {
+            emailError.style.display = 'none';
+          }
+
+          if (!isValid) {
+            console.warn('Form validation failed. Please fill in required fields.');
+            return; // Stop the function if validation fails
+          }
+
           logEvent(analytics, 'payment_button_clicked', {
             payment_method: 'Stripe',
             referrer: referrerId || 'none'
@@ -345,7 +425,10 @@
                 amount: 12600, // Amount in cents ($126.00) per ticket. Your function takes 'amount'
                 prizeDescription: 'Raffle Ticket',
                 successUrl: window.location.origin + '/success.html', // Redirect here on success
-                cancelUrl: window.location.origin + '/cancel.html'   // Redirect here on cancel
+                cancelUrl: window.location.origin + '/cancel.html',   // Redirect here on cancel
+                fullName: fullNameInput.value.trim(),     // ADDED
+                email: emailInput.value.trim(),           // ADDED
+                phoneNumber: phoneNumberInput.value.trim() || null // ADDED (send null if empty)
               })
             });
 
@@ -356,14 +439,15 @@
               // Provide more user-friendly feedback based on status
               let userMessage = `Error: Could not start payment process. Please try again.`;
               if (response.status === 400) {
-                 userMessage = `Error: Invalid request sent to payment service. Please contact support.`;
+                  userMessage = `Error: Invalid request sent to payment service. Please contact support.`;
               } else if (response.status === 403) {
-                 userMessage = `Error: Payment service access denied. Check project permissions.`;
+                  userMessage = `Error: Payment service access denied. Check project permissions.`;
               } else if (response.status >= 500) {
-                 userMessage = `Error: Payment service is temporarily unavailable. Please try again later.`;
+                  userMessage = `Error: Payment service is temporarily unavailable. Please try again later.`;
               }
               embeddedCheckoutDiv.innerHTML = `<p style="color: red;">${userMessage}</p>`;
               loadingIndicator.style.display = 'none';
+              stripePayButton.style.display = 'block'; // Show button again on error
               return;
             }
 
@@ -373,6 +457,7 @@
               console.error('Error from Cloud Function:', data.error);
               embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
               loadingIndicator.style.display = 'none';
+              stripePayButton.style.display = 'block'; // Show button again on error
               return;
             }
 
@@ -389,6 +474,7 @@
                   console.error('Payment failed on client side:', result.error);
                   embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Payment failed: ${result.error.message || 'Please check your payment details.'}</p>`;
                   loadingIndicator.style.display = 'none';
+                  stripePayButton.style.display = 'block'; // Show button again on error
                 } else if (result.status === 'complete') {
                   console.log('Payment complete! Stripe will handle redirection based on successUrl.');
                 }
@@ -403,6 +489,7 @@
             console.error('Error during Stripe checkout process (network or unexpected response):', error);
             embeddedCheckoutDiv.innerHTML = `<p style="color: red;">Failed to load payment form due to a network or server issue. Please check your browser's console for details.</p>`;
             loadingIndicator.style.display = 'none';
+            stripePayButton.style.display = 'block'; // Show button again on error
           }
         });
       }
@@ -410,12 +497,29 @@
       // --- Venmo Payment Logic (Opens in new tab/window) ---
       document.querySelectorAll('.pay-button[data-method="Venmo"]').forEach(button => {
         button.addEventListener('click', () => {
+          // NEW: Validate user info for Venmo as well, if desired, before opening the link
+          let isValid = true;
+          if (!fullNameInput.value.trim()) { fullNameError.style.display = 'block'; isValid = false; } else { fullNameError.style.display = 'none'; }
+          if (!emailInput.value.trim() || !/^[^@]+@[^@]+\.[^@]+$/.test(emailInput.value.trim())) { emailError.style.display = 'block'; isValid = false; } else { emailError.style.display = 'none'; }
+
+          if (!isValid) {
+            console.warn('Form validation failed for Venmo. Please fill in required fields.');
+            return;
+          }
+
           const venmoUrl = button.getAttribute('data-url');
           logEvent(analytics, 'payment_button_clicked', {
             payment_method: 'Venmo',
             referrer: referrerId || 'none'
           });
           window.open(venmoUrl, '_blank'); // Open Venmo link in a new tab/window
+
+          // OPTIONAL: For Venmo, you might want to save the user's intent to pay
+          // to Firestore even though it's not a direct payment callback.
+          // This would require another Cloud Function endpoint or client-side Firebase access
+          // to record a 'venmo_initiated' status with the user's details.
+          // For now, we'll assume the user just clicks and goes to Venmo.
+          console.log('Venmo payment initiated by user:', fullNameInput.value.trim(), emailInput.value.trim());
         });
       });
 
@@ -425,8 +529,8 @@
         const originalHref = link.getAttribute('href');
         if (referrerId && originalHref && !originalHref.startsWith('http')) {
           const newHref = originalHref.includes('?')
-                             ? `${originalHref}&ref=${referrerId}`
-                             : `${originalHref}?ref=${referrerId}`;
+                                  ? `${originalHref}&ref=${referrerId}`
+                                  : `${originalHref}?ref=${referrerId}`;
           link.href = newHref;
         }
       });
