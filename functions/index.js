@@ -1,19 +1,18 @@
-// Required modules
-const functions = require('firebase-functions');
+// -------------------- Imports --------------------
+const functions1stGen = require('firebase-functions'); // For 1st Gen functions like recordReferral
+const { onRequest } = require('firebase-functions/v2/https'); // For 2nd Gen functions
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
-const stripe = require('stripe');
+const stripeLib = require('stripe');
 const corsLib = require('cors');
 
-// Initialize Firebase
+// -------------------- Initialize --------------------
 admin.initializeApp();
 const db = admin.firestore();
 
-// Stripe environment variables
-const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
-const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
-const stripeClient = stripe(STRIPE_SECRET_KEY);
+const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
+const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
 
-// Allowed CORS origins
 const allowedOrigins = [
   'https://torat-yosef.web.app',
   'https://www.toratyosefsummerraffle.com',
@@ -31,8 +30,8 @@ const cors = corsLib({
   allowedHeaders: ['Content-Type'],
 });
 
-// ------------------- Referral Tracker (1st Gen) -------------------
-exports.recordReferral = functions.https.onRequest((req, res) => {
+// -------------------- 1st Gen: recordReferral --------------------
+exports.recordReferral = functions1stGen.https.onRequest((req, res) => {
   cors(req, res, async () => {
     if (req.method !== 'GET') return res.status(405).send('Only GET allowed');
     const referrerId = req.query.ref;
@@ -63,8 +62,14 @@ exports.recordReferral = functions.https.onRequest((req, res) => {
   });
 });
 
-// ------------------- Stripe Checkout Session Creation -------------------
-exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
+// -------------------- 2nd Gen: createStripeCheckoutSession --------------------
+exports.createStripeCheckoutSession = onRequest({
+  timeoutSeconds: 60,
+  memory: '256MiB',
+  secrets: [STRIPE_SECRET_KEY]
+}, async (req, res) => {
+  const stripe = stripeLib(STRIPE_SECRET_KEY.value());
+
   cors(req, res, async () => {
     if (req.method !== 'POST') {
       return res.status(405).send('Only POST allowed');
@@ -107,19 +112,19 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
 
       await newRaffleEntryRef.set(raffleEntryData);
 
-      const session = await stripeClient.checkout.sessions.create({
-        ui_mode: 'embedded',
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
         line_items: [
           {
             price_data: {
               currency: 'usd',
               product_data: { name: prizeDescription },
-              unit_amount: amount
+              unit_amount: amount,
             },
-            quantity
-          }
+            quantity,
+          },
         ],
-        mode: 'payment',
         client_reference_id: referrerId || 'unknown',
         customer_email: email,
         metadata: {
@@ -129,16 +134,13 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
           email,
           phoneNumber: phoneNumber || '',
         },
-        return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&entry_id=${newRaffleEntryRef.id}`,
-        cancel_url: `${cancelUrl}?entry_id=${newRaffleEntryRef.id}`
+        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&entry_id=${newRaffleEntryRef.id}`,
+        cancel_url: `${cancelUrl}?entry_id=${newRaffleEntryRef.id}`,
       });
 
-      await newRaffleEntryRef.update({
-        stripeCheckoutSessionId: session.id,
-      });
+      await newRaffleEntryRef.update({ stripeCheckoutSessionId: session.id });
 
       res.status(200).json({ clientSecret: session.client_secret });
-
     } catch (error) {
       console.error('Error creating Stripe Checkout Session:', error);
       res.status(500).json({ error: 'Failed to create Stripe Checkout Session.', details: error.message });
@@ -146,20 +148,26 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
   });
 });
 
-// ------------------- Stripe Webhook Handler -------------------
-exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.onRequest(async (req, res) => {
+// -------------------- 2nd Gen: handleStripeWebhook --------------------
+exports.handleStripeWebhook = onRequest({
+  timeoutSeconds: 60,
+  memory: '256MiB',
+  secrets: [STRIPE_WEBHOOK_SECRET]
+}, async (req, res) => {
+  const stripe = stripeLib(STRIPE_SECRET_KEY.value());
+
   const sig = req.headers['stripe-signature'];
   let event;
 
   try {
-    event = stripeClient.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET.value());
   } catch (err) {
     console.error(`Webhook Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   switch (event.type) {
-    case 'checkout.session.completed':
+    case 'checkout.session.completed': {
       const session = event.data.object;
       const firebaseEntryId = session.metadata.firebaseEntryId;
 
@@ -194,12 +202,12 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
             successfulPayments: admin.firestore.FieldValue.increment(1)
           });
         }
-
       } catch (error) {
         console.error(`Error updating raffle entry ${firebaseEntryId}:`, error);
         return res.status(500).send('Error processing event.');
       }
       break;
+    }
 
     case 'payment_intent.succeeded':
       console.log('Payment Intent Succeeded:', event.data.object.id);
@@ -209,7 +217,7 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
       console.log('Async Payment Succeeded:', event.data.object.id);
       break;
 
-    case 'checkout.session.async_payment_failed':
+    case 'checkout.session.async_payment_failed': {
       const failedSession = event.data.object;
       const failedFirebaseEntryId = failedSession.metadata.firebaseEntryId;
       if (failedFirebaseEntryId) {
@@ -224,6 +232,7 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
         }
       }
       break;
+    }
 
     default:
       console.log(`Unhandled event type ${event.type}`);
@@ -232,8 +241,11 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
   res.status(200).send('OK');
 });
 
-// ------------------- Manual Entry Submission -------------------
-exports.submitEntry = functions.runWith({ runtime: 'nodejs20' }).https.onRequest((req, res) => {
+// -------------------- 2nd Gen: submitEntry --------------------
+exports.submitEntry = onRequest({
+  timeoutSeconds: 60,
+  memory: '256MiB'
+}, async (req, res) => {
   cors(req, res, async () => {
     if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
