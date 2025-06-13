@@ -1,21 +1,15 @@
-// Required modules
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const stripe = require('stripe');
 const corsLib = require('cors');
 
-// Initialize Firebase
 admin.initializeApp();
 const db = admin.firestore();
 
-// Stripe environment variables (MUST BE SET VIA `firebase functions:config:set`)
 const STRIPE_SECRET_KEY = functions.config().stripe.secret_key;
 const STRIPE_WEBHOOK_SECRET = functions.config().stripe.webhook_secret;
-
-// Initialize Stripe client
 const stripeClient = stripe(STRIPE_SECRET_KEY);
 
-// Allowed CORS origins
 const allowedOrigins = [
   'https://torat-yosef.web.app',
   'https://www.toratyosefsummerraffle.com'
@@ -68,7 +62,17 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
   cors(req, res, async () => {
     if (req.method !== 'POST') return res.status(405).send('Only POST allowed');
 
-    const { referrerId, amount, quantity, prizeDescription, successUrl, cancelUrl } = req.body;
+    const {
+      referrerId,
+      amount,
+      quantity,
+      prizeDescription,
+      successUrl,
+      cancelUrl,
+      fullName,
+      email
+    } = req.body;
+
     if (!amount || !quantity || !prizeDescription || !successUrl || !cancelUrl) {
       return res.status(400).json({ error: 'Missing required fields for Stripe Checkout Session.' });
     }
@@ -88,7 +92,11 @@ exports.createStripeCheckoutSession = functions.runWith({ runtime: 'nodejs20' })
         ],
         mode: 'payment',
         client_reference_id: referrerId || 'unknown',
-        return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`
+        return_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        metadata: {
+          fullName: fullName || 'unknown',
+          email: email || 'unknown'
+        }
       });
 
       res.status(200).json({ clientSecret: session.client_secret });
@@ -117,7 +125,8 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
       const paymentData = {
         stripeSessionId: session.id,
         paymentIntentId: session.payment_intent,
-        customerEmail: session.customer_details?.email || 'N/A',
+        customerEmail: session.metadata?.email || session.customer_details?.email || 'N/A',
+        customerName: session.metadata?.fullName || 'N/A',
         amountTotal: session.amount_total,
         currency: session.currency,
         paymentStatus: session.payment_status,
@@ -133,7 +142,7 @@ exports.handleStripeWebhook = functions.runWith({ runtime: 'nodejs20' }).https.o
           });
         }
       } catch (error) {
-        console.error('Error saving Stripe payment or updating referral:', error);
+        console.error(`Error saving Stripe payment for session ${session.id}:`, error);
         return res.status(500).send('Internal Server Error processing event.');
       }
       break;
