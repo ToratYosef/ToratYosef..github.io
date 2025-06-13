@@ -3,16 +3,16 @@
  * This file contains:
  * 1. An HTTPS function to create Stripe Checkout Sessions for raffle ticket purchases.
  * 2. A Stripe Webhook handler to securely process payment events and update Firestore.
- * 3. A recordReferral function to log referral data.
- * 4. A submitEntry function for manual or non-Stripe raffle entries.
- * 5. A healthCheck function for basic service availability monitoring.
- * 6. A sessionStatus function to check Stripe Checkout Session status.
+ * 3. A sessionStatus function to check Stripe Checkout Session status.
+ * 4. A recordReferral function to log referral data.
+ * 5. A submitEntry function for manual or non-Stripe raffle entries.
+ * 6. A healthCheck function for basic service availability monitoring.
  */
 
 // Import necessary Firebase modules
 const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
-const functions = require("firebase-functions"); // Required for functions.config()
+const functions = require("firebase-functions"); // Keep this if you need other 'functions' exports, but not for config()
 const admin = require('firebase-admin'); // For Firestore and other Firebase services
 const Stripe = require('stripe'); // Stripe Node.js library
 
@@ -20,34 +20,41 @@ const Stripe = require('stripe'); // Stripe Node.js library
 admin.initializeApp();
 const db = admin.firestore(); // Get a reference to Firestore
 
-// Initialize Stripe with your secret key from Firebase environment config.
-// This block now includes a stronger check and will throw an error if the key is missing,
-// which should then appear clearly in the Cloud Run logs upon container startup failure.
+// Initialize Stripe with your secret key from Firebase environment variables.
+// CORRECTED: Use process.env instead of functions.config()
 let stripe;
 try {
-  // Check if functions.config() is loaded and has the stripe key
-  if (functions.config().stripe && functions.config().stripe.secret_key) {
-    stripe = new Stripe(functions.config().stripe.secret_key, {
+  // Access environment variables directly via process.env
+  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY; // Variable name from firebase functions:config:set
+  const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET; // Variable name from firebase functions:config:set
+
+  if (STRIPE_SECRET_KEY) {
+    stripe = new Stripe(STRIPE_SECRET_KEY, {
       apiVersion: '2024-06-20', // Specify a recent Stripe API version
     });
-    logger.info('Stripe initialized successfully from config.');
+    logger.info('Stripe initialized successfully from environment variables.');
   } else {
-    // If config is not found, throw an error. This will cause the container to fail to start.
-    const errorMessage = 'CRITICAL ERROR: Stripe secret key is missing from Firebase functions config. Please set it using `firebase functions:config:set stripe.secret_key="YOUR_KEY"`.';
+    const errorMessage = 'CRITICAL ERROR: Stripe secret key (STRIPE_SECRET_KEY) is missing from environment variables. Please set it using `firebase functions:config:set stripe.secret_key=\"YOUR_KEY\"` and redeploy.';
     logger.error(errorMessage);
-    throw new Error(errorMessage); // This makes the health check fail with a clear log entry.
+    throw new Error(errorMessage);
+  }
+  // You might also want to explicitly check STRIPE_WEBHOOK_SECRET if it's critical for initialization
+  if (!STRIPE_WEBHOOK_SECRET) {
+    const errorMessage = 'CRITICAL ERROR: Stripe webhook secret (STRIPE_WEBHOOK_SECRET) is missing from environment variables. Please set it using `firebase functions:config:set stripe.webhook_secret=\"YOUR_KEY\"` and redeploy.';
+    logger.error(errorMessage);
+    throw new Error(errorMessage);
   }
 } catch (error) {
-  // Catch any unexpected errors during Stripe initialization (e.g., malformed key)
   logger.error('CRITICAL ERROR: Unexpected error during Stripe initialization:', error);
-  throw error; // Re-throw to ensure container fails health check and logs this.
+  throw error;
 }
 
 // Define your allowed origins for CORS
 const allowedOrigins = [
   'https://www.toratyosefsummerraffle.com',
   'https://torat-yosef.web.app',
-  // Add any other domains you might serve your frontend from for development, e.g., 'http://localhost:8080'
+  // IMPORTANT: For local development, if you're serving from localhost, add it here:
+  // 'http://localhost:8080' // Or whatever port your local server runs on
 ];
 
 // Helper function to set CORS headers dynamically
@@ -56,28 +63,27 @@ function setCorsHeaders(req, res) {
   if (allowedOrigins.includes(origin)) {
     res.set('Access-Control-Allow-Origin', origin);
   }
-  res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); // Added GET for sessionStatus
+  res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
-  // If you send credentials (cookies, HTTP authentication) with your requests, uncomment the line below.
   // res.set('Access-Control-Allow-Credentials', 'true');
 }
 
 
 // --- Health Check Function ---
 exports.healthCheck = onRequest((req, res) => {
-  setCorsHeaders(req, res); // Apply CORS headers
+  setCorsHeaders(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
     return;
   }
-  logger.info('Health check endpoint hit. All global initializations succeeded if this log is seen.');
+  logger.info('Health check endpoint hit.');
   res.status(200).send('OK');
 });
 
 
 // --- createStripeCheckoutSession function ---
 exports.createStripeCheckoutSession = onRequest(async (req, res) => {
-  setCorsHeaders(req, res); // Apply CORS headers
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
@@ -90,15 +96,7 @@ exports.createStripeCheckoutSession = onRequest(async (req, res) => {
   }
 
   const {
-    referrerId,
-    quantity,
-    amount,
-    prizeDescription,
-    successUrl,
-    cancelUrl,
-    fullName,
-    email,
-    phoneNumber
+    referrerId, quantity, amount, prizeDescription, successUrl, cancelUrl, fullName, email, phoneNumber
   } = req.body;
 
   if (!quantity || !amount || !prizeDescription || !successUrl || !cancelUrl || !fullName || !email) {
@@ -114,13 +112,7 @@ exports.createStripeCheckoutSession = onRequest(async (req, res) => {
   }
 
   logger.info("createStripeCheckoutSession: Attempting to create Stripe Checkout Session.", {
-    referrerId,
-    quantity,
-    amount,
-    prizeDescription,
-    fullName,
-    email,
-    phoneNumber: phoneNumber || 'N/A',
+    referrerId, quantity, amount, prizeDescription, fullName, email, phoneNumber: phoneNumber || 'N/A',
   });
 
   try {
@@ -130,9 +122,7 @@ exports.createStripeCheckoutSession = onRequest(async (req, res) => {
         {
           price_data: {
             currency: 'usd',
-            product_data: {
-              name: prizeDescription,
-            },
+            product_data: { name: prizeDescription },
             unit_amount: amount,
           },
           quantity: quantity,
@@ -154,8 +144,7 @@ exports.createStripeCheckoutSession = onRequest(async (req, res) => {
     });
 
     logger.info('createStripeCheckoutSession: Stripe Checkout Session created successfully.', {
-      sessionId: session.id,
-      clientSecret: session.client_secret
+      sessionId: session.id, clientSecret: session.client_secret
     });
 
     res.status(200).json({ clientSecret: session.client_secret });
@@ -166,9 +155,10 @@ exports.createStripeCheckoutSession = onRequest(async (req, res) => {
   }
 });
 
+
 // --- stripeWebhook function ---
 exports.stripeWebhook = onRequest(async (req, res) => {
-  setCorsHeaders(req, res); // Apply CORS headers
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
@@ -184,7 +174,8 @@ exports.stripeWebhook = onRequest(async (req, res) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.rawBody, sig, functions.config().stripe.webhook_secret);
+    // Access webhook secret from process.env
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     logger.error('stripeWebhook: Signature verification failed.', { error: err.message, signature: sig });
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -194,25 +185,16 @@ exports.stripeWebhook = onRequest(async (req, res) => {
     case 'checkout.session.completed':
       const session = event.data.object;
       logger.info('stripeWebhook: Checkout Session Completed event received.', {
-        sessionId: session.id,
-        metadata: session.metadata
+        sessionId: session.id, metadata: session.metadata
       });
 
       const {
-        id: stripeSessionId,
-        payment_intent: paymentIntentId,
-        amount_total: amountTotalCents,
+        id: stripeSessionId, payment_intent: paymentIntentId, amount_total: amountTotalCents,
         customer_details: { email: customerEmailFromStripe } = {},
       } = session;
 
       const {
-        fullName,
-        email,
-        phoneNumber,
-        referrerId,
-        itemDescription,
-        quantity,
-        totalAmountPaidCents,
+        fullName, email, phoneNumber, referrerId, itemDescription, quantity, totalAmountPaidCents,
       } = session.metadata || {};
 
       const firestoreData = {
@@ -222,9 +204,7 @@ exports.stripeWebhook = onRequest(async (req, res) => {
         amountPaidCents: totalAmountPaidCents ? parseInt(totalAmountPaidCents, 10) : amountTotalCents,
         quantity: quantity ? parseInt(quantity, 10) : 1,
         customer: {
-          fullName: fullName || 'N/A',
-          email: email || customerEmailFromStripe,
-          phoneNumber: phoneNumber || 'N/A'
+          fullName: fullName || 'N/A', email: email || customerEmailFromStripe, phoneNumber: phoneNumber || 'N/A'
         },
         referrerId: referrerId || 'none',
         itemDescription: itemDescription || 'Raffle Ticket',
@@ -234,7 +214,6 @@ exports.stripeWebhook = onRequest(async (req, res) => {
       try {
         await db.collection('raffleEntries').doc(stripeSessionId).set(firestoreData);
         logger.info(`stripeWebhook: Firestore document created for session: ${stripeSessionId}`);
-
       } catch (firestoreError) {
         logger.error('stripeWebhook: Error writing to Firestore:', firestoreError);
       }
@@ -249,19 +228,14 @@ exports.stripeWebhook = onRequest(async (req, res) => {
 
 
 // --- sessionStatus function ---
-/**
- * HTTPS function to retrieve the status of a Stripe Checkout Session.
- * This function is called from return.js after a payment attempt.
- */
 exports.sessionStatus = onRequest(async (req, res) => {
-  setCorsHeaders(req, res); // Apply CORS headers
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
     return;
   }
 
-  // Ensure it's a GET request
   if (req.method !== 'GET') {
     logger.warn('sessionStatus: Received non-GET request.', { method: req.method });
     return res.status(405).send('Method Not Allowed');
@@ -276,15 +250,12 @@ exports.sessionStatus = onRequest(async (req, res) => {
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    // Make sure customer_details exists before accessing email
     const customerEmail = session.customer_details ? session.customer_details.email : null;
 
     logger.info('sessionStatus: Retrieved session status.', { sessionId, status: session.status, customerEmail });
 
     res.status(200).json({
-      status: session.status,
-      customer_email: customerEmail
+      status: session.status, customer_email: customerEmail
     });
   } catch (error) {
     logger.error('sessionStatus: Error retrieving session status:', error);
@@ -295,7 +266,7 @@ exports.sessionStatus = onRequest(async (req, res) => {
 
 // --- recordReferral function ---
 exports.recordReferral = onRequest(async (req, res) => {
-  setCorsHeaders(req, res); // Apply CORS headers
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
@@ -332,7 +303,7 @@ exports.recordReferral = onRequest(async (req, res) => {
 
 // --- submitEntry function ---
 exports.submitEntry = onRequest(async (req, res) => {
-  setCorsHeaders(req, res); // Apply CORS headers
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
