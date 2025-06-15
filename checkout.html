@@ -1,344 +1,344 @@
-/**
- * Firebase Cloud Functions for Yeshivat Torat Yosef Raffle.
- * This file contains:
- * 1. An HTTPS function to create Stripe Checkout Sessions for raffle ticket purchases.
- * 2. A Stripe Webhook handler to securely process payment events and update Firestore.
- * 3. A sessionStatus function to check Stripe Checkout Session status.
- * 4. A recordReferral function to log referral data.
- * 5. A submitEntry function for manual or non-Stripe raffle entries.
- * 6. A healthCheck function for basic service availability monitoring.
- */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Complete Your Purchase - Yeshivat Torat Yosef Raffle</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <meta name="theme-color" content="#ffffff" />
+  <style>
+    :root {
+      --primary-bg: #ffffff;
+      --primary-text: rgb(0, 33, 65);
+      --secondary-bg: rgb(0, 33, 65);
+      --accent: #7F0031;
+      --hover: #590023;
+      --button-gradient-start: #a30040;
+      --button-gradient-end: #7F0031;
+    }
 
-// Import necessary Firebase modules
-const { onRequest } = require("firebase-functions/v2/https");
-const logger = require("firebase-functions/logger");
-const functions = require("firebase-functions"); // Required for functions.config()
-const admin = require('firebase-admin'); // For Firestore and other Firebase services
-const Stripe = require('stripe'); // Stripe Node.js library
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--primary-bg);
+      color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-bottom: 1rem;
+    }
 
-// Initialize Firebase Admin SDK
-admin.initializeApp();
-const db = admin.firestore(); // Get a reference to Firestore
+    .logo-container {
+      text-align: center;
+      padding: 0.8rem 0 0.4rem;
+      flex-shrink: 0;
+    }
 
-// Initialize Stripe with your secret key from Firebase environment config.
-let stripe;
-try {
-  if (functions.config().stripe && functions.config().stripe.secret_key) {
-    stripe = new Stripe(functions.config().stripe.secret_key, {
-      apiVersion: '2024-06-20', // Specify a recent Stripe API version
-    });
-    logger.info('Stripe initialized successfully from config.');
-  } else {
-    const errorMessage = 'CRITICAL ERROR: Stripe secret key is missing from Firebase functions config. Please set it using `firebase functions:config:set stripe.secret_key="YOUR_KEY"`.';
-    logger.error(errorMessage);
-    throw new Error(errorMessage);
-  }
-} catch (error) {
-  logger.error('CRITICAL ERROR: Unexpected error during Stripe initialization:', error);
-  throw error;
-}
+    .logo {
+      max-width: 250px;
+      width: 80vw;
+      height: auto;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
 
-// Define your allowed origins for CORS
-const allowedOrigins = [
-  'https://www.toratyosefsummerraffle.com',
-  'https://torat-yosef.web.app',
-  // IMPORTANT: For local development, if you're serving from localhost, add it here:
-  // 'http://localhost:8080' // Or whatever port your local server runs on
-];
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding: 0.8rem 0;
+      background-color: var(--secondary-bg);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+      width: 100%;
+      flex-wrap: wrap;
+    }
 
-// Helper function to set CORS headers dynamically
-function setCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.set('Access-Control-Allow-Origin', origin);
-  }
-  res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); // Added GET for sessionStatus
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  // If you send credentials (cookies, HTTP authentication) with your requests, uncomment the line below:
-  // res.set('Access-Control-Allow-Credentials', 'true');
-}
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 0.4rem 0.8rem;
+      font-weight: bold;
+      font-size: 1rem;
+      white-space: nowrap;
+      user-select: none;
+    }
 
+    nav a.active {
+      border-bottom: 3px solid var(--accent);
+      color: var(--accent);
+    }
 
-// --- Health Check Function ---
-exports.healthCheck = onRequest((req, res) => {
-  setCorsHeaders(req, res);
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-  logger.info('Health check endpoint hit.');
-  res.status(200).send('OK');
-});
+    nav a:hover {
+      color: var(--accent);
+    }
 
+    .container {
+      max-width: 600px;
+      margin: 2rem auto;
+      padding: 20px;
+      background-color: #f8f8f8;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      text-align: center;
+      flex-grow: 1;
+      width: 90%;
+      box-sizing: border-box;
+    }
 
-// --- createStripeCheckoutSession function ---
-exports.createStripeCheckoutSession = onRequest(async (req, res) => {
-  setCorsHeaders(req, res);
+    h1 {
+      color: var(--accent);
+      margin-bottom: 20px;
+      font-size: 1.6rem;
+    }
 
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+    .form-group {
+      margin-bottom: 15px;
+      text-align: left;
+    }
 
-  if (req.method !== 'POST') {
-    logger.warn('createStripeCheckoutSession: Received non-POST request.', { method: req.method });
-    return res.status(405).send('Method Not Allowed');
-  }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: var(--primary-text);
+    }
 
-  const {
-    referrerId,
-    quantity,
-    amount,
-    prizeDescription,
-    successUrl,
-    cancelUrl,
-    fullName,
-    email,
-    phoneNumber
-  } = req.body;
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="tel"] {
+      width: calc(100% - 20px);
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1em;
+      box-sizing: border-box;
+    }
 
-  if (!quantity || !amount || !prizeDescription || !successUrl || !cancelUrl || !fullName || !email) {
-    logger.error('createStripeCheckoutSession: Missing required parameters.', { body: req.body });
-    return res.status(400).json({
-      error: 'Missing required parameters: quantity, amount, prizeDescription, successUrl, cancelUrl, fullName, email'
-    });
-  }
+    .form-group input[type="text"]:focus,
+    .form-group input[type="email"]:focus,
+    .form-group input[type="tel"]:focus {
+      border-color: var(--accent);
+      outline: none;
+      box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
+    }
 
-  if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
-    logger.error('createStripeCheckoutSession: Invalid email format provided.', { email });
-    return res.status(400).json({ error: 'Invalid email format' });
-  }
+    #referral-info {
+      margin-top: 20px;
+      font-size: 0.9em;
+      color: #555;
+      padding: 10px;
+      background-color: #e6f7ff;
+      border-left: 5px solid var(--secondary-bg);
+      text-align: left;
+      display: none;
+      border-radius: 4px;
+    }
 
-  logger.info("createStripeCheckoutSession: Attempting to create Stripe Checkout Session.", {
-    referrerId, quantity, amount, prizeDescription, fullName, email, phoneNumber: phoneNumber || 'N/A',
-  });
+    .pay-button {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding: 12px 30px;
+      background-color: #635bff;
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.1) inset;
+      transition: background-color 0.3s ease;
+      user-select: none;
+      min-width: 180px;
+      height: 48px;
+      margin-top: 10px;
+    }
 
-  try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: { name: prizeDescription },
-            unit_amount: amount,
-          },
-          quantity: quantity,
-        },
-      ],
-      mode: 'payment',
-      success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&ref=${encodeURIComponent(referrerId || 'none')}`,
-      cancel_url: `${cancelUrl}?ref=${encodeURIComponent(referrerId || 'none')}`,
-      customer_email: email,
-      metadata: {
-        referrerId: referrerId || 'none',
-        fullName: fullName,
-        email: email,
-        phoneNumber: phoneNumber || 'N/A',
-        itemDescription: prizeDescription,
-        quantity: String(quantity),
-        totalAmountPaidCents: String(amount * quantity),
-      },
-    });
+    .pay-button:hover {
+      background-color: #5048e7;
+    }
 
-    logger.info('createStripeCheckoutSession: Stripe Checkout Session created successfully.', {
-      sessionId: session.id,
-      clientSecret: session.client_secret
-    });
+    #embedded-checkout-container {
+      width: 100%;
+      margin-top: 20px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      min-height: 420px;
+      box-sizing: border-box;
+    }
 
-    res.status(200).json({ clientSecret: session.client_secret });
+    #embedded-checkout {
+      width: 100%;
+      min-height: 400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
-  } catch (error) {
-    logger.error('createStripeCheckoutSession: Error creating Stripe Checkout Session.', error);
-    res.status(500).json({ error: error.message || 'Failed to create payment session.' });
-  }
-});
+    #loading-indicator {
+      font-size: 1.1em;
+      color: #666;
+      margin-bottom: 15px;
+      display: none;
+    }
 
-
-// --- stripeWebhook function ---
-exports.stripeWebhook = onRequest(async (req, res) => {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    logger.warn('stripeWebhook: Received non-POST request.', { method: req.method });
-    return res.status(405).send('Method Not Allowed');
-  }
-
-  const sig = req.headers['stripe-signature'];
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.rawBody, sig, functions.config().stripe.webhook_secret);
-  } catch (err) {
-    logger.error('stripeWebhook: Signature verification failed.', { error: err.message, signature: sig });
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  switch (event.type) {
-    case 'checkout.session.completed':
-      const session = event.data.object;
-      logger.info('stripeWebhook: Checkout Session Completed event received.', {
-        sessionId: session.id, metadata: session.metadata
-      });
-
-      const {
-        id: stripeSessionId,
-        payment_intent: paymentIntentId,
-        amount_total: amountTotalCents,
-        customer_details: { email: customerEmailFromStripe } = {},
-      } = session;
-
-      const {
-        fullName, email, phoneNumber, referrerId, itemDescription, quantity, totalAmountPaidCents,
-      } = session.metadata || {};
-
-      const firestoreData = {
-        stripeSessionId: stripeSessionId,
-        paymentIntentId: paymentIntentId,
-        status: 'completed',
-        amountPaidCents: totalAmountPaidCents ? parseInt(totalAmountPaidCents, 10) : amountTotalCents,
-        quantity: quantity ? parseInt(quantity, 10) : 1,
-        customer: {
-          fullName: fullName || 'N/A',
-          email: email || customerEmailFromStripe,
-          phoneNumber: phoneNumber || 'N/A'
-        },
-        referrerId: referrerId || 'none',
-        itemDescription: itemDescription || 'Raffle Ticket',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      };
-
-      try {
-        await db.collection('raffleEntries').doc(stripeSessionId).set(firestoreData);
-        logger.info(`stripeWebhook: Firestore document created for session: ${stripeSessionId}`);
-      } catch (firestoreError) {
-        logger.error('stripeWebhook: Error writing to Firestore:', firestoreError);
+    @media (max-width: 600px) {
+      .pay-button {
+        padding: 10px 20px;
+        font-size: 16px;
+        min-width: unset;
+        width: 100%;
       }
-      break;
 
-    default:
-      logger.info(`stripeWebhook: Unhandled event type: ${event.type}`);
-  }
+      .container {
+        padding: 15px;
+        margin: 1rem auto;
+      }
 
-  res.status(200).json({ received: true });
-});
+      h1 {
+        font-size: 1.4rem;
+      }
 
+      nav a {
+        font-size: 0.9rem;
+        padding: 0.3rem 0.5rem;
+        gap: 0.5rem;
+      }
 
-// --- sessionStatus function ---
-exports.sessionStatus = onRequest(async (req, res) => {
-  setCorsHeaders(req, res);
+      .logo {
+        max-width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img class="logo" src="/logo.png" alt="Yeshivat Torat Yosef Logo" />
+  </div>
+  <nav>
+    <a href="#" class="active">Buy Tickets</a>
+    <a href="/about">About</a>
+    <a href="/rules">Rules</a>
+  </nav>
 
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+  <div class="container">
+    <h1>Complete Your Raffle Ticket Purchase</h1>
 
-  if (req.method !== 'GET') {
-    logger.warn('sessionStatus: Received non-GET request.', { method: req.method });
-    return res.status(405).send('Method Not Allowed');
-  }
+    <div class="form-group">
+      <label for="name">Full Name</label>
+      <input type="text" id="name" autocomplete="name" required />
+    </div>
 
-  const sessionId = req.query.session_id;
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input type="email" id="email" autocomplete="email" required />
+    </div>
 
-  if (!sessionId) {
-    logger.error('sessionStatus: Missing session_id parameter.', { query: req.query });
-    return res.status(400).json({ error: 'Missing session_id parameter.' });
-  }
+    <div class="form-group">
+      <label for="phone">Phone Number</label>
+      <input type="tel" id="phone" autocomplete="tel" required />
+    </div>
 
-  try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const customerEmail = session.customer_details ? session.customer_details.email : null;
+    <div id="referral-info">
+      Referral: <span id="referral-name"></span>
+    </div>
 
-    logger.info('sessionStatus: Retrieved session status.', { sessionId, status: session.status, customerEmail });
+    <button class="pay-button" id="buy-now">Buy Now</button>
 
-    res.status(200).json({
-      status: session.status,
-      customer_email: customerEmail
+    <div id="embedded-checkout-container" aria-live="polite" aria-busy="false">
+      <div id="loading-indicator">Loading checkout...</div>
+      <div id="embedded-checkout"></div>
+    </div>
+  </div>
+
+  <script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
+  <script>
+    const buyButton = document.getElementById('buy-now');
+    const checkoutContainer = document.getElementById('embedded-checkout-container');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const embeddedCheckout = document.getElementById('embedded-checkout');
+
+    // Show referral if in URL query ?ref=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const referral = urlParams.get('ref');
+    if (referral) {
+      document.getElementById('referral-info').style.display = 'block';
+      document.getElementById('referral-name').textContent = referral;
+    }
+
+    buyButton.addEventListener('click', () => {
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+
+      if (!name || !email || !phone) {
+        alert('Please fill in all fields before proceeding.');
+        return;
+      }
+
+      // Show loading + checkout container
+      loadingIndicator.style.display = 'block';
+      checkoutContainer.style.display = 'flex';
+      checkoutContainer.setAttribute('aria-busy', 'true');
+
+      // Wait a short moment to let container become visible & layout settle
+      setTimeout(() => {
+        if (typeof LemonSqueezy === 'undefined') {
+          alert('Payment system is not loaded yet. Please try again in a moment.');
+          loadingIndicator.style.display = 'none';
+          checkoutContainer.style.display = 'none';
+          checkoutContainer.setAttribute('aria-busy', 'false');
+          return;
+        }
+
+        LemonSqueezy.Setup({
+          event: 'checkout',
+          embed: true,
+          product: '549174',
+          email: email,
+          name: name,
+          checkout: {
+            embedContainer: '#embedded-checkout',
+          },
+          onClose: () => {
+            loadingIndicator.style.display = 'none';
+            checkoutContainer.style.display = 'none';
+            checkoutContainer.setAttribute('aria-busy', 'false');
+          },
+          onComplete: async (event) => {
+            try {
+              await fetch('https://us-central1-torat-yosef.cloudfunctions.net/submitEntry', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  name,
+                  email,
+                  phone,
+                  referral,
+                  paymentStatus: 'paid',
+                  money: 126.00
+                })
+              });
+              alert('Thank you! Your entry has been recorded.');
+              // Optionally hide checkout UI after success
+              loadingIndicator.style.display = 'none';
+              checkoutContainer.style.display = 'none';
+              checkoutContainer.setAttribute('aria-busy', 'false');
+            } catch (error) {
+              alert('Something went wrong saving your entry.');
+            }
+          }
+        });
+      }, 300);
     });
-  } catch (error) {
-    logger.error('sessionStatus: Error retrieving session status:', error);
-    res.status(500).json({ error: error.message || 'Failed to retrieve session status.' });
-  }
-});
-
-
-// --- recordReferral function ---
-exports.recordReferral = onRequest(async (req, res) => {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    logger.warn('recordReferral: Received non-POST request.', { method: req.method });
-    return res.status(405).send('Method Not Allowed');
-  }
-
-  const { referrerId, newUserId } = req.body;
-
-  if (!referrerId || !newUserId) {
-    logger.error('recordReferral: Missing referrerId or newUserId.', { body: req.body });
-    return res.status(400).json({ error: 'Missing referrerId or newUserId.' });
-  }
-
-  logger.info(`recordReferral: Recording referral from ${referrerId} for user ${newUserId}.`);
-
-  try {
-    await db.collection('referrals').add({
-      referrerId: referrerId,
-      newUserId: newUserId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      status: 'pending_conversion'
-    });
-    res.status(200).json({ message: 'Referral recorded successfully.' });
-  } catch (error) {
-    logger.error('recordReferral: Error recording referral:', error);
-    res.status(500).json({ error: 'Failed to record referral.' });
-  }
-});
-
-// --- submitEntry function ---
-exports.submitEntry = onRequest(async (req, res) => {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    logger.warn('submitEntry: Received non-POST request.', { method: req.method });
-    return res.status(405).send('Method Not Allowed');
-  }
-
-  const { fullName, email, ticketCount, source } = req.body;
-
-  if (!fullName || !email || !ticketCount) {
-    logger.error('submitEntry: Missing required entry details.', { body: req.body });
-    return res.status(400).json({ error: 'Missing required entry details.' });
-  }
-
-  logger.info(`submitEntry: Processing entry for ${fullName} (${email}), tickets: ${ticketCount}.`);
-
-  try {
-    await db.collection('raffleManualEntries').add({
-      fullName: fullName,
-      email: email,
-      ticketCount: ticketCount,
-      source: source || 'manual_entry',
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      processed: false
-    });
-    res.status(200).json({ message: 'Raffle entry submitted successfully.' });
-  } catch (error) {
-    logger.error('submitEntry: Error submitting entry:', error);
-    res.status(500).json({ error: 'Failed to submit raffle entry.' });
-  }
-});
+  </script>
+</body>
+</html>
