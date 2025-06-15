@@ -14,12 +14,11 @@
   },
   "main": "index.js",
   "dependencies": {
-    "@paypal/checkout-server-sdk": "^1.0.1",
+    "@paypal/checkout-server-sdk": "^1.0.3",
     "body-parser": "^1.20.2",
     "express": "^4.19.2",
     "firebase-admin": "^13.4.0",
-    "firebase-functions": "^6.3.2",
-    "node-fetch": "^3.3.2"
+    "firebase-functions": "^6.3.2"
   },
   "devDependencies": {
     "eslint": "^8.x.x",
