@@ -5,38 +5,6 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/create-checkout-session",
-        "function": "createStripeCheckoutSession",
-        "region": "us-central1"
-      },
-      {
-        "source": "/stripe-webhook",
-        "function": "stripeWebhook",
-        "region": "us-central1"
-      },
-      {
-        "source": "/session-status",
-        "function": "sessionStatus",
-        "region": "us-central1"
-      },
-      {
-        "source": "/record-referral",
-        "function": "recordReferral",
-        "region": "us-central1"
-      },
-      {
-        "source": "/submit-entry",
-        "function": "submitEntry",
-        "region": "us-central1"
-      },
-      {
-        "source": "/health-check",
-        "function": "healthCheck",
-        "region": "us-central1"
-      }
     ]
   },
   "firestore": {
