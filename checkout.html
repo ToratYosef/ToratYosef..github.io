@@ -9,6 +9,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
   <meta name="theme-color" content="#ffffff" />
   <style>
+    /* Your CSS as provided */
     :root {
       --primary-bg: #ffffff;
       --primary-text: rgb(0, 33, 65);
@@ -166,11 +167,11 @@
     #paypal-button-container {
       width: 100%;
       margin-top: 20px;
-      display: none; /* Hidden until valid form data */
+      display: none;
       flex-direction: column;
       align-items: center;
       box-sizing: border-box;
-      min-height: 100px; /* Adjust as needed for PayPal buttons */
+      min-height: 100px;
     }
 
     #loading-indicator {
@@ -248,131 +249,152 @@
     </div>
   </div>
 
-<script src="https://www.paypal.com/sdk/js?client-id=AQbK-DAFHkM1HzVcHuQ8r8q2FxI8EboNBptfg5KMXJ9vL9mrO6q5_quluFZYCp3sB8q6K6QqtOLt4Pge&currency=USD"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+  <script>
+    // Initialize Firebase with your provided configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+      measurementId: "G-331D9RHZWH"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const functions = firebase.functions();
+    // UNCOMMENT AND CONFIGURE IF YOUR FUNCTIONS ARE NOT IN US-CENTRAL1 OR YOU'RE USING EMULATOR
+    // functions.useFunctionsEmulator('http://localhost:5001'); // For local testing
+    // functions.useRegion('europe-west1'); // Example for a different region
+  </script>
 
-<script>
-  const proceedToPaymentButton = document.getElementById('proceed-to-payment');
-  const paypalButtonContainer = document.getElementById('paypal-button-container');
-  const loadingIndicator = document.getElementById('loading-indicator');
-  const nameInput = document.getElementById('name');
-  const emailInput = document.getElementById('email');
-  const phoneInput = document.getElementById('phone');
+  <script src="https://www.paypal.com/sdk/js?client-id=AfngupYVdKwAyr1V0BOAqr3OdcYCfRHg32rzyKjPXw7k_tjGBICudMGIjWsUuxRx5_ybeQclzv703NRh&currency=USD"></script>
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const referral = urlParams.get('ref');
-  if (referral) {
-    document.getElementById('referral-info').style.display = 'block';
-    document.getElementById('referral-name').textContent = referral;
-  }
+  <script>
+    const proceedToPaymentButton = document.getElementById('proceed-to-payment');
+    const paypalButtonContainer = document.getElementById('paypal-button-container');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const nameInput = document.getElementById('name');
+    const emailInput = document.getElementById('email');
+    const phoneInput = document.getElementById('phone');
 
-  proceedToPaymentButton.addEventListener('click', () => {
-    const name = nameInput.value.trim();
-    const email = emailInput.value.trim();
-    const phone = phoneInput.value.trim();
+    // Make functions callable
+    const createOrderCallable = functions.httpsCallable('createPayPalOrder');
+    const captureOrderCallable = functions.httpsCallable('capturePayPalOrder');
 
-    if (!name || !email || !phone) {
-      alert('Please fill in all fields before proceeding.');
-      return;
+    // Show referral if present in URL ?ref=
+    const urlParams = new URLSearchParams(window.location.search);
+    const referral = urlParams.get('ref');
+    if (referral) {
+      document.getElementById('referral-info').style.display = 'block';
+      document.getElementById('referral-name').textContent = referral;
     }
 
-    proceedToPaymentButton.style.display = 'none';
-    loadingIndicator.style.display = 'block';
-    paypalButtonContainer.style.display = 'flex';
-    paypalButtonContainer.setAttribute('aria-busy', 'true');
+    proceedToPaymentButton.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      const email = emailInput.value.trim();
+      const phone = phoneInput.value.trim();
 
-    const raffleTicketAmount = 126.00;
+      if (!name || !email || !phone) {
+        alert('Please fill in all fields before proceeding.');
+        return;
+      }
 
-    renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
-  });
+      proceedToPaymentButton.style.display = 'none';
+      loadingIndicator.style.display = 'block';
+      paypalButtonContainer.style.display = 'flex';
+      paypalButtonContainer.setAttribute('aria-busy', 'true');
 
-  function renderPayPalButtons(amount, name, email, phone, referral) {
-    paypalButtonContainer.innerHTML = '<div id="loading-indicator">Loading PayPal buttons...</div>';
-    loadingIndicator.style.display = 'block';
+      const raffleTicketAmount = 126.00;
 
-    if (typeof paypal === 'undefined' || !paypal.Buttons) {
-      alert("PayPal failed to load. Please try again.");
-      resetCheckoutUI();
-      return;
-    }
+      renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
+    });
 
-    paypal.Buttons({
-      createOrder: function (data, actions) {
-        return fetch('https://us-central1-torat-yosef.cloudfunctions.net/paypalWebhook/paypal-webhook', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'create',
+    function renderPayPalButtons(amount, name, email, phone, referral) {
+      // Clear old buttons & show loading
+      paypalButtonContainer.innerHTML = '<div id="loading-indicator">Loading PayPal buttons...</div>';
+      loadingIndicator.style.display = 'block';
+
+      if (typeof paypal === 'undefined' || !paypal.Buttons) {
+        alert("PayPal SDK failed to load. Please try again.");
+        resetCheckoutUI();
+        return;
+      }
+
+      paypal.Buttons({
+        createOrder: function (data, actions) {
+          return createOrderCallable({ // Using Firebase Callable Function
             amount: amount,
             name: name,
             email: email,
             phone: phone,
             referral: referral
           })
-        })
-        .then(res => res.json())
-        .then(data => data.orderID)
-        .catch(error => {
-          console.error('Create error:', error);
-          alert('Could not start PayPal order.');
-          resetCheckoutUI();
-          return Promise.reject(error);
-        });
-      },
-      onApprove: function (data, actions) {
-        return fetch('https://us-central1-torat-yosef.cloudfunctions.net/paypalWebhook/paypal-webhook', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'capture',
-            orderID: data.orderID
+          .then(result => {
+            if (result.data && result.data.orderID) {
+              return result.data.orderID;
+            } else {
+              throw new Error('No order ID returned from server.');
+            }
           })
-        })
-        .then(res => res.json())
-        .then(result => {
-          if (result.success) {
-            alert('Payment successful! Your entry will be confirmed.');
-            nameInput.value = '';
-            emailInput.value = '';
-            phoneInput.value = '';
+          .catch(error => {
+            console.error('Create order error:', error);
+            // Access the details of the HttpsError if it's one
+            const errorMessage = error.message || 'Could not start PayPal order.';
+            alert(`Error creating order: ${errorMessage}`);
             resetCheckoutUI();
-          } else {
-            alert('Payment issue. Contact support.');
+            return Promise.reject(error);
+          });
+        },
+        onApprove: function (data, actions) {
+          return captureOrderCallable({ orderID: data.orderID }) // Using Firebase Callable Function
+          .then(result => {
+            if (result.data && result.data.success) {
+              alert('Payment successful! Your entry will be confirmed.');
+              nameInput.value = '';
+              emailInput.value = '';
+              phoneInput.value = '';
+              resetCheckoutUI();
+            } else {
+              alert('Payment issue detected. Please contact support.');
+              resetCheckoutUI();
+            }
+          })
+          .catch(error => {
+            console.error('Capture error:', error);
+            const errorMessage = error.message || 'Payment capture failed.';
+            alert(`Error capturing payment: ${errorMessage}`);
             resetCheckoutUI();
-          }
-        })
-        .catch(error => {
-          console.error('Capture error:', error);
-          alert('Payment capture failed.');
+          });
+        },
+        onError: function (err) {
+          console.error('PayPal error:', err);
+          alert('Payment error occurred.');
           resetCheckoutUI();
-        });
-      },
-      onError: function (err) {
-        console.error('PayPal error:', err);
-        alert('Payment error occurred.');
+        },
+        onCancel: function () {
+          alert('Payment cancelled.');
+          resetCheckoutUI();
+        }
+      }).render('#paypal-button-container')
+      .then(() => {
+        loadingIndicator.style.display = 'none';
+        paypalButtonContainer.setAttribute('aria-busy', 'false');
+      })
+      .catch(error => {
+        console.error('Render error:', error);
+        alert('Could not load PayPal buttons.');
         resetCheckoutUI();
-      },
-      onCancel: function () {
-        alert('Payment cancelled.');
-        resetCheckoutUI();
-      }
-    }).render('#paypal-button-container')
-    .then(() => {
-      loadingIndicator.style.display = 'none';
-      paypalButtonContainer.setAttribute('aria-busy', 'false');
-    })
-    .catch(error => {
-      console.error('Render error:', error);
-      alert('Could not load PayPal buttons.');
-      resetCheckoutUI();
-    });
-  }
+      });
+    }
 
-  function resetCheckoutUI() {
-    loadingIndicator.style.display = 'none';
-    paypalButtonContainer.style.display = 'none';
-    paypalButtonContainer.setAttribute('aria-busy', 'false');
-    proceedToPaymentButton.style.display = 'block';
-  }
-</script>
+    function resetCheckoutUI() {
+      loadingIndicator.style.display = 'none';
+      paypalButtonContainer.style.display = 'none';
+      paypalButtonContainer.setAttribute('aria-busy', 'false');
+      proceedToPaymentButton.style.display = 'block';
+    }
+  </script>
 </body>
 </html>

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Referrer Login - Yeshivat Torat Yosef Raffle</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <meta name="theme-color" content="#ffffff" />
+  <style>
+    /* Reusing your existing CSS for consistency */
+    :root {
+      --primary-bg: #ffffff;
+      --primary-text: rgb(0, 33, 65);
+      --secondary-bg: rgb(0, 33, 65);
+      --accent: #7F0031;
+      --hover: #590023;
+      --button-gradient-start: #a30040;
+      --button-gradient-end: #7F0031;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--primary-bg);
+      color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-bottom: 1rem;
+    }
+
+    .logo-container {
+      text-align: center;
+      padding: 0.8rem 0 0.4rem;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      max-width: 250px;
+      width: 80vw;
+      height: auto;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+
+    /* Removed nav styles as the element is gone */
+    /*
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding: 0.8rem 0;
+      background-color: var(--secondary-bg);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 0.4rem 0.8rem;
+      font-weight: bold;
+      font-size: 1rem;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    nav a.active {
+      border-bottom: 3px solid var(--accent);
+      color: var(--accent);
+    }
+
+    nav a:hover {
+      color: var(--accent);
+    }
+    */
+
+    .container {
+      max-width: 450px; /* Slightly smaller for login */
+      margin: 2rem auto;
+      padding: 30px; /* More padding */
+      background-color: #f8f8f8;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      text-align: center;
+      flex-grow: 1;
+      width: 90%;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      color: var(--accent);
+      margin-bottom: 25px;
+      font-size: 1.8rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: var(--primary-text);
+    }
+
+    .form-group input[type="email"],
+    .form-group input[type="password"] {
+      width: calc(100% - 20px);
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1.1em;
+      box-sizing: border-box;
+    }
+
+    .form-group input[type="email"]:focus,
+    .form-group input[type="password"]:focus {
+      border-color: var(--accent);
+      outline: none;
+      box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
+    }
+
+    .login-button {
+      display: inline-block;
+      padding: 12px 30px;
+      background: linear-gradient(to right, var(--button-gradient-start), var(--button-gradient-end));
+      color: white;
+      font-size: 1.1em;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      user-select: none;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .login-button:hover {
+      background: linear-gradient(to right, var(--hover), var(--accent));
+    }
+
+    .error-message {
+      color: #d9534f; /* Bootstrap red for errors */
+      margin-top: 15px;
+      font-size: 0.95em;
+      display: none; /* Hidden by default */
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 15px;
+        margin: 1rem auto;
+      }
+
+      h1 {
+        font-size: 1.6rem;
+      }
+
+      /* Removed nav a styles for media query as element is gone */
+      /*
+      nav a {
+        font-size: 0.9rem;
+        padding: 0.3rem 0.5rem;
+        gap: 0.5rem;
+      }
+      */
+
+      .logo {
+        max-width: 200px;
+      }
+
+      .login-button {
+        padding: 10px 20px;
+        font-size: 1em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img class="logo" src="/logo.png" alt="Yeshivat Torat Yosef Logo" />
+  </div>
+  
+  <!-- Navigation bar removed as requested -->
+  <!--
+  <nav>
+    <a href="/" class="">Buy Tickets</a>
+    <a href="/about">About</a>
+    <a href="/rules">Rules</a>
+    <a href="/login.html" class="active">Referrer Login</a>
+  </nav>
+  -->
+
+  <div class="container">
+    <h1>Referrer Login</h1>
+
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input type="email" id="email" autocomplete="email" required />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password" required />
+    </div>
+
+    <p id="error-message" class="error-message" aria-live="assertive"></p>
+
+    <button id="login-button" class="login-button">Log In</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script>
+    // Initialize Firebase with your provided configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+      measurementId: "G-331D9RHZWH"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    const auth = firebase.auth();
+
+    // Get DOM elements
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const loginButton = document.getElementById('login-button');
+    const errorMessageElement = document.getElementById('error-message');
+
+    // Function to display error messages
+    function showError(message) {
+      errorMessageElement.textContent = message;
+      errorMessageElement.style.display = 'block';
+    }
+
+    // Function to clear error messages
+    function clearError() {
+      errorMessageElement.textContent = '';
+      errorMessageElement.style.display = 'none';
+    }
+
+    // Handle login button click
+    loginButton.addEventListener('click', async () => {
+      clearError(); // Clear any previous errors
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
+
+      if (!email || !password) {
+        showError('Please enter both email and password.');
+        return;
+      }
+
+      loginButton.disabled = true; // Disable button to prevent multiple clicks
+      loginButton.textContent = 'Logging In...';
+
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        // On successful login, redirect to the dashboard
+        window.location.href = '/dashboard.html';
+      } catch (error) {
+        console.error('Login error:', error);
+        let userMessage = 'Login failed. Please check your email and password.';
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+          userMessage = 'Invalid email or password.';
+        } else if (error.code === 'auth/too-many-requests') {
+          userMessage = 'Too many login attempts. Please try again later.';
+        }
+        showError(userMessage);
+      } finally {
+        loginButton.disabled = false; // Re-enable button
+        loginButton.textContent = 'Log In';
+      }
+    });
+
+    // Optional: Redirect if already logged in
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        // User is signed in, redirect to dashboard
+        window.location.href = '/dashboard.html';
+      }
+    });
+  </script>
+</body>
+</html>

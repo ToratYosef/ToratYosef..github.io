@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Referrer Account - Admin Panel</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <meta name="theme-color" content="#ffffff" />
+  <style>
+    /* Reusing your existing CSS for consistency */
+    :root {
+      --primary-bg: #ffffff;
+      --primary-text: rgb(0, 33, 65);
+      --secondary-bg: rgb(0, 33, 65);
+      --accent: #7F0031;
+      --hover: #590023;
+      --button-gradient-start: #a30040;
+      --button-gradient-end: #7F0031;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--primary-bg);
+      color: var(--primary-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-bottom: 1rem;
+    }
+
+    .logo-container {
+      text-align: center;
+      padding: 0.8rem 0 0.4rem;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      max-width: 250px;
+      width: 80vw;
+      height: auto;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 2rem auto;
+      padding: 30px;
+      background-color: #f8f8f8;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      text-align: center;
+      flex-grow: 1;
+      width: 90%;
+      box-sizing: border-box;
+      position: relative; /* For loading */
+    }
+
+    h1 {
+      color: var(--accent);
+      margin-bottom: 25px;
+      font-size: 1.8rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: var(--primary-text);
+    }
+
+    .form-group input[type="email"],
+    .form-group input[type="password"],
+    .form-group input[type="text"],
+    .form-group input[type="number"] {
+      width: calc(100% - 20px);
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1.1em;
+      box-sizing: border-box;
+    }
+
+    .form-group input:focus {
+      border-color: var(--accent);
+      outline: none;
+      box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
+    }
+
+    .create-button, .access-button {
+      display: inline-block;
+      padding: 12px 30px;
+      background: linear-gradient(to right, #28a745, #218838); /* Green for create */
+      color: white;
+      font-size: 1.1em;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      user-select: none;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .create-button:hover, .access-button:hover {
+      background: linear-gradient(to right, #218838, #1e7e34);
+    }
+
+    .message-box {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 1em;
+      text-align: left;
+      display: none; /* Hidden by default */
+    }
+
+    .message-box.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .message-box.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      border-radius: 10px;
+      font-size: 1.2em;
+      color: var(--primary-text);
+      transition: opacity 0.3s ease;
+      display: none; /* Hidden by default */
+    }
+
+    .loading-overlay.visible {
+      display: flex;
+    }
+
+    /* New styles for password prompt */
+    .hidden {
+      display: none !important;
+    }
+
+    .password-prompt {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+        padding: 20px;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        background-color: #ffffff;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .password-prompt h2 {
+        color: var(--secondary-bg);
+        margin-bottom: 5px;
+    }
+    .password-prompt input[type="password"] {
+        width: calc(100% - 20px);
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 1.1em;
+        box-sizing: border-box;
+    }
+    .password-prompt input[type="password"]:focus {
+        border-color: var(--accent);
+        outline: none;
+        box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
+    }
+
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 15px;
+        margin: 1rem auto;
+      }
+
+      h1 {
+        font-size: 1.6rem;
+      }
+
+      .logo {
+        max-width: 200px;
+      }
+
+      .create-button, .access-button {
+        padding: 10px 20px;
+        font-size: 1em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img class="logo" src="/logo.png" alt="Yeshivat Torat Yosef Logo" />
+  </div>
+
+  <div class="container">
+    <div id="loading-overlay" class="loading-overlay">
+      Creating Account...
+    </div>
+
+    <!-- Password Prompt Section -->
+    <div id="password-prompt-section" class="password-prompt">
+        <h2>Admin Access</h2>
+        <p>Please enter the password to access this page.</p>
+        <input type="password" id="access-password" placeholder="Enter password" />
+        <button id="access-button" class="access-button">Enter</button>
+        <div id="access-message-box" class="message-box error hidden"></div>
+    </div>
+
+    <!-- Main Content Section (hidden initially) -->
+    <div id="main-content" class="hidden">
+        <h1>Create Referrer Account</h1>
+
+        <div class="form-group">
+          <label for="name">Referrer Name</label>
+          <input type="text" id="name" required />
+        </div>
+
+        <div class="form-group">
+          <label for="email">Referrer Email</label>
+          <input type="email" id="email" autocomplete="off" required />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password (min 6 characters)</label>
+          <input type="password" id="password" autocomplete="new-password" required />
+        </div>
+
+        <div class="form-group">
+          <label for="refId">Referral ID (e.g., SaulS, only letters/numbers)</label>
+          <input type="text" id="refId" required />
+        </div>
+
+        <div class="form-group">
+          <label for="goal">Goal (Tickets)</label>
+          <input type="number" id="goal" value="0" min="0" required />
+        </div>
+
+        <div id="message-box" class="message-box"></div>
+
+        <button id="create-button" class="create-button">Create Account</button>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+  <script>
+    // Initialize Firebase with your provided configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      authDomain: "torat-yosef.firebaseapp.com",
+      projectId: "torat-yosef",
+      storageBucket: "torat-yosef.firebasestorage.app",
+      messagingSenderId: "1033400220494",
+      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+      measurementId: "G-331D9RHZWH"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    // Firebase Auth is still initialized but not directly used for page access control
+    const auth = firebase.auth();
+    const functions = firebase.functions();
+    const createReferrerAccountCallable = functions.httpsCallable('createReferrerAccount');
+
+    // DOM elements for password prompt
+    const passwordPromptSection = document.getElementById('password-prompt-section');
+    const accessPasswordInput = document.getElementById('access-password');
+    const accessButton = document.getElementById('access-button');
+    const accessMessageBox = document.getElementById('access-message-box');
+    const mainContent = document.getElementById('main-content');
+
+    // DOM elements for referrer creation form
+    const nameInput = document.getElementById('name');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password'); 
+    const refIdInput = document.getElementById('refId');
+    const goalInput = document.getElementById('goal');
+    const createButton = document.getElementById('create-button');
+    const messageBox = document.getElementById('message-box');
+    const loadingOverlay = document.getElementById('loading-overlay');
+
+    // Function to show messages (success/error)
+    function showMessage(element, type, message) {
+      element.textContent = message;
+      element.className = `message-box ${type}`;
+      element.classList.remove('hidden'); 
+    }
+
+    function clearMessage(element) {
+      element.classList.add('hidden'); 
+      element.textContent = '';
+      element.className = 'message-box';
+    }
+
+    function showLoading() {
+      loadingOverlay.classList.add('visible');
+    }
+
+    function hideLoading() {
+      loadingOverlay.classList.remove('visible');
+    }
+
+    // --- Password Prompt Logic ---
+    const CORRECT_PASSWORD = 'BhsStudent2026';
+
+    accessButton.addEventListener('click', () => {
+      clearMessage(accessMessageBox);
+      const enteredPassword = accessPasswordInput.value;
+
+      if (enteredPassword === CORRECT_PASSWORD) {
+        passwordPromptSection.classList.add('hidden');
+        mainContent.classList.remove('hidden');
+      } else {
+        showMessage(accessMessageBox, 'error', 'Incorrect password. Please try again.');
+        accessPasswordInput.value = ''; 
+      }
+    });
+
+    // Allow pressing Enter key to submit password
+    accessPasswordInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            accessButton.click();
+        }
+    });
+    // --- End Password Prompt Logic ---
+
+
+    // Handle create account button click
+    createButton.addEventListener('click', async () => {
+      clearMessage(messageBox);
+      showLoading();
+      createButton.disabled = true;
+
+      const name = nameInput.value.trim();
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim(); 
+      const refId = refIdInput.value.trim();
+      const goal = parseInt(goalInput.value, 10);
+
+      if (!name || !email || !password || !refId || isNaN(goal) || goal < 0) {
+        showMessage(messageBox, 'error', 'Please fill in all fields correctly (goal must be a number).');
+        hideLoading();
+        createButton.disabled = false;
+        return;
+      }
+      if (password.length < 6) {
+        showMessage(messageBox, 'error', 'Password must be at least 6 characters long.');
+        hideLoading();
+        createButton.disabled = false;
+        return;
+      }
+      if (!refId.match(/^[a-zA-Z0-9]+$/)) {
+        showMessage(messageBox, 'error', 'Referral ID must be alphanumeric (letters and numbers only).');
+        hideLoading();
+        createButton.disabled = false;
+        return;
+      }
+
+      try {
+        // As discussed, the createReferrerAccount Callable Function
+        // no longer requires an authenticated user based on your updated backend.
+        // Therefore, we do not need a client-side Firebase Auth check here.
+
+        const result = await createReferrerAccountCallable({
+          email,
+          password,
+          name,
+          refId,
+          goal
+        });
+        showMessage(messageBox, 'success', result.data.message);
+        // Clear form fields on success
+        nameInput.value = '';
+        emailInput.value = '';
+        passwordInput.value = '';
+        refIdInput.value = '';
+        goalInput.value = '0';
+      } catch (error) {
+        console.error('Error creating referrer account:', error);
+        let userMessage = 'Failed to create account. Please try again.';
+        if (error.code === 'already-exists') {
+            userMessage = error.message;
+        } else if (error.code === 'invalid-argument') {
+            userMessage = error.message;
+        } else if (error.code === 'unauthenticated') {
+            // This case should ideally not happen if the backend function is truly unauthenticated.
+            // If it does, it indicates the backend function still has an auth check.
+            userMessage = 'Authentication required on the server side. Please ensure the function is updated.';
+        }
+        showMessage(messageBox, 'error', userMessage);
+      } finally {
+        hideLoading();
+        createButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
