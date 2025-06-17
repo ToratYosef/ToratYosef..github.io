@@ -248,162 +248,131 @@
     </div>
   </div>
 
-  <script src="https://www.paypal.com/sdk/js?client-id=AQbK-DAFHkM1HzVcHuQ8r8q2FxI8EboNBptfg5KMXJ9vL9mrO6q5_quluFZYCp3sB8q6K6QqtOLt4Pge&currency=USD" data-sdk-integration-source="button-factory"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=AQbK-DAFHkM1HzVcHuQ8r8q2FxI8EboNBptfg5KMXJ9vL9mrO6q5_quluFZYCp3sB8q6K6QqtOLt4Pge&currency=USD"></script>
 
- <script>
-    const proceedToPaymentButton = document.getElementById('proceed-to-payment');
-    const paypalButtonContainer = document.getElementById('paypal-button-container');
-    const loadingIndicator = document.getElementById('loading-indicator');
-    const nameInput = document.getElementById('name');
-    const emailInput = document.getElementById('email');
-    const phoneInput = document.getElementById('phone');
+<script>
+  const proceedToPaymentButton = document.getElementById('proceed-to-payment');
+  const paypalButtonContainer = document.getElementById('paypal-button-container');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  const nameInput = document.getElementById('name');
+  const emailInput = document.getElementById('email');
+  const phoneInput = document.getElementById('phone');
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const referral = urlParams.get('ref');
-    if (referral) {
-        document.getElementById('referral-info').style.display = 'block';
-        document.getElementById('referral-name').textContent = referral;
+  const urlParams = new URLSearchParams(window.location.search);
+  const referral = urlParams.get('ref');
+  if (referral) {
+    document.getElementById('referral-info').style.display = 'block';
+    document.getElementById('referral-name').textContent = referral;
+  }
+
+  proceedToPaymentButton.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const phone = phoneInput.value.trim();
+
+    if (!name || !email || !phone) {
+      alert('Please fill in all fields before proceeding.');
+      return;
     }
 
-    proceedToPaymentButton.addEventListener('click', () => {
-        const name = nameInput.value.trim();
-        const email = emailInput.value.trim();
-        const phone = phoneInput.value.trim();
+    proceedToPaymentButton.style.display = 'none';
+    loadingIndicator.style.display = 'block';
+    paypalButtonContainer.style.display = 'flex';
+    paypalButtonContainer.setAttribute('aria-busy', 'true');
 
-        if (!name || !email || !phone) {
-            alert('Please fill in all fields before proceeding.');
-            return;
-        }
+    const raffleTicketAmount = 126.00;
 
-        // Hide the "Proceed to Payment" button
-        proceedToPaymentButton.style.display = 'none';
+    renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
+  });
 
-        // Show loading indicator and PayPal container
-        loadingIndicator.style.display = 'block';
-        paypalButtonContainer.style.display = 'flex';
-        paypalButtonContainer.setAttribute('aria-busy', 'true');
+  function renderPayPalButtons(amount, name, email, phone, referral) {
+    paypalButtonContainer.innerHTML = '<div id="loading-indicator">Loading PayPal buttons...</div>';
+    loadingIndicator.style.display = 'block';
 
-        // Define your fixed raffle ticket amount here.
-        // This should ideally be confirmed with your backend to prevent client-side tampering.
-        const raffleTicketAmount = 126.00; 
-        
-        // Pass user info to renderPayPalButtons so it can send to backend create-order
-        renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
-    });
+    if (typeof paypal === 'undefined' || !paypal.Buttons) {
+      alert("PayPal failed to load. Please try again.");
+      resetCheckoutUI();
+      return;
+    }
 
-    function renderPayPalButtons(amount, name, email, phone, referral) {
-        // Clear any previously rendered PayPal buttons before rendering new ones
-        paypalButtonContainer.innerHTML = '<div id="loading-indicator">Loading PayPal buttons...</div>';
-        loadingIndicator.style.display = 'block';
-
-        // IMPORTANT: Add a check to ensure PayPal SDK is loaded
-        if (typeof paypal === 'undefined' || !paypal.Buttons) {
-            console.error("PayPal SDK not loaded or 'paypal.Buttons' is not defined. Retrying soon...");
-            // You might want to implement a retry mechanism or alert the user
-            alert("PayPal payment system failed to load. Please try again.");
+    paypal.Buttons({
+      createOrder: function (data, actions) {
+        return fetch('https://us-central1-torat-yosef.cloudfunctions.net/paypalWebhook/paypal-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create',
+            amount: amount,
+            name: name,
+            email: email,
+            phone: phone,
+            referral: referral
+          })
+        })
+        .then(res => res.json())
+        .then(data => data.orderID)
+        .catch(error => {
+          console.error('Create error:', error);
+          alert('Could not start PayPal order.');
+          resetCheckoutUI();
+          return Promise.reject(error);
+        });
+      },
+      onApprove: function (data, actions) {
+        return fetch('https://us-central1-torat-yosef.cloudfunctions.net/paypalWebhook/paypal-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'capture',
+            orderID: data.orderID
+          })
+        })
+        .then(res => res.json())
+        .then(result => {
+          if (result.success) {
+            alert('Payment successful! Your entry will be confirmed.');
+            nameInput.value = '';
+            emailInput.value = '';
+            phoneInput.value = '';
             resetCheckoutUI();
-            return; // Exit the function if PayPal is not ready
-        }
-
-        paypal.Buttons({
-            createOrder: function(data, actions) {
-                // Send amount AND user details to your backend for order creation
-                return fetch('/api/paypal/create-order', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        amount: amount,
-                        name: name,
-                        email: email,
-                        phone: phone,
-                        referral: referral // Send referral too
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(errorData => { 
-                            throw new Error(errorData.error || 'Failed to create PayPal order on server.'); 
-                        });
-                    }
-                    return response.json();
-                })
-                .then(order => order.orderID)
-                .catch(error => {
-                    console.error('Error creating PayPal order on frontend:', error);
-                    alert('Could not set up PayPal payment: ' + error.message);
-                    resetCheckoutUI();
-                    return Promise.reject(error); // Propagate error to PayPal SDK
-                });
-            },
-            onApprove: function(data, actions) {
-                // Call your backend to capture the payment.
-                // The webhook will get user details from your temporary storage in Firestore.
-                return fetch('/api/paypal/capture-order', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ orderID: data.orderID })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(errorData => { 
-                            throw new Error(errorData.message || 'Payment capture failed on server.'); 
-                        });
-                    }
-                    return response.json();
-                })
-                .then(result => {
-                    if (result.success) {
-                        // Success message, but the actual record to Firebase is done by webhook.
-                        alert('Payment successful! Your entry will be confirmed shortly.');
-                        nameInput.value = '';
-                        emailInput.value = '';
-                        phoneInput.value = '';
-                        resetCheckoutUI();
-                    } else {
-                        alert('Payment processed, but there was an issue. Please contact support.');
-                        resetCheckoutUI();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error capturing PayPal order:', error);
-                    alert('An error occurred during payment capture. Please contact support if your payment went through.');
-                    resetCheckoutUI();
-                });
-            },
-            onError: function (err) {
-                console.error('An error occurred during the PayPal checkout (frontend):', err);
-                alert('An error occurred during the payment. Please try again or contact support.');
-                resetCheckoutUI();
-            },
-            onCancel: function (data) {
-                console.log('PayPal checkout cancelled (frontend):', data);
-                alert('Payment cancelled. You can try again.');
-                resetCheckoutUI();
-            }
-        }).render('#paypal-button-container')
-        .then(() => {
-            // Once buttons are rendered, hide loading indicator
-            loadingIndicator.style.display = 'none';
-            paypalButtonContainer.setAttribute('aria-busy', 'false');
+          } else {
+            alert('Payment issue. Contact support.');
+            resetCheckoutUI();
+          }
         })
         .catch(error => {
-            // This catch handles errors during the .render() call itself
-            console.error('Failed to render PayPal buttons:', error);
-            alert('Failed to load PayPal payment options. Please try again later.');
-            resetCheckoutUI();
+          console.error('Capture error:', error);
+          alert('Payment capture failed.');
+          resetCheckoutUI();
         });
-    }
+      },
+      onError: function (err) {
+        console.error('PayPal error:', err);
+        alert('Payment error occurred.');
+        resetCheckoutUI();
+      },
+      onCancel: function () {
+        alert('Payment cancelled.');
+        resetCheckoutUI();
+      }
+    }).render('#paypal-button-container')
+    .then(() => {
+      loadingIndicator.style.display = 'none';
+      paypalButtonContainer.setAttribute('aria-busy', 'false');
+    })
+    .catch(error => {
+      console.error('Render error:', error);
+      alert('Could not load PayPal buttons.');
+      resetCheckoutUI();
+    });
+  }
 
-    function resetCheckoutUI() {
-        loadingIndicator.style.display = 'none';
-        paypalButtonContainer.style.display = 'none';
-        paypalButtonContainer.setAttribute('aria-busy', 'false');
-        proceedToPaymentButton.style.display = 'block'; // Show "Proceed to Payment" for a new attempt
-    }
+  function resetCheckoutUI() {
+    loadingIndicator.style.display = 'none';
+    paypalButtonContainer.style.display = 'none';
+    paypalButtonContainer.setAttribute('aria-busy', 'false');
+    proceedToPaymentButton.style.display = 'block';
+  }
 </script>
 </body>
 </html>
