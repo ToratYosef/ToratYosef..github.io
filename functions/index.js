@@ -289,26 +289,60 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
 /**
  * Firebase Callable Function to get referrer dashboard data.
  * Requires authentication.
+ * NOW HANDLES VIEWER ACCOUNTS.
  */
 exports.getReferrerDashboardData = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to view dashboard data.');
   }
 
-  const referrerUid = context.auth.uid; // Get the UID of the logged-in user
+  const loggedInUid = context.auth.uid; // The UID of the currently logged-in user
+
+  // --- ADDED FOR DEBUGGING: Log the UID the function is using ---
+  console.log('getReferrerDashboardData: Logged in UID:', loggedInUid);
+  // --- END ADDITION ---
+
+  let targetReferrerUid = loggedInUid; // Default: user views their own data
+  let dashboardTitleName = "Your"; // Default title
 
   try {
-    const referrerDoc = await admin.firestore().collection('referrers').doc(referrerUid).get();
+    // First, check if the logged-in user is a 'viewer'
+    const viewerConfigDoc = await admin.firestore().collection('viewer_configs').doc(loggedInUid).get();
+
+    if (viewerConfigDoc.exists) {
+      const viewerConfig = viewerConfigDoc.data();
+      if (viewerConfig.viewReferrerUid) {
+        targetReferrerUid = viewerConfig.viewReferrerUid; // Switch to viewing the assigned referrer's data
+        console.log(`getReferrerDashboardData: Logged in user is a viewer for UID: ${targetReferrerUid}`);
+
+        // Fetch the name of the referrer they are viewing for the dashboard title
+        const viewedReferrerDoc = await admin.firestore().collection('referrers').doc(targetReferrerUid).get();
+        if (viewedReferrerDoc.exists) {
+            dashboardTitleName = viewedReferrerDoc.data().name + "'s";
+        } else {
+            console.warn(`getReferrerDashboardData: Assigned referrer UID ${targetReferrerUid} not found in 'referrers' collection.`);
+            // Fallback: If assigned referrer not found, show own (though highly unlikely to happen with good data)
+            targetReferrerUid = loggedInUid;
+            dashboardTitleName = "Your";
+        }
+      }
+    }
+
+    // Now, fetch data for the determined 'targetReferrerUid'
+    const referrerDoc = await admin.firestore().collection('referrers').doc(targetReferrerUid).get();
 
     if (!referrerDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Referrer data not found for this user.');
+      // This will only trigger if:
+      // 1. A non-viewer user logs in and their UID is not in 'referrers'.
+      // 2. A viewer is assigned to a referrer that doesn't exist (handled with warning above, but this is a final guard).
+      throw new functions.https.HttpsError('not-found', 'Referrer data not found for this user/assigned referrer.');
     }
 
     const referrerData = referrerDoc.data();
 
     // Fetch tickets sold by this referrer
     const ticketsSoldSnapshot = await admin.firestore().collection('raffle_entries')
-      .where('referrerUid', '==', referrerUid)
+      .where('referrerUid', '==', targetReferrerUid) // Use targetReferrerUid for the query
       .orderBy('timestamp', 'desc') // Order by most recent purchases
       .get();
 
@@ -333,12 +367,13 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
     const referralLink = `https://www.toratyosefsummerraffle.com/?ref=${referrerData.refId}`; // Construct their link
 
     return {
-      name: referrerData.name,
+      name: referrerData.name, // This is the name of the referrer whose data is being shown
       refId: referrerData.refId,
       goal: referrerData.goal,
       totalTicketsSold: totalTicketsSold,
       buyerDetails: buyerDetails,
-      referralLink: referralLink
+      referralLink: referralLink,
+      dashboardTitleName: dashboardTitleName // Pass the dynamic title
     };
 
   } catch (error) {
@@ -420,5 +455,65 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
         }
         // Generic error for unexpected issues
         throw new functions.https.HttpsError('internal', 'Failed to create referrer account.', error.message);
+    }
+});
+
+
+/**
+ * Firebase Callable Function to create a new viewer account.
+ * IMPORTANT: This function should only be called by an authorized administrator
+ * if you value security. Currently, it has no authentication check.
+ */
+exports.createViewerAccount = functions.https.onCall(async (data, context) => {
+    // WARNING: This function currently has NO authentication check.
+    // In a production scenario, you would typically add context.auth checks here
+    // e.g., if (!context.auth || !context.auth.token.admin) { throw ... }
+
+    const { email, password, viewerName, assignedReferrerUid } = data;
+
+    if (!email || !password || !viewerName || !assignedReferrerUid) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing fields: email, password, viewerName, or assignedReferrerUid.');
+    }
+    if (password.length < 6) {
+        throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 6 characters long.');
+    }
+
+    try {
+        // 1. Verify assignedReferrerUid exists in 'referrers' collection
+        const referrerExists = await admin.firestore().collection('referrers').doc(assignedReferrerUid).get();
+        if (!referrerExists.exists) {
+            throw new functions.https.HttpsError('not-found', 'Assigned Referrer UID does not exist.');
+        }
+
+        // 2. Create Firebase Authentication User for the viewer
+        const userRecord = await admin.auth().createUser({
+            email: email,
+            password: password,
+            displayName: viewerName,
+            emailVerified: false
+        });
+
+        // 3. Set Custom Claims for the new viewer user (e.g., 'viewer' role)
+        await admin.auth().setCustomUserClaims(userRecord.uid, { viewer: true });
+
+        // 4. Create corresponding Firestore Document in 'viewer_configs'
+        await admin.firestore().collection('viewer_configs').doc(userRecord.uid).set({
+            name: viewerName,
+            email: email,
+            viewReferrerUid: assignedReferrerUid, // Link viewer to a specific referrer UID
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`Successfully created new viewer account: ${viewerName} (${email}) for referrer UID: ${assignedReferrerUid}`);
+        return { success: true, uid: userRecord.uid, message: 'Viewer account created successfully.' };
+
+    } catch (error) {
+        console.error('Error creating viewer account:', error);
+        if (error.code === 'auth/email-already-exists') {
+            throw new functions.https.HttpsError('already-exists', 'The email address is already in use by another account.');
+        } else if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', 'Failed to create viewer account.', error.message);
     }
 });
