@@ -22,28 +22,25 @@
             box-sizing: border-box;
         }
 
+        /* Essential for full-width elements and horizontal centering of block-level content */
         html, body {
             margin: 0;
             padding: 0;
-            height: 100%;
+            min-height: 100vh; /* Ensure body takes at least full viewport height */
             background-color: var(--primary-bg);
             color: var(--primary-text);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.5;
         }
 
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding-bottom: 1rem;
+        /* Header elements for consistent width and centering */
+        .logo-container, nav, footer {
+            width: 100%; /* Ensure these elements span full width */
         }
 
         .logo-container {
             text-align: center;
             padding: 0.8rem 0 0.4rem;
-            flex-shrink: 0;
         }
 
         .logo {
@@ -61,9 +58,7 @@
             justify-content: center;
             gap: 1rem;
             padding: 0.8rem 0;
-            flex-shrink: 0;
             flex-wrap: wrap;
-            width: 100%;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
@@ -87,15 +82,18 @@
         }
 
         .container {
-            flex-grow: 1;
+            /* This is the key to centering your main content */
+            max-width: 1200px; /* Limit the maximum width of the content */
+            margin: 0 auto; /* Center the block-level content */
+            padding: 0.8rem; /* Add padding inside */
+            text-align: center;
+            width: 100%; /* Ensure it takes full width up to max-width */
+            box-sizing: border-box;
+            /* Flex properties for internal column layout within the container */
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 0.8rem;
-            text-align: center;
-            width: 100%;
-            box-sizing: border-box;
-            max-width: 1200px;
+            flex-grow: 1; /* Allows container to grow and push footer down */
         }
 
         h1 {
@@ -166,7 +164,7 @@
         }
 
         .buy-links {
-            margin-top: 1.5rem;
+            margin-top: 4rem; /* Further increased margin-top for more space below prizes */
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
@@ -240,16 +238,18 @@
             z-index: 1001;
         }
 
-        .slideshow-container {
+        .popup .slideshow-container { /* This refers to the popup slideshow */
             position: relative;
             width: 100%;
             max-width: 500px;
             margin: 0 auto 1rem auto;
             text-align: center;
             overflow: hidden;
+            /* Reset flex-grow for popup specific container */
+            flex-grow: 0;
         }
 
-        .slideshow-image {
+        .slideshow-image { /* This refers to the popup slideshow images */
             width: 100%;
             max-height: 300px;
             object-fit: contain;
@@ -354,6 +354,61 @@
             background-color: var(--hover);
         }
 
+        /* Footer Styles (Consistent with Home Page) */
+        footer {
+            background-color: var(--secondary-bg);
+            color: white;
+            padding: 1.5rem 1rem;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-logo img {
+            max-width: 150px;
+            height: auto;
+            display: block;
+            margin: 0 auto 0.8rem;
+            /* filter: brightness(0) invert(1); */
+        }
+
+        .footer-section {
+            padding: 0 1rem;
+        }
+
+        .footer-section h3 {
+            color: var(--accent);
+            margin-top: 0;
+            margin-bottom: 0.6rem;
+            font-size: 1.1rem;
+        }
+
+        .footer-section p {
+            margin: 0.2rem 0;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .footer-section a {
+            color: white;
+            text-decoration: none;
+        }
+
+        .footer-section a:hover {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
+
         @media (min-width: 768px) {
             .prize-row {
                 flex-direction: row;
@@ -365,6 +420,7 @@
                 max-width: calc(25% - 1rem);
             }
             .buy-links {
+                margin-top: 4rem; /* Ensure consistent generous margin on larger screens too */
                 flex-direction: row;
                 justify-content: center;
                 max-width: none;
@@ -374,6 +430,29 @@
             }
             .popup {
                 max-width: 700px;
+            }
+            /* Responsive footer layout for larger screens */
+            .footer-content {
+                flex-direction: row;
+                justify-content: space-around;
+                align-items: flex-start;
+                text-align: left;
+            }
+
+            .footer-logo {
+                flex-basis: 180px;
+                text-align: center;
+            }
+            .footer-logo img {
+                margin-bottom: 0;
+            }
+
+            .school-info {
+                flex-basis: 280px;
+            }
+
+            .dev-info {
+                flex-basis: 220px;
             }
         }
 
@@ -545,7 +624,7 @@
                     Light Weights - 3lb<br>
                     Dumbbells - 30 lb<br>
                     Dumbbells - 25 lb<br>
-                    Dumbbells - 20 lb<br>
+                    Dumbbells - 20 lb<p>
                     Bike Mat<br>
                     Reversible Workout Mat<br>
                     Peloton x Camelbak®<br>
@@ -774,5 +853,27 @@
             logEvent(analytics, 'prizes_page_loaded_no_referrer');
         }
     </script>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">
+                <img src="https://static.wixstatic.com/media/2de2be_3f32007405f243d6b0dd807b656ea835~mv2.png/v1/fill/w_652,h_248,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/IMG_4131-B.png" alt="Yeshivat Torah Yosef Footer Logo">
+            </div>
+            <div class="footer-section school-info">
+                <h3>School Info</h3>
+                <p>&copy; 2024 by Yeshivat Torah Yosef.</p>
+                <p>8950 Stirling Rd</p>
+                <p>Hollywood, FL 33024</p>
+                <p>(754) 263 3126</p>
+                <p><a href="mailto:office@toratyosef.org">office@toratyosef.org</a></p>
+            </div>
+            <div class="footer-section dev-info">
+                <p>Website made by Saul Setton</p>
+                <p>929-584-5753</p>
+                <p><a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a></p>
+            </div>
+        </div>
+    </footer>
+
 </body>
 </html>
