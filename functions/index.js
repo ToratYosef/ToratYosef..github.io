@@ -410,7 +410,8 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                     phone: entry.phone,
                     ticketsBought: entry.ticketsBought,
                     timestamp: entry.timestamp ? entry.timestamp.toDate().toLocaleString('en-US', {
-                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true, // CHANGED TO 12-HOUR FORMAT
+                        timeZone: 'America/New_York' // ADDED TIMEZONE TO EST
                     }) : 'N/A'
                 });
             });
@@ -436,7 +437,8 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                     phone: entry.phone,
                     ticketsBought: entry.ticketsBought,
                     timestamp: entry.timestamp ? entry.timestamp.toDate().toLocaleString('en-US', {
-                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true, // CHANGED TO 12-HOUR FORMAT
+                        timeZone: 'America/New_York' // ADDED TIMEZONE TO EST
                     }) : 'N/A'
                 });
             }
