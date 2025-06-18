@@ -8,7 +8,7 @@ admin.initializeApp();
 // IMPORTANT: Configure these using 'firebase functions:config:set paypal.client_id="YOUR_CLIENT_ID" paypal.secret="YOUR_SECRET"'
 const PAYPAL_CLIENT_ID = functions.config().paypal.client_id;
 const PAYPAL_SECRET = functions.config().paypal.secret;
-const PAYPAL_API_BASE = 'https://api-m.sandbox.paypal.com'; // Change to 'https://api-m.paypal.com' for production
+const PAYPAL_API_BASE = 'https://api-m.paypal.com'; // Live production URL
 
 // Define allowed origins for CORS for onRequest functions (like the webhook)
 const allowedOrigins = [
@@ -86,10 +86,13 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
           amount: {
             currency_code: 'USD',
             value: amount.toFixed(2)
-          },
-          // Optional: Add a custom_id or invoice_id for tracking
-          // custom_id: `raffle-entry-${Date.now()}`
-        }]
+          }
+          // No need to add custom_id here, as it's optional
+        }],
+        // ADDED: application_context to remove shipping address requirement
+        application_context: {
+            shipping_preference: 'NO_SHIPPING'
+        }
       })
     });
 
@@ -105,10 +108,10 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
       name,
       email,
       phone,
-      referrerRefId: referral || null, // Changed from 'referral' to 'referrerRefId'
+      referrerRefId: referral || null,
       amount,
       status: 'CREATED',
-      orderID: orderData.id, // Store the order ID itself
+      orderID: orderData.id,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -159,7 +162,7 @@ exports.capturePayPalOrder = functions.https.onCall(async (data, context) => {
     // Update the order status in Firestore
     await admin.firestore().collection('paypal_orders').doc(orderID).update({
       status: 'COMPLETED',
-      captureData, // Store the full capture data for reference
+      captureData,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -202,7 +205,7 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
         // Extract order ID, prioritizing the order ID from the event resource
         const orderID = event.resource.id ||
                        event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
-                       event.resource.billing_agreement_id; // For subscription-based payments if applicable
+                       event.resource.billing_agreement_id;
 
         if (!orderID) {
           console.error('No orderID found in PayPal webhook event:', event);
@@ -232,7 +235,7 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
         const ticketsBought = Math.floor(orderData.amount / 126.00);
 
         let referrerUid = null;
-        if (orderData.referrerRefId) { // Use 'referrerRefId' which is now consistently named
+        if (orderData.referrerRefId) {
             // Look up the referrer's UID from the 'referrers' collection using their refId
             const referrerQuerySnapshot = await admin.firestore().collection('referrers')
                 .where('refId', '==', orderData.referrerRefId)
@@ -240,7 +243,7 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
                 .get();
 
             if (!referrerQuerySnapshot.empty) {
-                referrerUid = referrerQuerySnapshot.docs[0].id; // The UID is the document ID
+                referrerUid = referrerQuerySnapshot.docs[0].id;
                 console.log(`Found referrer UID: ${referrerUid} for refId: ${orderData.referrerRefId}`);
             } else {
                 console.warn(`Referrer with refId ${orderData.referrerRefId} not found.`);
@@ -253,22 +256,22 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
           name: orderData.name,
           email: orderData.email,
           phone: orderData.phone,
-          referrerRefId: orderData.referrerRefId || null, // The ref ID from URL
-          referrerUid: referrerUid, // The actual Firebase UID of the referrer
+          referrerRefId: orderData.referrerRefId || null,
+          referrerUid: referrerUid,
           amount: orderData.amount,
-          ticketsBought: ticketsBought, // Store calculated tickets
-          paymentStatus: 'completed', // Explicitly set status based on webhook success
+          ticketsBought: ticketsBought,
+          paymentStatus: 'completed',
           orderID: orderID,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(), // Use this for sorting/display
-          webhookEventType: event.event_type, // Store the specific event type that triggered this
-          paypalEventId: event.id // Store PayPal's event ID for auditing
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          webhookEventType: event.event_type,
+          paypalEventId: event.id
         });
 
         // Mark the original PayPal order as processed by the webhook
         await orderDocRef.update({
           raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
           webhookProcessed: true,
-          lastWebhookEvent: event // Store the full webhook event for debugging/auditing
+          lastWebhookEvent: event
         });
 
         return res.status(200).send('Webhook processed successfully.');
@@ -295,78 +298,67 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to view dashboard data.');
   }
 
-  const loggedInUid = context.auth.uid; // The UID of the currently logged-in user
+  const loggedInUid = context.auth.uid;
 
-  // --- ADDED FOR DEBUGGING: Log the UID the function is using ---
   console.log('getReferrerDashboardData: Logged in UID:', loggedInUid);
-  // --- END ADDITION ---
 
-  let targetReferrerUid = loggedInUid; // Default: user views their own data
-  let dashboardTitleName = "Your"; // Default title for display on dashboard
-  let isViewerAccount = false; // Flag to indicate if the current user is a regular viewer
-  let isSuperAdminReferrer = false; // Flag for the new "Master Viewer" role
+  let targetReferrerUid = loggedInUid;
+  let dashboardTitleName = "Your";
+  let isViewerAccount = false;
+  let isSuperAdminReferrer = false;
 
   try {
     const idTokenResult = await admin.auth().getUser(loggedInUid);
     const customClaims = idTokenResult.customClaims;
 
-    // Determine user role and target UID
     if (customClaims && customClaims.viewer && customClaims.viewReferrerUid) {
-      targetReferrerUid = customClaims.viewReferrerUid; // View assigned referrer's data
+      targetReferrerUid = customClaims.viewReferrerUid;
       isViewerAccount = true;
       console.log(`getReferrerDashboardData: Logged in user is a regular viewer (${loggedInUid}) for UID: ${targetReferrerUid}`);
     } else if (customClaims && customClaims.superAdminReferrer) {
-      // If it's a Super Admin Referrer, they see a summary of ALL referrers,
-      // but also their own personal sales if they have a refId
       isSuperAdminReferrer = true;
       console.log(`getReferrerDashboardData: Logged in user is a Super Admin Referrer (${loggedInUid}).`);
-      // For personal sections, targetReferrerUid remains loggedInUid
     }
-    // For regular referrers (who don't have special claims), targetReferrerUid remains loggedInUid
 
-    let referrerData; // Declare referrerData here to be available in all branches
+    let referrerData;
 
-    // Fetch the name for the dashboard title based on who is being viewed or current user
     if (isViewerAccount) {
-      referrerData = await admin.firestore().collection('referrers').doc(targetReferrerUid).get(); // Fetch for viewer's assigned referrer
+      referrerData = await admin.firestore().collection('referrers').doc(targetReferrerUid).get();
       if (referrerData.exists) {
           dashboardTitleName = referrerData.data().name + "'s";
       } else {
           console.warn(`getReferrerDashboardData: Assigned referrer UID ${targetReferrerUid} not found in 'referrers' collection.`);
           throw new functions.https.HttpsError('not-found', 'Assigned referrer data not found.');
       }
-    } else { // This covers both regular referrers and Super Admin Referrers viewing their own data
-        referrerData = await admin.firestore().collection('referrers').doc(loggedInUid).get(); // CORRECTED: Fetch referrer data for the logged-in user
+    } else {
+        referrerData = await admin.firestore().collection('referrers').doc(loggedInUid).get();
         if (referrerData.exists) {
             dashboardTitleName = referrerData.data().name;
         } else {
-            // If it's a regular referrer, this is a critical error.
-            // If it's a superAdminReferrer without a personal referrer doc, provide a fallback.
             if (!isSuperAdminReferrer) {
                  throw new functions.https.HttpsError('not-found', 'Referrer data not found for this user.');
             }
-            dashboardTitleName = "Master Admin"; // Fallback for Super Admin Referrer if their own doc doesn't exist
-            referrerData = { // Mock empty data for SuperAdminReferrer's personal section if their doc doesn't exist
+            dashboardTitleName = "Master Admin";
+            referrerData = {
                 data: () => ({ name: "Master Admin", refId: "N/A", goal: 0 })
             };
         }
     }
 
-    const currentReferrerDetails = referrerData.data(); // This is the data for the 'personal' section
+    const currentReferrerDetails = referrerData.data();
 
 
     let totalTicketsSold = 0;
-    const buyerDetails = []; // This array is initialized empty
-    let allReferrersSummary = []; // For Master Viewers
+    const buyerDetails = [];
+    let allReferrersSummary = [];
 
     if (isSuperAdminReferrer) {
-        // Fetch ALL raffle entries and aggregate for summary view (for All Referrers Summary)
         const allRaffleEntriesSnapshot = await admin.firestore().collection('raffle_entries').get();
         const aggregatedSales = {};
 
         allRaffleEntriesSnapshot.forEach(entryDoc => {
             const entry = entryDoc.data();
-            if (entry.referrerUid) { // Only count if attributed to a referrer
+            if (entry.referrerUid) {
                 if (!aggregatedSales[entry.referrerUid]) {
                     aggregatedSales[entry.referrerUid] = { totalTickets: 0, totalAmount: 0 };
                 }
@@ -375,12 +367,11 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             }
         });
 
-        // Get details for all referrers to match with aggregated sales
         const allReferrersSnapshot = await admin.firestore().collection('referrers').get();
-        allReferrersSnapshot.forEach(referrerDocData => { // Renamed from referrerDoc to avoid conflict
+        allReferrersSnapshot.forEach(referrerDocData => {
             const rData = referrerDocData.data();
             const referrerSummary = {
-                uid: referrerDocData.id, // The UID is the document ID
+                uid: referrerDocData.id,
                 name: rData.name,
                 refId: rData.refId,
                 goal: rData.goal || 0,
@@ -391,34 +382,31 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             allReferrersSummary.push(referrerSummary);
         });
 
-        // If the SuperAdminReferrer also has their own refId, fetch their personal sales details
-        // to populate their 'Ticket Sales Progress' and 'Buyer Details' sections with their own data.
-        if (currentReferrerDetails.refId) { // Check if the super admin also acts as a referrer
+        if (currentReferrerDetails.refId) {
             const ownSalesSnapshot = await admin.firestore().collection('raffle_entries')
-                .where('referrerUid', '==', loggedInUid) // Query for their OWN sales
+                .where('referrerUid', '==', loggedInUid)
                 .orderBy('timestamp', 'desc')
                 .get();
 
             ownSalesSnapshot.forEach(doc => {
                 const entry = doc.data();
-                totalTicketsSold += (entry.ticketsBought || 0); // Update personal totalTicketsSold
+                totalTicketsSold += (entry.ticketsBought || 0);
 
-                buyerDetails.push({ // Populate buyerDetails for super admin's own sales
+                buyerDetails.push({
                     id: doc.id,
                     name: entry.name,
                     email: entry.email,
                     phone: entry.phone,
                     ticketsBought: entry.ticketsBought,
                     timestamp: entry.timestamp ? entry.timestamp.toDate().toLocaleString('en-US', {
-                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true, // CHANGED TO 12-HOUR FORMAT
-                        timeZone: 'America/New_York' // ADDED TIMEZONE TO EST
+                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
+                        timeZone: 'America/New_York'
                     }) : 'N/A'
                 });
             });
         }
 
-    } else { // This block is for regular referrers and regular viewers
-        // For regular referrers and regular viewers, query only relevant entries
+    } else {
         const ticketsSoldSnapshot = await admin.firestore().collection('raffle_entries')
           .where('referrerUid', '==', targetReferrerUid)
           .orderBy('timestamp', 'desc')
@@ -428,8 +416,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             const entry = doc.data();
             totalTicketsSold += (entry.ticketsBought || 0);
 
-            // Only add buyer details if it's NOT a viewer account (i.e., it's a regular referrer)
-            if (!isViewerAccount) { // This condition is correct here for regular referrers
+            if (!isViewerAccount) {
                 buyerDetails.push({
                     id: doc.id,
                     name: entry.name,
@@ -437,8 +424,8 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                     phone: entry.phone,
                     ticketsBought: entry.ticketsBought,
                     timestamp: entry.timestamp ? entry.timestamp.toDate().toLocaleString('en-US', {
-                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true, // CHANGED TO 12-HOUR FORMAT
-                        timeZone: 'America/New_York' // ADDED TIMEZONE TO EST
+                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
+                        timeZone: 'America/New_York'
                     }) : 'N/A'
                 });
             }
@@ -448,16 +435,16 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
     const referralLink = currentReferrerDetails.refId ? `https://www.toratyosefsummerraffle.com/?ref=${currentReferrerDetails.refId}` : null;
 
     return {
-      name: currentReferrerDetails.name, // This is the actual name displayed in the "Welcome"
+      name: currentReferrerDetails.name,
       refId: currentReferrerDetails.refId,
       goal: currentReferrerDetails.goal,
-      totalTicketsSold: totalTicketsSold, // Personal tickets sold
-      buyerDetails: buyerDetails, // Will be empty for any type of viewer
-      referralLink: referralLink, // Personal referral link
-      dashboardTitleName: dashboardTitleName, // The title (e.g., "Saul Setton's" or "Master Admin")
-      isViewer: isViewerAccount, // Boolean for regular viewer
-      isSuperAdminReferrer: isSuperAdminReferrer, // Boolean for master viewer
-      allReferrersSummary: allReferrersSummary // Populated only for Master Viewers
+      totalTicketsSold: totalTicketsSold,
+      buyerDetails: buyerDetails,
+      referralLink: referralLink,
+      dashboardTitleName: dashboardTitleName,
+      isViewer: isViewerAccount,
+      isSuperAdminReferrer: isSuperAdminReferrer,
+      allReferrersSummary: allReferrersSummary
     };
 
   } catch (error) {
@@ -480,7 +467,7 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
     // This is a significant security risk for a production environment.
 
     // 2. Validate Input Data
-    const { email, password, name, refId, goal, isSuperAdminReferrer } = data; // Added isSuperAdminReferrer
+    const { email, password, name, refId, goal, isSuperAdminReferrer } = data;
 
     if (!email || !password || !name || !refId || typeof goal !== 'number' || goal < 0) {
         throw new functions.https.HttpsError('invalid-argument', 'Missing or invalid fields: email, password, name, refId, or goal.');
@@ -488,7 +475,7 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
     if (password.length < 6) {
         throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 6 characters long.');
     }
-    if (!refId.match(/^[a-zA-Z0-9]+$/)) { // Ensure refId is alphanumeric
+    if (!refId.match(/^[a-zA-Z0-9]+$/)) {
       throw new functions.https.HttpsError('invalid-argument', 'Referral ID must be alphanumeric (letters and numbers only).');
     }
 
@@ -508,7 +495,7 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
             email: email,
             password: password,
             displayName: name,
-            emailVerified: false // Referrers can be verified manually or through email verification flow
+            emailVerified: false
         });
 
         // 5. Set Custom Claims for the new user (e.g., 'referrer' role and 'superAdminReferrer')
@@ -538,7 +525,7 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
         } else if (error.code === 'auth/invalid-email') {
             throw new functions.https.HttpsError('invalid-argument', 'The email address is not valid.');
         } else if (error instanceof functions.https.HttpsError) {
-            throw error; // Re-throw already handled HttpsErrors
+            throw error;
         }
         // Generic error for unexpected issues
         throw new functions.https.HttpsError('internal', 'Failed to create referrer account.', error.message);
@@ -587,7 +574,7 @@ exports.createViewerAccount = functions.https.onCall(async (data, context) => {
         await admin.firestore().collection('viewer_configs').doc(userRecord.uid).set({
             name: viewerName,
             email: email,
-            viewReferrerUid: assignedReferrerUid, // Link viewer to a specific referrer UID
+            viewReferrerUid: assignedReferrerUid,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -626,7 +613,7 @@ exports.getReferrersList = functions.https.onCall(async (data, context) => {
         referrersSnapshot.forEach(doc => {
             const data = doc.data();
             referrers.push({
-                uid: doc.id, // The document ID is the UID
+                uid: doc.id,
                 name: data.name,
                 refId: data.refId
             });
