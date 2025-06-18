@@ -126,6 +126,7 @@
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
+        align-items: center; /* Align items vertically */
     }
 
     #referral-link-display {
@@ -141,7 +142,7 @@
         box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
     }
 
-    .copy-button {
+    .copy-button, .qr-button {
         padding: 10px 15px;
         background-color: var(--secondary-bg);
         color: white;
@@ -153,7 +154,7 @@
         white-space: nowrap;
     }
 
-    .copy-button:hover {
+    .copy-button:hover, .qr-button:hover {
         background-color: var(--accent);
     }
 
@@ -283,26 +284,90 @@
         text-decoration: underline;
     }
 
-    @media (max-width: 768px) {
-        .dashboard-header {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .welcome-message {
-            text-align: center;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        .logout-button {
-            width: 100%;
-        }
-        .referral-link-input-group {
-            flex-direction: column;
-        }
-        .copy-button {
-            width: 100%;
-        }
+    /* QR Code Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
     }
+
+    .modal-overlay.visible {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background-color: #fff;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        max-width: 90%;
+        width: 350px;
+        position: relative;
+    }
+
+    .modal-close-button {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 1.5em;
+        cursor: pointer;
+        background: none;
+        border: none;
+        color: #333;
+    }
+
+    #qrcode-canvas {
+        margin: 20px auto;
+        display: block; /* Center the canvas */
+        max-width: 100%;
+        height: auto;
+    }
+
+    .modal-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .modal-buttons button {
+        padding: 10px 20px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        font-size: 1em;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .modal-buttons .share-button {
+        background-color: #007bff;
+        color: white;
+    }
+    .modal-buttons .share-button:hover {
+        background-color: #0056b3;
+    }
+
+    .modal-buttons .download-button {
+        background-color: #6c757d;
+        color: white;
+    }
+    .modal-buttons .download-button:hover {
+        background-color: #5a6268;
+    }
+
 
     @media (max-width: 600px) {
       .container {
@@ -343,12 +408,13 @@
       <button id="logout-button" class="logout-button">Log Out</button>
     </div>
 
-    <!-- Referral link section: Hide for viewers as they don't have their own link -->
+    <!-- Referral link section: Always visible for referrers -->
     <div class="referral-link-section" id="referral-link-section">
       <p>Your unique referral link:</p>
       <div class="referral-link-input-group">
         <span id="referral-link-display">Loading...</span>
         <button id="copy-link-button" class="copy-button">Copy Link</button>
+        <button id="generate-qr-button" class="qr-button">Generate QR Code</button>
       </div>
     </div>
 
@@ -364,7 +430,7 @@
         </div>
     </div>
 
-    <!-- Buyer details section: Hide for viewers -->
+    <!-- Buyer details section: Always visible for referrers -->
     <div id="buyers-details-master-container">
         <h2 class="section-title">Buyer Details</h2>
         <div id="buyers-details-container" class="buyers-table-container">
@@ -386,27 +452,7 @@
         </div>
     </div>
 
-    <!-- NEW: All Referrers Summary Section (hidden by default) -->
-    <div id="all-referrers-summary-container" class="hidden">
-        <h2 class="section-title">All Referrers Summary</h2>
-        <div class="summary-table-container">
-            <p id="empty-summary-state" class="empty-state hidden">No referrer data available.</p>
-            <table class="buyers-table" id="summary-table">
-                <thead>
-                    <tr>
-                        <th>Referrer Name</th>
-                        <th>Ref ID</th>
-                        <th>Goal</th>
-                        <th>Tickets Sold</th>
-                        <th>Tickets Left</th>
-                    </tr>
-                </thead>
-                <tbody id="summary-table-body">
-                    <!-- Summary data will be populated here by JavaScript -->
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <!-- Removed: All Referrers Summary Section -->
 
   </div>
 
@@ -416,9 +462,25 @@
     <a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a>
   </footer>
 
+  <!-- QR Code Modal -->
+  <div id="qr-code-modal" class="modal-overlay">
+      <div class="modal-content">
+          <button class="modal-close-button" id="close-qr-modal">&times;</button>
+          <h3>Your Referral QR Code</h3>
+          <canvas id="qrcode-canvas" width="200" height="200"></canvas>
+          <div class="modal-buttons">
+              <button class="share-button" id="share-qr-button">Share QR Code</button>
+              <button class="download-button" id="download-qr-button">Download QR Code</button>
+          </div>
+      </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+  <!-- QR Code Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
   <script>
     // Initialize Firebase with your provided configuration
     const firebaseConfig = {
@@ -443,6 +505,7 @@
     const referralLinkSection = document.getElementById('referral-link-section'); 
     const referralLinkDisplay = document.getElementById('referral-link-display');
     const copyLinkButton = document.getElementById('copy-link-button');
+    const generateQrButton = document.getElementById('generate-qr-button'); // New QR button
     const ticketsSoldElement = document.getElementById('tickets-sold');
     const goalTicketsElement = document.getElementById('goal-tickets');
     const progressBar = document.getElementById('progress-bar');
@@ -452,11 +515,13 @@
     const emptyBuyersState = document.getElementById('empty-buyers-state');
     const buyersTable = document.getElementById('buyers-table');
 
-    // NEW Summary elements
-    const allReferrersSummaryContainer = document.getElementById('all-referrers-summary-container');
-    const summaryTableBody = document.getElementById('summary-table-body');
-    const emptySummaryState = document.getElementById('empty-summary-state');
-    const summaryTable = document.getElementById('summary-table');
+    // QR Code Modal elements
+    const qrCodeModal = document.getElementById('qr-code-modal');
+    const closeQrModalButton = document.getElementById('close-qr-modal');
+    const qrcodeCanvas = document.getElementById('qrcode-canvas');
+    const shareQrButton = document.getElementById('share-qr-button');
+    const downloadQrButton = document.getElementById('download-qr-button');
+    let qrCodeDataUrl = ''; // To store the generated QR code data URL
 
 
     // Function to show/hide loading overlay
@@ -485,7 +550,7 @@
         const data = result.data;
 
         // Dynamic welcome message
-        welcomeMessageElement.textContent = `Welcome, ${data.name}! (${data.dashboardTitleName} Dashboard)`;
+        welcomeMessageElement.textContent = `Welcome, ${data.name}! (Your Dashboard)`; 
 
         // Update personal progress section
         ticketsSoldElement.textContent = data.totalTicketsSold;
@@ -494,67 +559,39 @@
         progressBar.style.width = `${Math.min(progress, 100)}%`; 
         progressPercentage.textContent = `${Math.round(progress)}%`;
 
-        // Handle visibility of referrer-specific elements vs. viewer/superAdminReferrer
-        if (data.isViewer) { // Regular viewer
-            referralLinkSection.classList.add('hidden'); 
-            buyersDetailsMasterContainer.classList.add('hidden'); 
-            allReferrersSummaryContainer.classList.add('hidden'); 
-        } else if (data.isSuperAdminReferrer) { // Master Viewer / Super Admin Referrer
-            // Super Admin Referrers see their own link and details, AND the summary
-            referralLinkSection.classList.remove('hidden'); // Show their own link
-            buyersDetailsMasterContainer.classList.add('hidden'); // Hide buyer details for Master Viewers
-            allReferrersSummaryContainer.classList.remove('hidden'); // Show all referrers summary
+        // Referral link is always visible for referrers
+        referralLinkSection.classList.remove('hidden');
+        referralLinkDisplay.textContent = data.referralLink;
 
-            referralLinkDisplay.textContent = data.referralLink; // Their own referral link
+        // Buyer details section is always visible for referrers
+        buyersDetailsMasterContainer.classList.remove('hidden');
 
-            // Populate All Referrers Summary Table
-            summaryTableBody.innerHTML = '';
-            if (data.allReferrersSummary && data.allReferrersSummary.length > 0) {
-                emptySummaryState.classList.add('hidden');
-                summaryTable.style.display = 'table';
-                data.allReferrersSummary.forEach(referrer => {
-                    const row = summaryTableBody.insertRow();
-                    row.insertCell().textContent = referrer.name;
-                    row.insertCell().textContent = referrer.refId;
-                    row.insertCell().textContent = referrer.goal;
-                    row.insertCell().textContent = referrer.totalTicketsSold;
-                    row.insertCell().textContent = referrer.ticketsRemaining;
-                });
-            } else {
-                emptySummaryState.classList.remove('hidden');
-                summaryTable.style.display = 'none';
-            }
-
-        } else { // Regular referrer (not viewer, not super admin)
-            referralLinkSection.classList.remove('hidden');
-            buyersDetailsMasterContainer.classList.remove('hidden');
-            allReferrersSummaryContainer.classList.add('hidden'); 
-
-            referralLinkDisplay.textContent = data.referralLink;
-
-            // Populate buyer details table
-            buyersTableBody.innerHTML = ''; 
-            if (data.buyerDetails && data.buyerDetails.length > 0) {
-              emptyBuyersState.classList.add('hidden');
-              buyersTable.style.display = 'table'; 
-              data.buyerDetails.forEach(buyer => {
-                const row = buyersTableBody.insertRow();
-                row.insertCell().textContent = buyer.name;
-                row.insertCell().textContent = buyer.email;
-                row.insertCell().textContent = buyer.phone;
-                row.insertCell().textContent = buyer.ticketsBought;
-                row.insertCell().textContent = buyer.timestamp;
-              });
-            } else {
-              emptyBuyersState.classList.remove('hidden');
-              buyersTable.style.display = 'none'; 
-            }
+        // Populate buyer details table (FIXED LOGIC HERE)
+        buyersTableBody.innerHTML = ''; // Clear existing rows
+        if (data.buyerDetails && data.buyerDetails.length > 0) {
+          emptyBuyersState.classList.add('hidden');
+          buyersTable.style.display = 'table'; 
+          data.buyerDetails.forEach(buyer => {
+            const row = buyersTableBody.insertRow(); // Create a new row
+            row.insertCell().textContent = buyer.name;
+            row.insertCell().textContent = buyer.email;
+            row.insertCell().textContent = buyer.phone;
+            row.insertCell().textContent = buyer.ticketsBought;
+            row.insertCell().textContent = buyer.timestamp;
+          });
+        } else {
+          emptyBuyersState.classList.remove('hidden');
+          buyersTable.style.display = 'none'; 
         }
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         alert(`Failed to load dashboard data: ${error.message}`);
-        // Optionally, redirect to login on data fetch error
+        // If there's an error loading data, it could be a transient issue or setup.
+        // It's better not to redirect automatically here, but to show an error.
+        // The current design with `auth.signOut().then()` would cause a redirect.
+        // If you truly don't want a redirect on this error, remove the auth.signOut() block.
+        // For now, keeping the redirect as per previous code, assuming this is an unrecoverable data fetch.
         auth.signOut().then(() => {
           window.location.href = './login.html'; // Relative path
         });
@@ -577,14 +614,95 @@
     // Copy referral link to clipboard
     copyLinkButton.addEventListener('click', () => {
       const linkToCopy = referralLinkDisplay.textContent;
-      document.execCommand('copy'); // Using deprecated but widely supported method for iFrame compatibility
-      navigator.clipboard.writeText(linkToCopy).then(() => { // Modern API fallback/alternative
+      // document.execCommand('copy') is deprecated, using navigator.clipboard
+      navigator.clipboard.writeText(linkToCopy).then(() => {
         alert('Referral link copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy text: ', err);
+        // Fallback for older browsers or if permission is denied
         alert('Failed to copy link. Please copy it manually: ' + linkToCopy);
       });
     });
+
+    // --- QR Code Generation and Sharing Logic ---
+    generateQrButton.addEventListener('click', () => {
+        const link = referralLinkDisplay.textContent;
+        if (!link || link === 'Loading...') {
+            alert('Please wait for the referral link to load.');
+            return;
+        }
+
+        // Clear previous QR code
+        qrcodeCanvas.getContext('2d').clearRect(0, 0, qrcodeCanvas.width, qrcodeCanvas.height);
+
+        // Generate QR code on canvas
+        const qr = new QRious({
+            element: qrcodeCanvas,
+            value: link,
+            size: qrcodeCanvas.width,
+            level: 'H', // High error correction
+        });
+        
+        qrCodeDataUrl = qrcodeCanvas.toDataURL(); // Store data URL for sharing/download
+
+        qrCodeModal.classList.add('visible'); // Show the modal
+    });
+
+    closeQrModalButton.addEventListener('click', () => {
+        qrCodeModal.classList.remove('visible'); // Hide the modal
+    });
+
+    qrCodeModal.addEventListener('click', (event) => {
+        // Close modal if clicking outside the content
+        if (event.target === qrCodeModal) {
+            qrCodeModal.classList.remove('visible');
+        }
+    });
+
+    shareQrButton.addEventListener('click', async () => {
+        if (!qrCodeDataUrl) {
+            alert('QR Code not generated yet.');
+            return;
+        }
+
+        // Convert Data URL to Blob for sharing
+        const blob = await (await fetch(qrCodeDataUrl)).blob();
+        const file = new File([blob], 'referral_qr_code.png', { type: 'image/png' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: 'My Raffle Referral QR Code',
+                    text: 'Scan this QR code to purchase raffle tickets through my link and support our cause!',
+                });
+                console.log('QR Code shared successfully!');
+            } catch (error) {
+                console.error('Error sharing QR Code:', error);
+                alert('Failed to share QR code. ' + (error.message || 'Please try again.'));
+            }
+        } else {
+            // Fallback for browsers that don't support Web Share API for files
+            alert('Web Share API for files is not supported in this browser. Please use the "Download" button to save the image and share it manually.');
+            // Optionally, automatically trigger download as a fallback
+            // downloadQrButton.click();
+        }
+    });
+
+    downloadQrButton.addEventListener('click', () => {
+        if (!qrCodeDataUrl) {
+            alert('QR Code not generated yet.');
+            return;
+        }
+        const a = document.createElement('a');
+        a.href = qrCodeDataUrl;
+        a.download = 'referral_qr_code.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        alert('QR Code downloaded!');
+    });
+    // --- End QR Code Generation and Sharing Logic ---
   </script>
 </body>
 </html>
