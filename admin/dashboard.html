@@ -264,6 +264,27 @@
         border-radius: 8px;
     }
 
+    .footer {
+      width: 100%;
+      background-color: var(--secondary-bg);
+      color: white;
+      text-align: center;
+      padding: 1.5rem 1rem;
+      font-size: 0.9em;
+      margin-top: auto; /* Pushes footer to the bottom */
+      flex-shrink: 0;
+    }
+
+    .footer a {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: bold;
+    }
+
+    .footer a:hover {
+        text-decoration: underline;
+    }
+
     @media (max-width: 768px) {
         .dashboard-header {
             flex-direction: column;
@@ -311,7 +332,7 @@
 </head>
 <body>
   <div class="logo-container">
-    <img class="logo" src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" />
+    <img class="logo" src="/logo.png" alt="Yeshivat Torat Yosef Logo" />
   </div>
 
   <div class="container">
@@ -391,6 +412,12 @@
 
   </div>
 
+  <footer class="footer">
+    Website made by Saul Setton<br />
+    <a href="tel:9295845753">929-584-5753</a> | 
+    <a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a>
+  </footer>
+
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
@@ -446,7 +473,7 @@
     // Redirect to login if not authenticated
     auth.onAuthStateChanged(user => {
       if (!user) {
-        window.location.href = '/login.html';
+        window.location.href = './login.html'; // Relative path
       } else {
         fetchDashboardData(); // Fetch data once user is confirmed logged in
       }
@@ -470,35 +497,17 @@
         progressPercentage.textContent = `${Math.round(progress)}%`;
 
         // Handle visibility of referrer-specific elements vs. viewer/superAdminReferrer
-        if (data.isViewer) {
-            referralLinkSection.classList.add('hidden'); // Standard viewers don't have their own link
-            buyersDetailsMasterContainer.classList.add('hidden'); // Hide buyer details for standard viewers
-            allReferrersSummaryContainer.classList.add('hidden'); // Standard viewers don't see all summary either
-        } else if (data.isSuperAdminReferrer) {
+        if (data.isViewer) { // Regular viewer
+            referralLinkSection.classList.add('hidden'); 
+            buyersDetailsMasterContainer.classList.add('hidden'); 
+            allReferrersSummaryContainer.classList.add('hidden'); 
+        } else if (data.isSuperAdminReferrer) { // Master Viewer / Super Admin Referrer
             // Super Admin Referrers see their own link and details, AND the summary
-            referralLinkSection.classList.remove('hidden');
-            buyersDetailsMasterContainer.classList.remove('hidden');
+            referralLinkSection.classList.remove('hidden'); // Show their own link
+            buyersDetailsMasterContainer.classList.add('hidden'); // Hide buyer details for Master Viewers
             allReferrersSummaryContainer.classList.remove('hidden'); // Show all referrers summary
 
             referralLinkDisplay.textContent = data.referralLink; // Their own referral link
-
-            // Populate their own buyer details table (since they are also referrers)
-            buyersTableBody.innerHTML = ''; 
-            if (data.buyerDetails && data.buyerDetails.length > 0) {
-              emptyBuyersState.classList.add('hidden');
-              buyersTable.style.display = 'table'; 
-              data.buyerDetails.forEach(buyer => {
-                const row = buyersTableBody.insertRow();
-                row.insertCell().textContent = buyer.name;
-                row.insertCell().textContent = buyer.email;
-                row.insertCell().textContent = buyer.phone;
-                row.insertCell().textContent = buyer.ticketsBought;
-                row.insertCell().textContent = buyer.timestamp;
-              });
-            } else {
-              emptyBuyersState.classList.remove('hidden');
-              buyersTable.style.display = 'none'; 
-            }
 
             // Populate All Referrers Summary Table
             summaryTableBody.innerHTML = '';
@@ -521,7 +530,7 @@
         } else { // Regular referrer (not viewer, not super admin)
             referralLinkSection.classList.remove('hidden');
             buyersDetailsMasterContainer.classList.remove('hidden');
-            allReferrersSummaryContainer.classList.add('hidden'); // Regular referrers don't see all summary
+            allReferrersSummaryContainer.classList.add('hidden'); 
 
             referralLinkDisplay.textContent = data.referralLink;
 
@@ -549,7 +558,7 @@
         alert(`Failed to load dashboard data: ${error.message}`);
         // Optionally, redirect to login on data fetch error
         auth.signOut().then(() => {
-          window.location.href = '/login.html';
+          window.location.href = './login.html'; // Relative path
         });
       } finally {
         hideLoading();
@@ -560,7 +569,7 @@
     logoutButton.addEventListener('click', async () => {
       try {
         await auth.signOut();
-        window.location.href = '/login.html'; // Redirect to login page
+        window.location.href = './login.html'; // Relative path
       } catch (error) {
         console.error('Logout error:', error);
         alert('Failed to log out. Please try again.');
