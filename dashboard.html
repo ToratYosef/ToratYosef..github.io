@@ -250,6 +250,10 @@
       pointer-events: none;
     }
 
+    .hidden { /* For hiding elements like buyer table or whole sections */
+        display: none !important;
+    }
+
     .empty-state {
         text-align: center;
         margin-top: 30px;
@@ -307,7 +311,7 @@
 </head>
 <body>
   <div class="logo-container">
-    <img class="logo" src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" />
+    <img class="logo" src="/logo.png" alt="Yeshivat Torat Yosef Logo" />
   </div>
 
   <div class="container">
@@ -320,7 +324,8 @@
       <button id="logout-button" class="logout-button">Log Out</button>
     </div>
 
-    <div class="referral-link-section">
+    <!-- Referral link section: Hide for viewers as they don't have their own link -->
+    <div class="referral-link-section" id="referral-link-section">
       <p>Your unique referral link:</p>
       <div class="referral-link-input-group">
         <span id="referral-link-display">Loading...</span>
@@ -340,24 +345,50 @@
         </div>
     </div>
 
-    <h2 class="section-title">Buyer Details</h2>
-    <div id="buyers-details-container" class="buyers-table-container">
-      <p id="empty-buyers-state" class="empty-state hidden">No tickets sold through your link yet.</p>
-      <table class="buyers-table" id="buyers-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Tickets</th>
-            <th>Time</th>
-          </tr>
-        </thead>
-        <tbody id="buyers-table-body">
-          <!-- Buyer details will be populated here by JavaScript -->
-        </tbody>
-      </table>
+    <!-- Buyer details section: Hide for viewers -->
+    <div id="buyers-details-master-container">
+        <h2 class="section-title">Buyer Details</h2>
+        <div id="buyers-details-container" class="buyers-table-container">
+          <p id="empty-buyers-state" class="empty-state hidden">No tickets sold through your link yet.</p>
+          <table class="buyers-table" id="buyers-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Tickets</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="buyers-table-body">
+              <!-- Buyer details will be populated here by JavaScript -->
+            </tbody>
+          </table>
+        </div>
     </div>
+
+    <!-- NEW: All Referrers Summary Section (hidden by default) -->
+    <div id="all-referrers-summary-container" class="hidden">
+        <h2 class="section-title">All Referrers Summary</h2>
+        <div class="summary-table-container">
+            <p id="empty-summary-state" class="empty-state hidden">No referrer data available.</p>
+            <table class="buyers-table" id="summary-table">
+                <thead>
+                    <tr>
+                        <th>Referrer Name</th>
+                        <th>Ref ID</th>
+                        <th>Goal</th>
+                        <th>Tickets Sold</th>
+                        <th>Tickets Left</th>
+                    </tr>
+                </thead>
+                <tbody id="summary-table-body">
+                    <!-- Summary data will be populated here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -384,15 +415,24 @@
     const loadingOverlay = document.getElementById('loading-overlay');
     const welcomeMessageElement = document.getElementById('welcome-message');
     const logoutButton = document.getElementById('logout-button');
+    const referralLinkSection = document.getElementById('referral-link-section'); 
     const referralLinkDisplay = document.getElementById('referral-link-display');
     const copyLinkButton = document.getElementById('copy-link-button');
     const ticketsSoldElement = document.getElementById('tickets-sold');
     const goalTicketsElement = document.getElementById('goal-tickets');
     const progressBar = document.getElementById('progress-bar');
     const progressPercentage = document.getElementById('progress-percentage');
+    const buyersDetailsMasterContainer = document.getElementById('buyers-details-master-container'); 
     const buyersTableBody = document.getElementById('buyers-table-body');
     const emptyBuyersState = document.getElementById('empty-buyers-state');
     const buyersTable = document.getElementById('buyers-table');
+
+    // NEW Summary elements
+    const allReferrersSummaryContainer = document.getElementById('all-referrers-summary-container');
+    const summaryTableBody = document.getElementById('summary-table-body');
+    const emptySummaryState = document.getElementById('empty-summary-state');
+    const summaryTable = document.getElementById('summary-table');
+
 
     // Function to show/hide loading overlay
     function showLoading() {
@@ -419,33 +459,89 @@
         const result = await getReferrerDashboardData();
         const data = result.data;
 
-        welcomeMessageElement.textContent = `Welcome, ${data.name}!`;
-        referralLinkDisplay.textContent = data.referralLink;
+        // Dynamic welcome message
+        welcomeMessageElement.textContent = `Welcome, ${data.name}! (${data.dashboardTitleName} Dashboard)`;
 
+        // Update personal progress section
         ticketsSoldElement.textContent = data.totalTicketsSold;
         goalTicketsElement.textContent = data.goal;
-
-        // Update progress bar
         const progress = data.goal > 0 ? (data.totalTicketsSold / data.goal) * 100 : 0;
-        progressBar.style.width = `${Math.min(progress, 100)}%`; // Cap at 100%
+        progressBar.style.width = `${Math.min(progress, 100)}%`; 
         progressPercentage.textContent = `${Math.round(progress)}%`;
 
-        // Populate buyer details table
-        buyersTableBody.innerHTML = ''; // Clear existing rows
-        if (data.buyerDetails && data.buyerDetails.length > 0) {
-          emptyBuyersState.classList.add('hidden');
-          buyersTable.style.display = 'table'; // Show table
-          data.buyerDetails.forEach(buyer => {
-            const row = buyersTableBody.insertRow();
-            row.insertCell().textContent = buyer.name;
-            row.insertCell().textContent = buyer.email;
-            row.insertCell().textContent = buyer.phone;
-            row.insertCell().textContent = buyer.ticketsBought;
-            row.insertCell().textContent = buyer.timestamp;
-          });
-        } else {
-          emptyBuyersState.classList.remove('hidden');
-          buyersTable.style.display = 'none'; // Hide table
+        // Handle visibility of referrer-specific elements vs. viewer/superAdminReferrer
+        if (data.isViewer) {
+            referralLinkSection.classList.add('hidden'); // Standard viewers don't have their own link
+            buyersDetailsMasterContainer.classList.add('hidden'); // Hide buyer details for standard viewers
+            allReferrersSummaryContainer.classList.add('hidden'); // Standard viewers don't see all summary either
+        } else if (data.isSuperAdminReferrer) {
+            // Super Admin Referrers see their own link and details, AND the summary
+            referralLinkSection.classList.remove('hidden');
+            buyersDetailsMasterContainer.classList.remove('hidden');
+            allReferrersSummaryContainer.classList.remove('hidden'); // Show all referrers summary
+
+            referralLinkDisplay.textContent = data.referralLink; // Their own referral link
+
+            // Populate their own buyer details table (since they are also referrers)
+            buyersTableBody.innerHTML = ''; 
+            if (data.buyerDetails && data.buyerDetails.length > 0) {
+              emptyBuyersState.classList.add('hidden');
+              buyersTable.style.display = 'table'; 
+              data.buyerDetails.forEach(buyer => {
+                const row = buyersTableBody.insertRow();
+                row.insertCell().textContent = buyer.name;
+                row.insertCell().textContent = buyer.email;
+                row.insertCell().textContent = buyer.phone;
+                row.insertCell().textContent = buyer.ticketsBought;
+                row.insertCell().textContent = buyer.timestamp;
+              });
+            } else {
+              emptyBuyersState.classList.remove('hidden');
+              buyersTable.style.display = 'none'; 
+            }
+
+            // Populate All Referrers Summary Table
+            summaryTableBody.innerHTML = '';
+            if (data.allReferrersSummary && data.allReferrersSummary.length > 0) {
+                emptySummaryState.classList.add('hidden');
+                summaryTable.style.display = 'table';
+                data.allReferrersSummary.forEach(referrer => {
+                    const row = summaryTableBody.insertRow();
+                    row.insertCell().textContent = referrer.name;
+                    row.insertCell().textContent = referrer.refId;
+                    row.insertCell().textContent = referrer.goal;
+                    row.insertCell().textContent = referrer.totalTicketsSold;
+                    row.insertCell().textContent = referrer.ticketsRemaining;
+                });
+            } else {
+                emptySummaryState.classList.remove('hidden');
+                summaryTable.style.display = 'none';
+            }
+
+        } else { // Regular referrer (not viewer, not super admin)
+            referralLinkSection.classList.remove('hidden');
+            buyersDetailsMasterContainer.classList.remove('hidden');
+            allReferrersSummaryContainer.classList.add('hidden'); // Regular referrers don't see all summary
+
+            referralLinkDisplay.textContent = data.referralLink;
+
+            // Populate buyer details table
+            buyersTableBody.innerHTML = ''; 
+            if (data.buyerDetails && data.buyerDetails.length > 0) {
+              emptyBuyersState.classList.add('hidden');
+              buyersTable.style.display = 'table'; 
+              data.buyerDetails.forEach(buyer => {
+                const row = buyersTableBody.insertRow();
+                row.insertCell().textContent = buyer.name;
+                row.insertCell().textContent = buyer.email;
+                row.insertCell().textContent = buyer.phone;
+                row.insertCell().textContent = buyer.ticketsBought;
+                row.insertCell().textContent = buyer.timestamp;
+              });
+            } else {
+              emptyBuyersState.classList.remove('hidden');
+              buyersTable.style.display = 'none'; 
+            }
         }
 
       } catch (error) {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Create Referrer Account - Admin Panel</title>
+  <title>Create Account - Admin Panel</title>
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
@@ -82,7 +82,8 @@
     .form-group input[type="email"],
     .form-group input[type="password"],
     .form-group input[type="text"],
-    .form-group input[type="number"] {
+    .form-group input[type="number"],
+    .form-group select { /* Added select for account type */
       width: calc(100% - 20px);
       padding: 12px;
       border: 1px solid #ccc;
@@ -91,7 +92,7 @@
       box-sizing: border-box;
     }
 
-    .form-group input:focus {
+    .form-group input:focus, .form-group select:focus {
       border-color: var(--accent);
       outline: none;
       box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
@@ -218,7 +219,7 @@
 </head>
 <body>
   <div class="logo-container">
-    <img class="logo" src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" />
+    <img class="logo" src="/logo.png" alt="Yeshivat Torat Yosef Logo" />
   </div>
 
   <div class="container">
@@ -237,15 +238,24 @@
 
     <!-- Main Content Section (hidden initially) -->
     <div id="main-content" class="hidden">
-        <h1>Create Referrer Account</h1>
+        <h1>Create Account</h1>
 
         <div class="form-group">
-          <label for="name">Referrer Name</label>
+            <label for="account-type">Account Type</label>
+            <select id="account-type">
+                <option value="referrer">Raffle Referrer</option>
+                <option value="viewer">Dashboard Viewer</option>
+                <option value="superAdminReferrer">Super Admin Referrer</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+          <label for="name">Account Name</label>
           <input type="text" id="name" required />
         </div>
 
         <div class="form-group">
-          <label for="email">Referrer Email</label>
+          <label for="email">Account Email</label>
           <input type="email" id="email" autocomplete="off" required />
         </div>
 
@@ -254,14 +264,27 @@
           <input type="password" id="password" autocomplete="new-password" required />
         </div>
 
-        <div class="form-group">
-          <label for="refId">Referral ID (e.g., SaulS, only letters/numbers)</label>
-          <input type="text" id="refId" required />
+        <!-- Referrer-specific fields -->
+        <div id="referrer-fields">
+            <div class="form-group">
+              <label for="refId">Referral ID (e.g., SaulS, only letters/numbers)</label>
+              <input type="text" id="refId" />
+            </div>
+
+            <div class="form-group">
+              <label for="goal">Goal (Tickets)</label>
+              <input type="number" id="goal" value="0" min="0" />
+            </div>
         </div>
 
-        <div class="form-group">
-          <label for="goal">Goal (Tickets)</label>
-          <input type="number" id="goal" value="0" min="0" required />
+        <!-- Viewer-specific fields -->
+        <div id="viewer-fields" class="hidden">
+            <div class="form-group">
+                <label for="assigned-referrer">View Referrer Dashboard Of:</label>
+                <select id="assigned-referrer">
+                    <option value="">Loading Referrers...</option>
+                </select>
+            </div>
         </div>
 
         <div id="message-box" class="message-box"></div>
@@ -286,10 +309,12 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    // Firebase Auth is still initialized but not directly used for page access control
-    const auth = firebase.auth();
+    const auth = firebase.auth(); // Auth is needed here to call getReferrersList Callable
     const functions = firebase.functions();
     const createReferrerAccountCallable = functions.httpsCallable('createReferrerAccount');
+    const createViewerAccountCallable = functions.httpsCallable('createViewerAccount');
+    const getReferrersListCallable = functions.httpsCallable('getReferrersList'); // New callable to get referrer list
+
 
     // DOM elements for password prompt
     const passwordPromptSection = document.getElementById('password-prompt-section');
@@ -298,15 +323,22 @@
     const accessMessageBox = document.getElementById('access-message-box');
     const mainContent = document.getElementById('main-content');
 
-    // DOM elements for referrer creation form
+    // DOM elements for account creation form
+    const accountTypeSelect = document.getElementById('account-type');
     const nameInput = document.getElementById('name');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password'); 
+    const referrerFields = document.getElementById('referrer-fields');
     const refIdInput = document.getElementById('refId');
     const goalInput = document.getElementById('goal');
+    const viewerFields = document.getElementById('viewer-fields');
+    const assignedReferrerSelect = document.getElementById('assigned-referrer');
+
     const createButton = document.getElementById('create-button');
     const messageBox = document.getElementById('message-box');
     const loadingOverlay = document.getElementById('loading-overlay');
+
+    let allReferrers = []; // To store fetched referrers for the dropdown
 
     // Function to show messages (success/error)
     function showMessage(element, type, message) {
@@ -339,6 +371,8 @@
       if (enteredPassword === CORRECT_PASSWORD) {
         passwordPromptSection.classList.add('hidden');
         mainContent.classList.remove('hidden');
+        // If access is granted, perform anonymous Firebase login to enable Callable Function calls
+        signInAnonymouslyAndFetchReferrers();
       } else {
         showMessage(accessMessageBox, 'error', 'Incorrect password. Please try again.');
         accessPasswordInput.value = ''; 
@@ -353,6 +387,80 @@
     });
     // --- End Password Prompt Logic ---
 
+    // Function to sign in anonymously and then fetch referrers for the dropdown
+    async function signInAnonymouslyAndFetchReferrers() {
+        try {
+            await auth.signInAnonymously();
+            console.log('Signed in anonymously to enable Callable Function calls.');
+            fetchReferrersForDropdown(); // Now fetch referrers list
+        } catch (error) {
+            console.error('Anonymous sign-in failed:', error);
+            showMessage(messageBox, 'error', 'Failed to initialize app for account creation. Please try again.');
+            hideLoading();
+            createButton.disabled = true; // Disable create button if auth fails
+        }
+    }
+
+
+    // Function to fetch referrers for the dropdown
+    async function fetchReferrersForDropdown() {
+        assignedReferrerSelect.disabled = true;
+        assignedReferrerSelect.innerHTML = '<option value="">Loading Referrers...</option>';
+        try {
+            const result = await getReferrersListCallable(); // This callable requires auth (even anonymous)
+            allReferrers = result.data.referrers || [];
+            
+            assignedReferrerSelect.innerHTML = '<option value="">-- Select Referrer --</option>';
+            allReferrers.forEach(referrer => {
+                const option = document.createElement('option');
+                option.value = referrer.uid; // Value is UID
+                option.textContent = `${referrer.name} (${referrer.refId})`; // Display name (refId)
+                assignedReferrerSelect.appendChild(option);
+            });
+            assignedReferrerSelect.disabled = false;
+        } catch (error) {
+            console.error('Error fetching referrers list:', error);
+            assignedReferrerSelect.innerHTML = '<option value="">Error loading referrers</option>';
+            showMessage(messageBox, 'error', 'Failed to load list of referrers. Ensure Firebase Authentication is enabled and function is deployed.');
+        }
+    }
+
+
+    // Toggle fields based on account type selection
+    accountTypeSelect.addEventListener('change', () => {
+        clearMessage(messageBox); // Clear messages when type changes
+        const selectedType = accountTypeSelect.value;
+
+        // Hide all specific fields first
+        referrerFields.classList.add('hidden');
+        viewerFields.classList.add('hidden');
+
+        // Reset required attributes
+        refIdInput.required = false;
+        goalInput.required = false;
+        assignedReferrerSelect.required = false;
+
+        // Show fields based on selected type
+        if (selectedType === 'referrer' || selectedType === 'superAdminReferrer') {
+            referrerFields.classList.remove('hidden');
+            refIdInput.required = true;
+            goalInput.required = true;
+        } 
+        
+        if (selectedType === 'viewer') {
+            viewerFields.classList.remove('hidden');
+            assignedReferrerSelect.required = true;
+        }
+        
+        // Clear specific values if changing type
+        refIdInput.value = "";
+        goalInput.value = "0";
+        assignedReferrerSelect.value = ""; 
+
+    });
+
+    // Initial state setup for form fields
+    accountTypeSelect.dispatchEvent(new Event('change'));
 
     // Handle create account button click
     createButton.addEventListener('click', async () => {
@@ -360,43 +468,60 @@
       showLoading();
       createButton.disabled = true;
 
+      const accountType = accountTypeSelect.value;
       const name = nameInput.value.trim();
       const email = emailInput.value.trim();
       const password = passwordInput.value.trim(); 
-      const refId = refIdInput.value.trim();
-      const goal = parseInt(goalInput.value, 10);
+      let callableFunction;
+      let payload = {};
 
-      if (!name || !email || !password || !refId || isNaN(goal) || goal < 0) {
-        showMessage(messageBox, 'error', 'Please fill in all fields correctly (goal must be a number).');
-        hideLoading();
-        createButton.disabled = false;
-        return;
+      if (!name || !email || !password) {
+        showMessage(messageBox, 'error', 'Please fill in Name, Email, and Password.');
+        hideLoading(); createButton.disabled = false; return;
       }
       if (password.length < 6) {
         showMessage(messageBox, 'error', 'Password must be at least 6 characters long.');
-        hideLoading();
-        createButton.disabled = false;
-        return;
+        hideLoading(); createButton.disabled = false; return;
       }
-      if (!refId.match(/^[a-zA-Z0-9]+$/)) {
-        showMessage(messageBox, 'error', 'Referral ID must be alphanumeric (letters and numbers only).');
-        hideLoading();
-        createButton.disabled = false;
-        return;
+      // Ensure there's an authenticated user (even anonymously signed in) to call the function
+      // This is necessary for getReferrersListCallable if that one requires auth.
+      if (!auth.currentUser) {
+          showMessage(messageBox, 'error', 'Authentication required for this operation. Please refresh the page and try again after entering the password.');
+          hideLoading(); createButton.disabled = false; return;
+      }
+
+      if (accountType === 'referrer' || accountType === 'superAdminReferrer') {
+        const refId = refIdInput.value.trim();
+        const goal = parseInt(goalInput.value, 10);
+        if (!refId || isNaN(goal) || goal < 0) {
+          showMessage(messageBox, 'error', 'Referral ID and Goal are required for Referrer accounts.');
+          hideLoading(); createButton.disabled = false; return;
+        }
+        if (!refId.match(/^[a-zA-Z0-9]+$/)) {
+          showMessage(messageBox, 'error', 'Referral ID must be alphanumeric (letters and numbers only).');
+          hideLoading(); createButton.disabled = false; return;
+        }
+        callableFunction = createReferrerAccountCallable;
+        payload = { 
+            email, 
+            password, 
+            name, 
+            refId, 
+            goal, 
+            isSuperAdminReferrer: (accountType === 'superAdminReferrer') // Pass this flag
+        };
+      } else { // viewer
+        const assignedReferrerUid = assignedReferrerSelect.value;
+        if (!assignedReferrerUid) {
+          showMessage(messageBox, 'error', 'Please select a referrer for the viewer account.');
+          hideLoading(); createButton.disabled = false; return;
+        }
+        callableFunction = createViewerAccountCallable;
+        payload = { email, password, viewerName: name, assignedReferrerUid };
       }
 
       try {
-        // As discussed, the createReferrerAccount Callable Function
-        // no longer requires an authenticated user based on your updated backend.
-        // Therefore, we do not need a client-side Firebase Auth check here.
-
-        const result = await createReferrerAccountCallable({
-          email,
-          password,
-          name,
-          refId,
-          goal
-        });
+        const result = await callableFunction(payload);
         showMessage(messageBox, 'success', result.data.message);
         // Clear form fields on success
         nameInput.value = '';
@@ -404,17 +529,18 @@
         passwordInput.value = '';
         refIdInput.value = '';
         goalInput.value = '0';
+        accountTypeSelect.value = 'referrer'; // Reset to default
+        accountTypeSelect.dispatchEvent(new Event('change')); // Trigger visibility update
+        // Re-fetch referrers list in case a new referrer was just created
+        fetchReferrersForDropdown();
+
       } catch (error) {
-        console.error('Error creating referrer account:', error);
+        console.error('Error creating account:', error);
         let userMessage = 'Failed to create account. Please try again.';
-        if (error.code === 'already-exists') {
-            userMessage = error.message;
-        } else if (error.code === 'invalid-argument') {
-            userMessage = error.message;
+        if (error.code === 'already-exists' || error.code === 'invalid-argument' || error.code === 'not-found') {
+            userMessage = error.message; 
         } else if (error.code === 'unauthenticated') {
-            // This case should ideally not happen if the backend function is truly unauthenticated.
-            // If it does, it indicates the backend function still has an auth check.
-            userMessage = 'Authentication required on the server side. Please ensure the function is updated.';
+            userMessage = 'Authentication required for this operation. Please ensure Firebase Authentication is enabled and try again.';
         }
         showMessage(messageBox, 'error', userMessage);
       } finally {
