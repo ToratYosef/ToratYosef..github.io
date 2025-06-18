@@ -179,6 +179,67 @@
       display: none;
     }
 
+    /* Custom Popup Styles */
+    .custom-popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: none; /* Hidden by default */
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .custom-popup {
+      background-color: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+      position: relative;
+      transform: translateY(-50px); /* Initial position for animation */
+      opacity: 0; /* Initial opacity for animation */
+      transition: all 0.3s ease-out;
+    }
+
+    .custom-popup.show {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    .custom-popup h2 {
+      color: var(--accent);
+      margin-top: 0;
+      font-size: 1.5rem;
+    }
+
+    .custom-popup p {
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+      color: var(--primary-text);
+    }
+
+    .custom-popup button {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 25px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: bold;
+      transition: background-color 0.2s ease;
+    }
+
+    .custom-popup button:hover {
+      background-color: var(--hover);
+    }
+
     @media (max-width: 600px) {
       .pay-button {
         padding: 10px 20px;
@@ -204,6 +265,15 @@
 
       .logo {
         max-width: 200px;
+      }
+      .custom-popup {
+        padding: 20px;
+      }
+      .custom-popup h2 {
+        font-size: 1.3rem;
+      }
+      .custom-popup p {
+        font-size: 1rem;
       }
     }
   </style>
@@ -247,6 +317,14 @@
     </div>
   </div>
 
+  <div class="custom-popup-overlay" id="customPopupOverlay">
+    <div class="custom-popup" id="customPopup">
+      <h2 id="popupTitle"></h2>
+      <p id="popupMessage"></p>
+      <button id="popupCloseButton">OK</button>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
   <script>
@@ -277,6 +355,13 @@
     const emailInput = document.getElementById('email');
     const phoneInput = document.getElementById('phone');
 
+    // Custom Popup Elements
+    const customPopupOverlay = document.getElementById('customPopupOverlay');
+    const customPopup = document.getElementById('customPopup');
+    const popupTitle = document.getElementById('popupTitle');
+    const popupMessage = document.getElementById('popupMessage');
+    const popupCloseButton = document.getElementById('popupCloseButton');
+
     // Make functions callable
     const createOrderCallable = functions.httpsCallable('createPayPalOrder');
     const captureOrderCallable = functions.httpsCallable('capturePayPalOrder');
@@ -289,13 +374,43 @@
       document.getElementById('referral-name').textContent = referral;
     }
 
+    // Function to display custom popup
+    function showCustomPopup(title, message) {
+      popupTitle.textContent = title;
+      popupMessage.textContent = message;
+      customPopupOverlay.style.display = 'flex';
+      // Add 'show' class after a slight delay to trigger CSS transition
+      setTimeout(() => {
+          customPopup.classList.add('show');
+      }, 10);
+    }
+
+    // Function to hide custom popup
+    function hideCustomPopup() {
+        customPopup.classList.remove('show');
+        // Hide overlay after transition completes
+        setTimeout(() => {
+            customPopupOverlay.style.display = 'none';
+        }, 300); // Must match CSS transition duration
+    }
+
+    // Event listener for popup close button
+    popupCloseButton.addEventListener('click', hideCustomPopup);
+    // Optional: Close popup if clicking on the overlay
+    customPopupOverlay.addEventListener('click', (event) => {
+        if (event.target === customPopupOverlay) {
+            hideCustomPopup();
+        }
+    });
+
+
     proceedToPaymentButton.addEventListener('click', () => {
       const name = nameInput.value.trim();
       const email = emailInput.value.trim();
       const phone = phoneInput.value.trim();
 
       if (!name || !email || !phone) {
-        alert('Please fill in all fields before proceeding.');
+        showCustomPopup('Missing Information', 'Please fill in all fields before proceeding.');
         return;
       }
 
@@ -315,7 +430,7 @@
       loadingIndicator.style.display = 'block';
 
       if (typeof paypal === 'undefined' || !paypal.Buttons) {
-        alert("PayPal SDK failed to load. Please try again.");
+        showCustomPopup('Error', "PayPal SDK failed to load. Please try again.");
         resetCheckoutUI();
         return;
       }
@@ -340,7 +455,7 @@
             console.error('Create order error:', error);
             // Access the details of the HttpsError if it's one
             const errorMessage = error.message || 'Could not start PayPal order.';
-            alert(`Error creating order: ${errorMessage}`);
+            showCustomPopup('Order Creation Failed', `Error creating order: ${errorMessage}`);
             resetCheckoutUI();
             return Promise.reject(error);
           });
@@ -349,30 +464,30 @@
           return captureOrderCallable({ orderID: data.orderID }) // Using Firebase Callable Function
           .then(result => {
             if (result.data && result.data.success) {
-              alert('Payment successful! Your entry will be confirmed.');
+              showCustomPopup('Payment Successful!', 'Your entry will be confirmed. Thank you!');
               nameInput.value = '';
               emailInput.value = '';
               phoneInput.value = '';
               resetCheckoutUI();
             } else {
-              alert('Payment issue detected. Please contact support.');
+              showCustomPopup('Payment Issue', 'Payment issue detected. Please contact support.');
               resetCheckoutUI();
             }
           })
           .catch(error => {
             console.error('Capture error:', error);
             const errorMessage = error.message || 'Payment capture failed.';
-            alert(`Error capturing payment: ${errorMessage}`);
+            showCustomPopup('Payment Failed', `Error capturing payment: ${errorMessage}`);
             resetCheckoutUI();
           });
         },
         onError: function (err) {
           console.error('PayPal error:', err);
-          alert('Payment error occurred.');
+          showCustomPopup('Payment Error', 'An error occurred during PayPal payment. Please try again or contact support.');
           resetCheckoutUI();
         },
         onCancel: function () {
-          alert('Payment cancelled.');
+          showCustomPopup('Payment Cancelled', 'You have cancelled the PayPal payment.');
           resetCheckoutUI();
         }
       }).render('#paypal-button-container')
@@ -382,13 +497,14 @@
       })
       .catch(error => {
         console.error('Render error:', error);
-        alert('Could not load PayPal buttons.');
+        showCustomPopup('Error Loading PayPal', 'Could not load PayPal buttons. Please refresh the page.');
         resetCheckoutUI();
       });
     }
 
     function resetCheckoutUI() {
       loadingIndicator.style.display = 'none';
+      paypalButtonContainer.innerHTML = ''; // Clear buttons to prevent re-rendering issues
       paypalButtonContainer.style.display = 'none';
       paypalButtonContainer.setAttribute('aria-busy', 'false');
       proceedToPaymentButton.style.display = 'block';

@@ -18,7 +18,8 @@
     html, body {
       margin: 0;
       height: 100%;
-      overflow: hidden; /* no scroll */
+      overflow-x: hidden;
+      overflow-y: auto;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: var(--primary-bg);
       color: var(--primary-text);
@@ -46,11 +47,13 @@
       background-color: var(--secondary-bg);
       display: flex;
       justify-content: center;
-      gap: 2rem;
+      gap: 1rem;
       padding: 0.5rem 0;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       flex-shrink: 0;
       width: 100%;
+      flex-wrap: wrap;
+      box-sizing: border-box;
     }
 
     nav a {
@@ -59,6 +62,7 @@
       font-weight: bold;
       font-size: 1rem;
       padding: 0.3rem 0.7rem;
+      white-space: nowrap;
     }
 
     nav a.active {
@@ -74,7 +78,7 @@
       position: relative;
       width: 100vw;
       flex-grow: 1;
-      max-height: calc(100vh - 130px); /* Adjust based on logo and nav height */
+      max-height: calc(100vh - 130px);
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -88,9 +92,10 @@
       height: 100%;
     }
 
-    .slide img {
+    /* Style for the images within the picture element */
+    .slide picture img {
       width: 100%;
-      height: 90%; /* Adjust image height to fit within container */
+      height: 90%;
       object-fit: cover;
     }
 
@@ -137,7 +142,6 @@
       background-color: var(--hover);
     }
 
-    /* Responsive smaller text and button on narrow screens */
     @media (max-width: 600px) {
       .slide-text {
         font-size: 1.1rem;
@@ -149,6 +153,18 @@
         padding: 0.5rem 1rem;
         font-size: 0.9rem;
         max-width: 200px;
+      }
+
+      nav a {
+        font-size: 0.9rem;
+        padding: 0.3rem 0.5rem;
+      }
+    }
+
+    @media (max-width: 400px) {
+      nav a {
+        font-size: 0.8rem;
+        padding: 0.2rem 0.4rem;
       }
     }
   </style>
@@ -169,27 +185,45 @@
 
   <div class="slideshow-container">
     <div class="slide active">
-      <img src="assets/slide1.jpg" alt="Slide 1">
+      <picture>
+        <source media="(max-width: 600px)" srcset="assets/slide1-mobile.jpg">
+        <img src="assets/slide1.jpg" alt="Slide 1">
+      </picture>
       <div class="slide-text">Join the Yeshiva Family</div>
     </div>
     <div class="slide">
-      <img src="assets/slide2.jpg" alt="Slide 2">
+      <picture>
+        <source media="(max-width: 600px)" srcset="assets/slide2-mobile.jpg">
+        <img src="assets/slide2.jpg" alt="Slide 2">
+      </picture>
       <div class="slide-text">Empowering Sephardic Youth</div>
     </div>
     <div class="slide">
-      <img src="assets/slide3.jpg" alt="Slide 3">
+      <picture>
+        <source media="(max-width: 600px)" srcset="assets/slide3-mobile.jpg">
+        <img src="assets/slide3.jpg" alt="Slide 3">
+      </picture>
       <div class="slide-text">Support Torah & Tradition</div>
     </div>
     <div class="slide">
-      <img src="assets/slide4.jpeg" alt="Slide 4">
+      <picture>
+        <source media="(max-width: 600px)" srcset="assets/slide4-mobile.jpg">
+        <img src="assets/slide4.jpeg" alt="Slide 4">
+      </picture>
       <div class="slide-text">Building Leaders for Tomorrow</div>
     </div>
     <div class="slide">
-      <img src="assets/slide5.jpeg" alt="Slide 5">
+      <picture>
+        <source media="(max-width: 600px)" srcset="assets/slide5-mobile.jpg">
+        <img src="assets/slide5.jpeg" alt="Slide 5">
+      </picture>
       <div class="slide-text">Invest in Eternal Torah</div>
     </div>
     <div class="slide">
-      <img src="assets/slide6.jpeg" alt="Slide 6">
+      <picture>
+        <source media="(max-width: 600px)" srcset="assets/slide6-mobile.jpg">
+        <img src="assets/slide6.jpeg" alt="Slide 6">
+      </picture>
       <div class="slide-text">Secure Our Spiritual Future</div>
     </div>
 
@@ -224,16 +258,14 @@
         return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
       };
 
-      const navLinks = document.querySelectorAll('nav a'); // Select all nav links (including active)
+      const navLinks = document.querySelectorAll('nav a');
       const buyTicketBtn = document.querySelector('.buy-ticket-btn');
 
       const referrerId = getUrlParameter('ref');
 
       if (referrerId) {
-        // Update all navigation links
         navLinks.forEach(link => {
           const originalHref = link.getAttribute('href');
-          // Only modify if it's an internal link and not already pointing to the current page's active state
           if (originalHref && !originalHref.startsWith('http')) {
             const newHref = originalHref.includes('?')
                                ? `${originalHref}&ref=${referrerId}`
@@ -242,7 +274,6 @@
           }
         });
 
-        // Update the 'Buy Ticket' button below the slideshow
         if (buyTicketBtn) {
           const originalHref = buyTicketBtn.getAttribute('href');
           if (originalHref && !originalHref.startsWith('http')) {
