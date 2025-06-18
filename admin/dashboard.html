@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
+<link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
+<link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
+<link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
+<link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
+<link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<meta name="msapplication-TileColor" content="#ffffff">
+<meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
+<meta name="theme-color" content="#ffffff">
+  <meta charset="UTF-8">
+  <title>Referrer Dashboard - Yeshivat Torat Yosef Raffle</title>
+</head>
+<body>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Referrer Dashboard - Yeshivat Torat Yosef Raffle</title>
@@ -144,7 +164,7 @@
         box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
     }
 
-    .copy-button, .qr-button { /* Added .qr-button */
+    .copy-button, .qr-button {
         padding: 10px 15px;
         background-color: var(--secondary-bg);
         color: white;
@@ -156,7 +176,7 @@
         white-space: nowrap;
     }
 
-    .copy-button:hover, .qr-button:hover { /* Added .qr-button hover */
+    .copy-button:hover, .qr-button:hover {
         background-color: var(--accent);
     }
 
@@ -415,8 +435,9 @@
       <div class="referral-link-input-group">
         <span id="referral-link-display">Loading...</span>
         <button id="copy-link-button" class="copy-button">Copy Link</button>
-        <button id="generate-qr-button" class="qr-button">Generate QR Code</button> </div>
-    </div>
+        <button id="generate-qr-button" class="qr-button">Generate QR Code</button>
+      </div>
+      <p id="copy-status-message" style="margin-top: 10px; font-size: 0.9em;"></p> </div>
 
     <div class="progress-section">
         <h2 class="section-title">Ticket Sales Progress</h2>
@@ -520,6 +541,7 @@
     const referralLinkDisplay = document.getElementById('referral-link-display');
     const copyLinkButton = document.getElementById('copy-link-button');
     const generateQrButton = document.getElementById('generate-qr-button'); // New QR button
+    const copyStatusMessage = document.getElementById('copy-status-message'); // NEW: Status message element
     const ticketsSoldElement = document.getElementById('tickets-sold');
     const goalTicketsElement = document.getElementById('goal-tickets');
     const progressBar = document.getElementById('progress-bar');
@@ -570,6 +592,14 @@
         copyLinkButton.disabled = true;
     }
 
+    // Function to show ephemeral status messages for copy action
+    function showCopyStatus(message, isSuccess = true) {
+        copyStatusMessage.textContent = message;
+        copyStatusMessage.style.color = isSuccess ? 'green' : 'red';
+        setTimeout(() => {
+            copyStatusMessage.textContent = '';
+        }, 3000); // Message disappears after 3 seconds
+    }
 
     // Redirect to login if not authenticated
     auth.onAuthStateChanged(user => {
@@ -587,12 +617,12 @@
         const result = await getReferrerDashboardData();
         const data = result.data;
 
-        // Dynamic welcome message
-        welcomeMessageElement.textContent = `Welcome, ${data.name}! (${data.dashboardTitleName} Dashboard)`;
-
-        // Update personal progress section
+        // Populate fields with data from the function
+        welcomeMessageElement.textContent = `Welcome, ${data.name}! (Your Dashboard)`; 
+        referralLinkDisplay.textContent = data.referralLink || 'N/A'; // Handle null referralLink
         ticketsSoldElement.textContent = data.totalTicketsSold;
         goalTicketsElement.textContent = data.goal;
+        
         const progress = data.goal > 0 ? (data.totalTicketsSold / data.goal) * 100 : 0;
         progressBar.style.width = `${Math.min(progress, 100)}%`; 
         progressPercentage.textContent = `${Math.round(progress)}%`;
@@ -606,39 +636,27 @@
             copyLinkButton.disabled = true;
         }
 
+        // Populate buyer details table (FIXED LOGIC HERE)
+        buyersTableBody.innerHTML = ''; // Clear existing rows
+        if (data.buyerDetails && data.buyerDetails.length > 0) {
+          emptyBuyersState.classList.add('hidden'); // Hide "No tickets sold" message
+          buyersTable.style.display = 'table'; // Show the table
+          data.buyerDetails.forEach(buyer => {
+            const row = buyersTableBody.insertRow(); // Create a new row
+            row.insertCell().textContent = buyer.name;
+            row.insertCell().textContent = buyer.email;
+            row.insertCell().textContent = buyer.phone;
+            row.insertCell().textContent = buyer.ticketsBought;
+            row.insertCell().textContent = buyer.timestamp; // Time format is now 12-hour from function
+          });
+        } else {
+          emptyBuyersState.classList.remove('hidden'); // Show "No tickets sold" message
+          buyersTable.style.display = 'none'; // Hide table itself
+        }
 
-        // Handle visibility of referrer-specific elements vs. viewer/superAdminReferrer
-        if (data.isViewer) {
-            referralLinkSection.classList.add('hidden'); // Standard viewers don't have their own link
-            buyersDetailsMasterContainer.classList.add('hidden'); // Hide buyer details for standard viewers
-            allReferrersSummaryContainer.classList.add('hidden'); // Standard viewers don't see all summary either
-        } else if (data.isSuperAdminReferrer) {
-            // Super Admin Referrers see their own link and details, AND the summary
-            referralLinkSection.classList.remove('hidden');
-            buyersDetailsMasterContainer.classList.remove('hidden');
-            allReferrersSummaryContainer.classList.remove('hidden'); // Show all referrers summary
-
-            referralLinkDisplay.textContent = data.referralLink || 'N/A'; // Their own referral link
-
-            // Populate their own buyer details table (since they are also referrers)
-            buyersTableBody.innerHTML = ''; 
-            if (data.buyerDetails && data.buyerDetails.length > 0) {
-              emptyBuyersState.classList.add('hidden');
-              buyersTable.style.display = 'table'; 
-              data.buyerDetails.forEach(buyer => {
-                const row = buyersTableBody.insertRow();
-                row.insertCell().textContent = buyer.name;
-                row.insertCell().textContent = buyer.email;
-                row.insertCell().textContent = buyer.phone;
-                row.insertCell().textContent = buyer.ticketsBought;
-                row.insertCell().textContent = buyer.timestamp;
-              });
-            } else {
-              emptyBuyersState.classList.remove('hidden');
-              buyersTable.style.display = 'none'; 
-            }
-
-            // Populate All Referrers Summary Table
+        // Handle visibility and population of All Referrers Summary
+        if (data.isSuperAdminReferrer) {
+            allReferrersSummaryContainer.classList.remove('hidden'); // Show summary for Super Admins
             summaryTableBody.innerHTML = '';
             if (data.allReferrersSummary && data.allReferrersSummary.length > 0) {
                 emptySummaryState.classList.add('hidden');
@@ -655,31 +673,8 @@
                 emptySummaryState.classList.remove('hidden');
                 summaryTable.style.display = 'none';
             }
-
-        } else { // Regular referrer (not viewer, not super admin)
-            referralLinkSection.classList.remove('hidden');
-            buyersDetailsMasterContainer.classList.remove('hidden');
-            allReferrersSummaryContainer.classList.add('hidden'); // Regular referrers don't see all summary
-
-            referralLinkDisplay.textContent = data.referralLink || 'N/A';
-
-            // Populate buyer details table
-            buyersTableBody.innerHTML = ''; 
-            if (data.buyerDetails && data.buyerDetails.length > 0) {
-              emptyBuyersState.classList.add('hidden');
-              buyersTable.style.display = 'table'; 
-              data.buyerDetails.forEach(buyer => {
-                const row = buyersTableBody.insertRow();
-                row.insertCell().textContent = buyer.name;
-                row.insertCell().textContent = buyer.email;
-                row.insertCell().textContent = buyer.phone;
-                row.insertCell().textContent = buyer.ticketsBought;
-                row.insertCell().textContent = buyer.timestamp;
-              });
-            } else {
-              emptyBuyersState.classList.remove('hidden');
-              buyersTable.style.display = 'none'; 
-            }
+        } else {
+            allReferrersSummaryContainer.classList.add('hidden'); // Hide summary for others
         }
 
       } catch (error) {
@@ -706,12 +701,12 @@
     copyLinkButton.addEventListener('click', () => {
       const linkToCopy = referralLinkDisplay.textContent;
       if (linkToCopy === 'N/A' || linkToCopy === 'Loading...') {
-          alert('No referral link available to copy.');
+          showCopyStatus('No referral link available to copy.', false);
           return;
       }
       // Using navigator.clipboard for modern browsers
       navigator.clipboard.writeText(linkToCopy).then(() => {
-        alert('Referral link copied to clipboard!');
+        showCopyStatus('Referral link copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy text: ', err);
         // Fallback for older browsers or if permission is denied
@@ -721,10 +716,10 @@
         tempInput.select();
         try {
             document.execCommand('copy');
-            alert('Referral link copied to clipboard (fallback method)!');
+            showCopyStatus('Referral link copied to clipboard (fallback method)!');
         } catch (err) {
             console.error('Fallback copy failed:', err);
-            alert('Failed to copy link. Please copy it manually: ' + linkToCopy);
+            showCopyStatus('Failed to copy link. Please copy it manually.', false);
         } finally {
             document.body.removeChild(tempInput);
         }
