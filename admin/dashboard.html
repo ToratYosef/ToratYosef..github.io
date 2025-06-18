@@ -144,7 +144,7 @@
         box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
     }
 
-    .copy-button, .qr-button {
+    .copy-button, .qr-button { /* Added .qr-button */
         padding: 10px 15px;
         background-color: var(--secondary-bg);
         color: white;
@@ -156,7 +156,7 @@
         white-space: nowrap;
     }
 
-    .copy-button:hover, .qr-button:hover {
+    .copy-button:hover, .qr-button:hover { /* Added .qr-button hover */
         background-color: var(--accent);
     }
 
@@ -410,14 +410,12 @@
       <button id="logout-button" class="logout-button">Log Out</button>
     </div>
 
-    <!-- Referral link section: Always visible for referrers -->
     <div class="referral-link-section" id="referral-link-section">
       <p>Your unique referral link:</p>
       <div class="referral-link-input-group">
         <span id="referral-link-display">Loading...</span>
         <button id="copy-link-button" class="copy-button">Copy Link</button>
-        <button id="generate-qr-button" class="qr-button">Generate QR Code</button>
-      </div>
+        <button id="generate-qr-button" class="qr-button">Generate QR Code</button> </div>
     </div>
 
     <div class="progress-section">
@@ -432,7 +430,6 @@
         </div>
     </div>
 
-    <!-- Buyer details section: Always visible for referrers -->
     <div id="buyers-details-master-container">
         <h2 class="section-title">Buyer Details</h2>
         <div id="buyers-details-container" class="buyers-table-container">
@@ -448,13 +445,30 @@
               </tr>
             </thead>
             <tbody id="buyers-table-body">
-              <!-- Buyer details will be populated here by JavaScript -->
-            </tbody>
+              </tbody>
           </table>
         </div>
     </div>
 
-    <!-- Removed: All Referrers Summary Section -->
+    <div id="all-referrers-summary-container" class="hidden">
+        <h2 class="section-title">All Referrers Summary</h2>
+        <div class="summary-table-container">
+            <p id="empty-summary-state" class="empty-state hidden">No referrer data available.</p>
+            <table class="buyers-table" id="summary-table">
+                <thead>
+                    <tr>
+                        <th>Referrer Name</th>
+                        <th>Ref ID</th>
+                        <th>Goal</th>
+                        <th>Tickets Sold</th>
+                        <th>Tickets Left</th>
+                    </tr>
+                </thead>
+                <tbody id="summary-table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
 
   </div>
 
@@ -464,7 +478,6 @@
     <a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a>
   </footer>
 
-  <!-- QR Code Modal -->
   <div id="qr-code-modal" class="modal-overlay">
       <div class="modal-content">
           <button class="modal-close-button" id="close-qr-modal">&times;</button>
@@ -480,7 +493,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
-  <!-- QR Code Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 
   <script>
@@ -517,6 +529,12 @@
     const emptyBuyersState = document.getElementById('empty-buyers-state');
     const buyersTable = document.getElementById('buyers-table');
 
+    // NEW Summary elements
+    const allReferrersSummaryContainer = document.getElementById('all-referrers-summary-container');
+    const summaryTableBody = document.getElementById('summary-table-body');
+    const emptySummaryState = document.getElementById('empty-summary-state');
+    const summaryTable = document.getElementById('summary-table');
+
     // QR Code Modal elements
     const qrCodeModal = document.getElementById('qr-code-modal');
     const closeQrModalButton = document.getElementById('close-qr-modal');
@@ -535,6 +553,24 @@
       loadingOverlay.classList.add('hidden');
     }
 
+    // Function to set default/blank values if data is missing or error
+    function setDefaultDashboardData() {
+        welcomeMessageElement.textContent = `Welcome! (Your Dashboard)`;
+        referralLinkDisplay.textContent = 'N/A';
+        ticketsSoldElement.textContent = '0';
+        goalTicketsElement.textContent = '0';
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+        buyersTableBody.innerHTML = ''; // Clear table content
+        emptyBuyersState.classList.remove('hidden'); // Show "No tickets sold"
+        buyersTable.style.display = 'none'; // Hide table itself
+
+        // Disable buttons if critical data (like referral link) is missing
+        generateQrButton.disabled = true;
+        copyLinkButton.disabled = true;
+    }
+
+
     // Redirect to login if not authenticated
     auth.onAuthStateChanged(user => {
       if (!user) {
@@ -552,7 +588,7 @@
         const data = result.data;
 
         // Dynamic welcome message
-        welcomeMessageElement.textContent = `Welcome, ${data.name}! (Your Dashboard)`; 
+        welcomeMessageElement.textContent = `Welcome, ${data.name}! (${data.dashboardTitleName} Dashboard)`;
 
         // Update personal progress section
         ticketsSoldElement.textContent = data.totalTicketsSold;
@@ -561,42 +597,95 @@
         progressBar.style.width = `${Math.min(progress, 100)}%`; 
         progressPercentage.textContent = `${Math.round(progress)}%`;
 
-        // Referral link is always visible for referrers
-        referralLinkSection.classList.remove('hidden');
-        referralLinkDisplay.textContent = data.referralLink;
-
-        // Buyer details section is always visible for referrers
-        buyersDetailsMasterContainer.classList.remove('hidden');
-
-        // Populate buyer details table (FIXED LOGIC HERE)
-        buyersTableBody.innerHTML = ''; // Clear existing rows
-        if (data.buyerDetails && data.buyerDetails.length > 0) {
-          emptyBuyersState.classList.add('hidden');
-          buyersTable.style.display = 'table'; 
-          data.buyerDetails.forEach(buyer => {
-            const row = buyersTableBody.insertRow(); // Create a new row
-            row.insertCell().textContent = buyer.name;
-            row.insertCell().textContent = buyer.email;
-            row.insertCell().textContent = buyer.phone;
-            row.insertCell().textContent = buyer.ticketsBought;
-            row.insertCell().textContent = buyer.timestamp;
-          });
+        // Ensure buttons are enabled if link is valid
+        if (data.referralLink && data.referralLink !== 'N/A') {
+            generateQrButton.disabled = false;
+            copyLinkButton.disabled = false;
         } else {
-          emptyBuyersState.classList.remove('hidden');
-          buyersTable.style.display = 'none'; 
+            generateQrButton.disabled = true;
+            copyLinkButton.disabled = true;
+        }
+
+
+        // Handle visibility of referrer-specific elements vs. viewer/superAdminReferrer
+        if (data.isViewer) {
+            referralLinkSection.classList.add('hidden'); // Standard viewers don't have their own link
+            buyersDetailsMasterContainer.classList.add('hidden'); // Hide buyer details for standard viewers
+            allReferrersSummaryContainer.classList.add('hidden'); // Standard viewers don't see all summary either
+        } else if (data.isSuperAdminReferrer) {
+            // Super Admin Referrers see their own link and details, AND the summary
+            referralLinkSection.classList.remove('hidden');
+            buyersDetailsMasterContainer.classList.remove('hidden');
+            allReferrersSummaryContainer.classList.remove('hidden'); // Show all referrers summary
+
+            referralLinkDisplay.textContent = data.referralLink || 'N/A'; // Their own referral link
+
+            // Populate their own buyer details table (since they are also referrers)
+            buyersTableBody.innerHTML = ''; 
+            if (data.buyerDetails && data.buyerDetails.length > 0) {
+              emptyBuyersState.classList.add('hidden');
+              buyersTable.style.display = 'table'; 
+              data.buyerDetails.forEach(buyer => {
+                const row = buyersTableBody.insertRow();
+                row.insertCell().textContent = buyer.name;
+                row.insertCell().textContent = buyer.email;
+                row.insertCell().textContent = buyer.phone;
+                row.insertCell().textContent = buyer.ticketsBought;
+                row.insertCell().textContent = buyer.timestamp;
+              });
+            } else {
+              emptyBuyersState.classList.remove('hidden');
+              buyersTable.style.display = 'none'; 
+            }
+
+            // Populate All Referrers Summary Table
+            summaryTableBody.innerHTML = '';
+            if (data.allReferrersSummary && data.allReferrersSummary.length > 0) {
+                emptySummaryState.classList.add('hidden');
+                summaryTable.style.display = 'table';
+                data.allReferrersSummary.forEach(referrer => {
+                    const row = summaryTableBody.insertRow();
+                    row.insertCell().textContent = referrer.name;
+                    row.insertCell().textContent = referrer.refId;
+                    row.insertCell().textContent = referrer.goal;
+                    row.insertCell().textContent = referrer.totalTicketsSold;
+                    row.insertCell().textContent = referrer.ticketsRemaining;
+                });
+            } else {
+                emptySummaryState.classList.remove('hidden');
+                summaryTable.style.display = 'none';
+            }
+
+        } else { // Regular referrer (not viewer, not super admin)
+            referralLinkSection.classList.remove('hidden');
+            buyersDetailsMasterContainer.classList.remove('hidden');
+            allReferrersSummaryContainer.classList.add('hidden'); // Regular referrers don't see all summary
+
+            referralLinkDisplay.textContent = data.referralLink || 'N/A';
+
+            // Populate buyer details table
+            buyersTableBody.innerHTML = ''; 
+            if (data.buyerDetails && data.buyerDetails.length > 0) {
+              emptyBuyersState.classList.add('hidden');
+              buyersTable.style.display = 'table'; 
+              data.buyerDetails.forEach(buyer => {
+                const row = buyersTableBody.insertRow();
+                row.insertCell().textContent = buyer.name;
+                row.insertCell().textContent = buyer.email;
+                row.insertCell().textContent = buyer.phone;
+                row.insertCell().textContent = buyer.ticketsBought;
+                row.insertCell().textContent = buyer.timestamp;
+              });
+            } else {
+              emptyBuyersState.classList.remove('hidden');
+              buyersTable.style.display = 'none'; 
+            }
         }
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        alert(`Failed to load dashboard data: ${error.message}`);
-        // If there's an error loading data, it could be a transient issue or setup.
-        // It's better not to redirect automatically here, but to show an error.
-        // The current design with `auth.signOut().then()` would cause a redirect.
-        // If you truly don't want a redirect on this error, remove the auth.signOut() block.
-        // For now, keeping the redirect as per previous code, assuming this is an unrecoverable data fetch.
-        auth.signOut().then(() => {
-          window.location.href = './login.html'; // Relative path
-        });
+        // Do NOT show alert or redirect. Instead, set default values.
+        setDefaultDashboardData();
       } finally {
         hideLoading();
       }
@@ -616,21 +705,37 @@
     // Copy referral link to clipboard
     copyLinkButton.addEventListener('click', () => {
       const linkToCopy = referralLinkDisplay.textContent;
-      // document.execCommand('copy') is deprecated, using navigator.clipboard
+      if (linkToCopy === 'N/A' || linkToCopy === 'Loading...') {
+          alert('No referral link available to copy.');
+          return;
+      }
+      // Using navigator.clipboard for modern browsers
       navigator.clipboard.writeText(linkToCopy).then(() => {
         alert('Referral link copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy text: ', err);
         // Fallback for older browsers or if permission is denied
-        alert('Failed to copy link. Please copy it manually: ' + linkToCopy);
+        const tempInput = document.createElement('textarea');
+        tempInput.value = linkToCopy;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        try {
+            document.execCommand('copy');
+            alert('Referral link copied to clipboard (fallback method)!');
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            alert('Failed to copy link. Please copy it manually: ' + linkToCopy);
+        } finally {
+            document.body.removeChild(tempInput);
+        }
       });
     });
 
     // --- QR Code Generation and Sharing Logic ---
     generateQrButton.addEventListener('click', () => {
         const link = referralLinkDisplay.textContent;
-        if (!link || link === 'Loading...') {
-            alert('Please wait for the referral link to load.');
+        if (!link || link === 'N/A' || link === 'Loading...') {
+            alert('No referral link available to generate QR code.');
             return;
         }
 
@@ -641,7 +746,7 @@
         const qr = new QRious({
             element: qrcodeCanvas,
             value: link,
-            size: qrcodeCanvas.width,
+            size: 200, // Fixed size for QR code in modal
             level: 'H', // High error correction
         });
         
@@ -681,13 +786,16 @@
                 console.log('QR Code shared successfully!');
             } catch (error) {
                 console.error('Error sharing QR Code:', error);
-                alert('Failed to share QR code. ' + (error.message || 'Please try again.'));
+                // User cancelled or another error
+                if (error.name !== 'AbortError') { // Don't alert if user just closed share dialog
+                    alert('Failed to share QR code. ' + (error.message || 'Please try again.'));
+                }
             }
         } else {
             // Fallback for browsers that don't support Web Share API for files
             alert('Web Share API for files is not supported in this browser. Please use the "Download" button to save the image and share it manually.');
             // Optionally, automatically trigger download as a fallback
-            // downloadQrButton.click();
+            // downloadQrButton.click(); // This would cause an automatic download on incompatible browsers
         }
     });
 
@@ -702,7 +810,7 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        alert('QR Code downloaded!');
+        // No alert needed here as download is a direct action.
     });
     // --- End QR Code Generation and Sharing Logic ---
   </script>
