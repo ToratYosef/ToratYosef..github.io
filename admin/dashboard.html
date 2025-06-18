@@ -542,6 +542,23 @@
       }
     });
 
+    // Function to set default/blank values if data is missing or error
+    function setDefaultDashboardData() {
+        welcomeMessageElement.textContent = `Welcome! (Your Dashboard)`;
+        referralLinkDisplay.textContent = 'N/A';
+        ticketsSoldElement.textContent = '0';
+        goalTicketsElement.textContent = '0';
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+        buyersTableBody.innerHTML = '';
+        emptyBuyersState.classList.remove('hidden');
+        buyersTable.style.display = 'none';
+
+        // Optionally disable buttons if critical data (like referral link) is missing
+        generateQrButton.disabled = true;
+        copyLinkButton.disabled = true;
+    }
+
     // Fetch dashboard data
     async function fetchDashboardData() {
       showLoading();
@@ -549,22 +566,24 @@
         const result = await getReferrerDashboardData();
         const data = result.data;
 
-        // Dynamic welcome message
+        // Populate fields with data from the function
         welcomeMessageElement.textContent = `Welcome, ${data.name}! (Your Dashboard)`; 
-
-        // Update personal progress section
+        referralLinkDisplay.textContent = data.referralLink || 'N/A'; // Handle null referralLink
         ticketsSoldElement.textContent = data.totalTicketsSold;
         goalTicketsElement.textContent = data.goal;
+        
         const progress = data.goal > 0 ? (data.totalTicketsSold / data.goal) * 100 : 0;
         progressBar.style.width = `${Math.min(progress, 100)}%`; 
         progressPercentage.textContent = `${Math.round(progress)}%`;
 
-        // Referral link is always visible for referrers
-        referralLinkSection.classList.remove('hidden');
-        referralLinkDisplay.textContent = data.referralLink;
-
-        // Buyer details section is always visible for referrers
-        buyersDetailsMasterContainer.classList.remove('hidden');
+        // Ensure buttons are enabled if link is valid
+        if (data.referralLink && data.referralLink !== 'N/A') {
+            generateQrButton.disabled = false;
+            copyLinkButton.disabled = false;
+        } else {
+            generateQrButton.disabled = true;
+            copyLinkButton.disabled = true;
+        }
 
         // Populate buyer details table (FIXED LOGIC HERE)
         buyersTableBody.innerHTML = ''; // Clear existing rows
@@ -586,15 +605,8 @@
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        alert(`Failed to load dashboard data: ${error.message}`);
-        // If there's an error loading data, it could be a transient issue or setup.
-        // It's better not to redirect automatically here, but to show an error.
-        // The current design with `auth.signOut().then()` would cause a redirect.
-        // If you truly don't want a redirect on this error, remove the auth.signOut() block.
-        // For now, keeping the redirect as per previous code, assuming this is an unrecoverable data fetch.
-        auth.signOut().then(() => {
-          window.location.href = './login.html'; // Relative path
-        });
+        // Do NOT show alert or redirect. Instead, set default values.
+        setDefaultDashboardData();
       } finally {
         hideLoading();
       }
@@ -614,21 +626,38 @@
     // Copy referral link to clipboard
     copyLinkButton.addEventListener('click', () => {
       const linkToCopy = referralLinkDisplay.textContent;
-      // document.execCommand('copy') is deprecated, using navigator.clipboard
+      if (linkToCopy === 'N/A' || linkToCopy === 'Loading...') {
+          alert('No referral link available to copy.');
+          return;
+      }
+      // Using navigator.clipboard for modern browsers
       navigator.clipboard.writeText(linkToCopy).then(() => {
         alert('Referral link copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy text: ', err);
         // Fallback for older browsers or if permission is denied
-        alert('Failed to copy link. Please copy it manually: ' + linkToCopy);
+        // document.execCommand('copy') is deprecated, but might be needed for older iframe environments
+        const tempInput = document.createElement('textarea');
+        tempInput.value = linkToCopy;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        try {
+            document.execCommand('copy');
+            alert('Referral link copied to clipboard (fallback method)!');
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            alert('Failed to copy link. Please copy it manually: ' + linkToCopy);
+        } finally {
+            document.body.removeChild(tempInput);
+        }
       });
     });
 
     // --- QR Code Generation and Sharing Logic ---
     generateQrButton.addEventListener('click', () => {
         const link = referralLinkDisplay.textContent;
-        if (!link || link === 'Loading...') {
-            alert('Please wait for the referral link to load.');
+        if (!link || link === 'N/A' || link === 'Loading...') {
+            alert('No referral link available to generate QR code.');
             return;
         }
 
@@ -639,7 +668,7 @@
         const qr = new QRious({
             element: qrcodeCanvas,
             value: link,
-            size: qrcodeCanvas.width,
+            size: 200, // Fixed size for QR code in modal
             level: 'H', // High error correction
         });
         
@@ -679,13 +708,16 @@
                 console.log('QR Code shared successfully!');
             } catch (error) {
                 console.error('Error sharing QR Code:', error);
-                alert('Failed to share QR code. ' + (error.message || 'Please try again.'));
+                // User cancelled or another error
+                if (error.name !== 'AbortError') { // Don't alert if user just closed share dialog
+                    alert('Failed to share QR code. ' + (error.message || 'Please try again.'));
+                }
             }
         } else {
             // Fallback for browsers that don't support Web Share API for files
             alert('Web Share API for files is not supported in this browser. Please use the "Download" button to save the image and share it manually.');
             // Optionally, automatically trigger download as a fallback
-            // downloadQrButton.click();
+            // downloadQrButton.click(); // This would cause an automatic download on incompatible browsers
         }
     });
 
@@ -700,7 +732,7 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        alert('QR Code downloaded!');
+        // No alert needed here as download is a direct action.
     });
     // --- End QR Code Generation and Sharing Logic ---
   </script>
