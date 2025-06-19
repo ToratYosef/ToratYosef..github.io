@@ -109,6 +109,14 @@
             margin-right: auto;
         }
 
+        /* New style for the larger price text */
+        .ticket-price {
+            font-size: 1.25rem; /* Make it bigger */
+            font-weight: bold; /* Make it bold */
+            color: var(--accent); /* Optional: give it accent color */
+        }
+
+
         .prize-row {
             display: flex;
             flex-direction: column;
@@ -505,7 +513,7 @@
     </nav>
     <div class="container">
         <h1>Raffle Prizes</h1>
-        <p class="intro">One winner. Their choice of prize. One ticket could change everything. $126 per entry.</p>
+        <p class="intro">One winner. Their choice of prize. One ticket could change everything. <span class="ticket-price">$126</span> per entry.</p>
         <div class="prize-row">
             <div class="prize">
                 <img src="https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0026" alt="Rolex Watch" />
@@ -516,19 +524,19 @@
             <div class="prize">
                 <img src="assets/kotel.jpg" alt="Trip to Israel" />
                 <h2>Trip to Israel</h2>
-                <p>Roundtrip airfare, 10-night hotel stay, and a $1,000 prepaid card for spending.</p>
+                <p>Trip for 2 to Israel, 6 days dates are subject to winners schedule, plus a $1,000 prepaid card for spending.</p>
                 <button class="view-button" onclick="openPopup('israel')">View Prize</button>
             </div>
             <div class="prize">
                 <img src="https://res.cloudinary.com/peloton-cycle/image/fetch/dpr_1.5,f_auto,q_auto:good,w_1024/https://images.ctfassets.net/7vk8puwnesgc/4ghvqYMJrS833IKvNsulDr/bea86ceede17035cbe7bcb72debd68cd/BIKE_PLUS_ULT_01.png" alt="Peloton Bike" />
                 <h2>Peloton + Home Gym</h2>
-                <p>Choice of Peloton Bike+, Tread, or Row, each with weights, mats & more.</p>
+                <p>Winner gets ALL Peloton packages (Bike+, Tread, Row), each with weights, mats & more.</p>
                 <button class="view-button" onclick="openPopup('peloton')">View Prize</button>
             </div>
             <div class="prize">
                 <img src="https://t3.ftcdn.net/jpg/01/28/78/94/360_F_128789494_bR9ccEgCLKV13pyCG5bOzvIpuZKkO6mp.jpg" alt="$10,000 Cash" />
                 <h2>Cash Prize</h2>
-                <p>Get a $10,000 check. No strings. No taxes withheld. Just pure winnings.</p>
+                <p>10,000$ Cash. No strings. No taxes withheld. Just pure winnings.</p>
                 <button class="view-button" onclick="openPopup('cash')">View Prize</button>
             </div>
         </div>
@@ -596,7 +604,7 @@
                     'https://res.cloudinary.com/peloton-cycle/image/fetch/dpr_2.0,f_auto,q_auto:good,w_768/https://images.ctfassets.net/7vk8puwnesgc/1H5nluC74EeaM4Gmm63I25/70960bfd2c8afe129ee4b5d03f05874a/ROW_STARTER_01.png'
                 ],
                 details: `
-                    <strong>Winner Will Recieve The Following Peloton Packages:</strong><br><br>
+                    <strong>Winner Will Recieve ALL Following Peloton Packages:</strong><br><br>
                     <hr>
                     <strong>Row Starter Package:</strong><br>
                     Qty: 1<br>
@@ -640,7 +648,7 @@
                 ],
                 details: `
                     <strong>$10,000 in Cash</strong><br><br>
-                    You’ll receive a check for $10,000 made out directly to you. Spend it how you like — no strings attached.
+                    10,000$ Cash. It doesn't get simpler than that!
                 `
             },
             israel: {
@@ -649,8 +657,8 @@
                     // Add more Israel images here if you get them later
                 ],
                 details: `
-                    <strong>10-Night Israel Experience</strong><br><br>
-                    Includes roundtrip airfare from the US, 10-night hotel accommodations, and $1,000 prepaid card to spend during your trip.
+                    <strong>Trip for 2 to Israel, 6 days. Dates are subject to winner's schedule.</strong><br><br>
+                    Includes roundtrip airfare from the US and a $1,000 prepaid card for spending during your trip.
                 `
             }
         };
