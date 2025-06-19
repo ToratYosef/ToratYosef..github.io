@@ -438,7 +438,6 @@
     const globalSpinner = globalLoadingOverlay.querySelector('.spinner');
     const globalSpinnerText = globalLoadingOverlay.querySelector('.spinner-text');
 
-
     // Custom Popup Elements
     const customPopupOverlay = document.getElementById('customPopupOverlay');
     const customPopup = document.getElementById('customPopup');
@@ -449,6 +448,14 @@
     // Make functions callable
     const createOrderCallable = functions.httpsCallable('createPayPalOrder');
     const captureOrderCallable = functions.httpsCallable('capturePayPalOrder');
+
+    // Store the minimum delay time (2 seconds)
+    const MIN_LOADING_TIME = 2000; // 2 seconds in milliseconds
+
+    // Variables to track loading state for the minimum display time
+    let loadStartTime = 0;
+    let isLoadingProcessComplete = false;
+    let loadingCallback = null; // Function to call when minimum time is met
 
     // Show referral if present in URL ?ref=
     const urlParams = new URLSearchParams(window.location.search);
@@ -505,32 +512,52 @@
             input.disabled = disabled;
         });
         // Also disable the proceed button if inputs are disabled
-        proceedToPaymentButton.disabled = disabled;
+        // Note: proceedToPaymentButton.disabled is also set directly by showButtonSpinner/hideButtonSpinner
     }
 
     // Helper to show global loading overlay
     function showGlobalLoadingOverlay(message = "Loading...", blurAndDisableForm = false) {
         globalSpinnerText.textContent = message;
         if (blurAndDisableForm) {
-            // Apply filter to body for full background effect
             document.body.style.filter = 'grayscale(80%) blur(2px)';
             document.body.style['-webkit-filter'] = 'grayscale(80%) blur(2px)';
             setFormInputsDisabled(true); // Disable form inputs
         } else {
-            // If not blurring, ensure body filter is off and inputs are enabled
             document.body.style.filter = 'none';
             document.body.style['-webkit-filter'] = 'none';
             setFormInputsDisabled(false); // Re-enable inputs
         }
         globalLoadingOverlay.style.display = 'flex';
+        
+        // Reset min loading time state when showing loader
+        loadStartTime = Date.now();
+        isLoadingProcessComplete = false;
+        loadingCallback = null;
     }
 
-    // Helper to hide global loading overlay
+    // Helper to hide global loading overlay (with minimum time check)
     function hideGlobalLoadingOverlay() {
-        globalLoadingOverlay.style.display = 'none';
-        document.body.style.filter = 'none';
-        document.body.style['-webkit-filter'] = 'none';
-        setFormInputsDisabled(false); // Re-enable all inputs
+        isLoadingProcessComplete = true; // Mark process as complete
+
+        const elapsedTime = Date.now() - loadStartTime;
+        const remainingTime = MIN_LOADING_TIME - elapsedTime;
+
+        if (remainingTime > 0) {
+            // If minimum time not met, delay hiding
+            loadingCallback = () => {
+                globalLoadingOverlay.style.display = 'none';
+                document.body.style.filter = 'none';
+                document.body.style['-webkit-filter'] = 'none';
+                setFormInputsDisabled(false); // Re-enable all inputs
+            };
+            setTimeout(loadingCallback, remainingTime);
+        } else {
+            // If minimum time already met or exceeded, hide immediately
+            globalLoadingOverlay.style.display = 'none';
+            document.body.style.filter = 'none';
+            document.body.style['-webkit-filter'] = 'none';
+            setFormInputsDisabled(false); // Re-enable all inputs
+        }
     }
 
     const raffleTicketAmount = 126.00; // Define this once
@@ -552,10 +579,8 @@
       // Form inputs should NOT be grayed out/disabled here, as the user might want to interact with PayPal's UI.
       showGlobalLoadingOverlay("Loading payment options...", false);
 
-      // Delay rendering PayPal buttons slightly to allow spinner to show up
-      setTimeout(() => {
-          renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
-      }, 100); // Reduced delay to 100ms
+      // Render PayPal buttons immediately without a separate setTimeout for this specific action
+      renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
     });
 
     function renderPayPalButtons(amount, name, email, phone, referral) {
@@ -574,9 +599,18 @@
             showGlobalLoadingOverlay("Loading payment options...", false); // Confirm no blur here
             proceedToPaymentButton.style.display = 'none'; // Ensure proceed button is hidden
         },
+        onRendered: function() {
+            // This event fires when the PayPal buttons are fully drawn on the page.
+            // This is the point where the initial loading is truly "complete" from the UI perspective.
+            hideGlobalLoadingOverlay(); // Hide the global overlay after minimum time
+            hideButtonSpinner(); // Ensure the "Proceed to Payment" button spinner is hidden
+            paypalButtonContainer.style.display = 'flex'; // Ensure button container is visible
+            paypalButtonContainer.setAttribute('aria-busy', 'false');
+            proceedToPaymentButton.style.display = 'none'; // Explicitly keep proceed button hidden
+        },
         createOrder: function (data, actions) {
           // This is triggered when the user clicks one of the PayPal buttons.
-          // Hide global loading overlay here, as PayPal's own UI will take over (popup/redirect).
+          // Hide global loading overlay, as PayPal's own UI will take over (popup/redirect).
           hideGlobalLoadingOverlay(); // This will enable form inputs again
           
           // Ensure the PayPal button container is visible for the buttons themselves to show up
@@ -613,7 +647,6 @@
           });
         },
         onApprove: function (data, actions) {
-          // This is where the payment is actually captured.
           // Show global loading overlay WITH blurring for payment processing.
           showGlobalLoadingOverlay("Processing your payment...", true);
           return captureOrderCallable({ orderID: data.orderID })
@@ -656,16 +689,7 @@
           proceedToPaymentButton.style.display = 'none'; // Keep proceed button hidden
         }
       }).render('#paypal-button-container')
-      .then(() => {
-        // This 'then' block fires when paypal.Buttons().render() successfully finishes.
-        // It means the PayPal buttons (including the Debit/Credit Card button) are now drawn on the screen.
-        hideGlobalLoadingOverlay(); // Hide global overlay (no blur), enable form, as buttons are ready for interaction
-        hideButtonSpinner(); // Ensure the "Proceed to Payment" button spinner is hidden
-        paypalButtonContainer.style.display = 'flex'; // Ensure button container is visible
-        paypalButtonContainer.setAttribute('aria-busy', 'false');
-        proceedToPaymentButton.style.display = 'none'; // Explicitly keep proceed button hidden
-      })
-      .catch(error => {
+      .catch(error => { // This catch is for issues rendering the buttons themselves
         console.error('Render error:', error);
         showCustomPopup('Error Loading PayPal', 'Could not load PayPal buttons. Please refresh the page.');
         resetCheckoutUI(); // Full reset on rendering error

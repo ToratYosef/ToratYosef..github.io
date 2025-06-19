@@ -109,12 +109,16 @@
             margin-right: auto;
         }
 
-        /* New style for the larger price text */
-        .ticket-price {
-            font-size: 1.25rem; /* Make it bigger */
-            font-weight: bold; /* Make it bold */
-            color: var(--accent); /* Optional: give it accent color */
+        /* Styles for the entire ticket price line */
+        .ticket-price-line {
+            font-size: 1.5rem; /* Make it significantly bigger */
+            font-weight: bold; /* Keep it bold */
+            color: var(--accent); /* Apply accent color to the whole line */
+            display: block; /* Forces it to its own line */
+            margin-top: 0.5rem; /* Add some space above it */
+            margin-bottom: 1.5rem; /* Add more space below it */
         }
+        /* No need for .ticket-price anymore as we style the whole line */
 
 
         .prize-row {
@@ -513,7 +517,8 @@
     </nav>
     <div class="container">
         <h1>Raffle Prizes</h1>
-        <p class="intro">One winner. Their choice of prize. One ticket could change everything. <span class="ticket-price">$126</span> per entry.</p>
+        <p class="intro">One winner. Their choice of prize. One ticket could change everything.</p>
+        <span class="ticket-price-line">$126 per entry.</span>
         <div class="prize-row">
             <div class="prize">
                 <img src="https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0026" alt="Rolex Watch" />
@@ -837,7 +842,7 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-analytics.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebase/firebase-analytics.js"; // Corrected import path
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
