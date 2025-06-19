@@ -76,7 +76,7 @@
       color: var(--primary-text);
     }
 
-    .form-group input[type="email"],
+    .form-group input[type="text"], /* Changed to type="text" */
     .form-group input[type="password"] {
       width: calc(100% - 20px);
       padding: 12px;
@@ -86,7 +86,7 @@
       box-sizing: border-box;
     }
 
-    .form-group input[type="email"]:focus,
+    .form-group input[type="text"]:focus, /* Changed to type="text" */
     .form-group input[type="password"]:focus {
       border-color: var(--accent);
       outline: none;
@@ -172,8 +172,7 @@
 
     <form id="login-form"> 
       <div class="form-group">
-        <label for="email">Email Address</label>
-        <input type="email" id="email" autocomplete="email" required />
+        <label for="username">Username / Email</label> <input type="text" id="username" autocomplete="username" required />
       </div>
 
       <div class="form-group">
@@ -204,7 +203,7 @@
       projectId: "torat-yosef",
       storageBucket: "torat-yosef.firebasestorage.app",
       messagingSenderId: "1033400220494",
-      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+      appId: "1:1033400220494:web:1437414bdad44399d6bc1f",
       measurementId: "G-331D9RHZWH"
     };
     firebase.initializeApp(firebaseConfig);
@@ -212,11 +211,14 @@
     const auth = firebase.auth();
 
     // Get DOM elements
-    const emailInput = document.getElementById('email');
+    const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     const loginButton = document.getElementById('login-button');
     const errorMessageElement = document.getElementById('error-message');
-    const loginForm = document.getElementById('login-form'); // Added for form submission
+    const loginForm = document.getElementById('login-form');
+
+    // Define your fixed domain
+    const FIXED_DOMAIN = '@toratyosefsummerraffle.com';
 
     // Function to display error messages
     function showError(message) {
@@ -231,37 +233,59 @@
     }
 
     // Handle login form submission
-    loginForm.addEventListener('submit', async (event) => { // Listen for 'submit' event
-      event.preventDefault(); // Prevent default form submission
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
 
-      clearError(); // Clear any previous errors
+      clearError();
 
-      const email = emailInput.value.trim();
+      let enteredValue = usernameInput.value.trim();
       const password = passwordInput.value.trim();
 
-      if (!email || !password) {
-        showError('Please enter both email and password.');
+      if (!enteredValue || !password) {
+        showError('Please enter both username/email and password.');
         return;
       }
 
-      loginButton.disabled = true; // Disable button to prevent multiple clicks
+      let emailToLogin;
+
+      // Normalize the entered value for comparison
+      const normalizedEnteredValue = enteredValue.toLowerCase();
+
+      // Case 1: Already a full email with our domain
+      if (normalizedEnteredValue.endsWith(FIXED_DOMAIN)) {
+        emailToLogin = normalizedEnteredValue; // Use as is
+      } 
+      // Case 2: Contains '@' but not our domain (treat as full email, might be an external email)
+      else if (normalizedEnteredValue.includes('@')) {
+          emailToLogin = normalizedEnteredValue; // Let Firebase handle validity
+      }
+      // Case 3: Treat as username, potentially extract first name, then append domain
+      else {
+        // Remove spaces and take only the first "word" (e.g., "morris" from "morris eliyahou")
+        const usernamePart = enteredValue.split(' ')[0].toLowerCase();
+        emailToLogin = usernamePart + FIXED_DOMAIN;
+      }
+
+      loginButton.disabled = true;
       loginButton.textContent = 'Logging In...';
 
       try {
-        await auth.signInWithEmailAndPassword(email, password);
-        // On successful login, redirect to the dashboard (now in /admin)
-        window.location.href = './dashboard.html'; // Relative path to dashboard in the same folder
+        await auth.signInWithEmailAndPassword(emailToLogin, password);
+        window.location.href = './dashboard.html';
       } catch (error) {
         console.error('Login error:', error);
-        let userMessage = 'Login failed. Please check your email and password.';
+        let userMessage = 'Login failed. Please check your username/email and password.';
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-          userMessage = 'Invalid email or password.';
-        } else if (error.code === 'auth/too-many-requests') {
+          userMessage = 'Invalid username/email or password.';
+        } else if (error.code === 'auth/invalid-email') {
+            userMessage = 'The username or email format is invalid.';
+        }
+        else if (error.code === 'auth/too-many-requests') {
           userMessage = 'Too many login attempts. Please try again later.';
         }
         showError(userMessage);
       } finally {
-        loginButton.disabled = false; // Re-enable button
+        loginButton.disabled = false;
         loginButton.textContent = 'Log In';
       }
     });
@@ -269,8 +293,7 @@
     // Optional: Redirect if already logged in (update path)
     auth.onAuthStateChanged(user => {
       if (user) {
-        // User is signed in, redirect to dashboard (now in /admin)
-        window.location.href = './dashboard.html'; // Relative path
+        window.location.href = './dashboard.html';
       }
     });
   </script>
