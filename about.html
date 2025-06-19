@@ -17,7 +17,6 @@
       --button-gradient-end: #7F0031;    /* Added for consistency */
     }
 
-    /* Added body flex for consistent layout with other pages */
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
@@ -30,7 +29,6 @@
       padding-bottom: 1rem; /* Add some padding at the bottom */
     }
 
-    /* Logo Container styles (copied from other pages) */
     .logo-container {
         text-align: center;
         padding: 0.8rem 0 0.4rem;
@@ -49,23 +47,23 @@
     nav {
       display: flex;
       justify-content: center;
-      gap: 1rem; /* Adjusted gap to match prizes.html */
-      padding: 0.8rem 0; /* Adjusted padding to match prizes.html */
+      gap: 1rem;
+      padding: 0.8rem 0;
       background-color: var(--secondary-bg);
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       flex-shrink: 0;
       width: 100%;
-      flex-wrap: wrap; /* Allow wrapping on smaller screens */
+      flex-wrap: wrap;
     }
 
     nav a {
       color: white;
       text-decoration: none;
-      padding: 0.4rem 0.8rem; /* Adjusted padding to match prizes.html */
+      padding: 0.4rem 0.8rem;
       font-weight: bold;
-      font-size: 1rem; /* Adjusted font-size to match prizes.html */
-      white-space: nowrap; /* Keep links from breaking into multiple lines */
-      user-select: none; /* Prevent text selection on links */
+      font-size: 1rem;
+      white-space: nowrap;
+      user-select: none;
     }
 
     nav a.active {
@@ -82,29 +80,69 @@
       margin: 2rem auto;
       padding: 1rem;
       text-align: center;
-      flex-grow: 1; /* Allow container to grow and push footer down */
-      width: 100%; /* Ensure container takes full width up to max-width */
-      box-sizing: border-box; /* Include padding in width calculation */
+      flex-grow: 1;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     h1 {
       color: var(--accent);
-      font-size: 1.6rem; /* Consistent heading size */
-      margin: 0.5rem 0; /* Consistent margin */
+      font-size: 1.6rem;
+      margin: 0.5rem 0;
     }
 
-    .reasons {
+    .info-section {
       margin-top: 2rem;
       text-align: left;
       font-size: 1.1rem;
       line-height: 1.6;
-      max-width: 90%; /* Limit width for better readability on large screens */
+      max-width: 90%;
       margin-left: auto;
       margin-right: auto;
     }
 
-    .reasons p {
+    .info-section p {
       margin: 1rem 0;
+    }
+
+    .family-boxes {
+      margin-top: 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Smaller boxes */
+      gap: 1rem; /* Smaller gap */
+      justify-content: center;
+      padding: 0 1rem;
+    }
+
+    .family-card {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem; /* Smaller padding */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Smaller shadow */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .family-card:hover {
+      transform: translateY(-3px); /* Smaller lift */
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1); /* Smaller shadow on hover */
+    }
+
+    .family-name {
+      color: var(--secondary-bg);
+      font-size: 1.2rem; /* Smaller font size */
+      font-weight: bold;
+      margin-bottom: 0.3rem;
+    }
+
+    .family-description {
+      color: #666;
+      font-size: 0.85rem; /* Smaller font size */
+      line-height: 1.3;
     }
 
     .cta {
@@ -114,7 +152,6 @@
       color: var(--secondary-bg);
     }
 
-    /* Buy Ticket Button styles (copied from prizes.html) */
     .buy-links {
         margin-top: 1.5rem;
         display: flex;
@@ -150,33 +187,59 @@
         box-shadow: 0 8px 16px rgba(127, 0, 49, 0.6);
     }
 
-    /* Responsive adjustments for smaller screens */
+    @media (max-width: 768px) {
+      .family-boxes {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Adjust for smaller screens */
+      }
+      .family-card {
+        padding: 0.8rem;
+      }
+      .family-name {
+        font-size: 1.1rem;
+      }
+      .family-description {
+        font-size: 0.8rem;
+      }
+      nav a {
+        font-size: 0.9rem;
+        padding: 0.4rem 0.6rem;
+      }
+      .logo {
+        max-width: 200px;
+      }
+    }
+
     @media (max-width: 400px) {
-        h1 {
-            font-size: 1.4rem;
-        }
-        nav a {
-            font-size: 1rem;
-            padding: 0.4rem 0.8rem;
-        }
-        .buy-links {
-            max-width: 250px;
-        }
-        .buy-links a {
-            font-size: 0.9rem;
-            padding: 0.6rem;
-        }
+      h1 {
+        font-size: 1.4rem;
+      }
+      nav a {
+        font-size: 0.85rem;
+        padding: 0.3rem 0.5rem;
+      }
+      .buy-links {
+        max-width: 250px;
+      }
+      .buy-links a {
+        font-size: 0.9rem;
+        padding: 0.6rem;
+      }
+      .family-boxes {
+        grid-template-columns: 1fr; /* Stack on very small screens */
+        padding: 0 0.5rem;
+      }
     }
 
     @media (min-width: 768px) {
-        .buy-links {
-            flex-direction: row;
-            justify-content: center;
-            max-width: none;
-        }
-        .buy-links a {
-            width: auto;
-        }
+      .buy-links {
+        flex-direction: row;
+        justify-content: center;
+        max-width: none;
+        gap: 1.5rem;
+      }
+      .buy-links a {
+        width: auto;
+      }
     }
   </style>
 </head>
@@ -196,23 +259,41 @@
   <div class="container">
     <h1>About Yeshivat Torat Yosef</h1>
 
-    <div class="reasons">
+    <div class="info-section">
       <p>Yeshivat Torat Yosef is an all-Sephardic yeshiva dedicated to building the next generation of passionate, learned, and proud Jews from the heart of the Brooklyn and Deal communities — now thriving in South Florida.</p>
-
       <p>The Yeshiva was **created in 2022** and is located in **Hollywood, FL, on the Joe and Trina Carie campus**.</p>
+      <p>Your support directly funds Torah learning, excellent education, and a warm, community-first environment where every student is seen and uplifted.</p>
+      <p>Whether you're alumni, family, or part of the broader Sephardic world, your contribution helps build character, strengthen emunah, and grow true Bnei Torah.</p>
+    </div>
 
-      <p>Your ticket doesn't just enter you for incredible prizes. It helps fund Torah learning, excellent education, and a warm, community-first environment where every student is seen and uplifted.</p>
+    <h2 style="color: var(--secondary-bg); margin-top: 3rem;">Our Valued Supporters</h2>
+    <p style="margin-bottom: 1.5rem; font-size: 1rem; color: var(--primary-text);">We extend our heartfelt gratitude to these individuals and families for their immense generosity.</p>
 
-      <p>Whether you're alumni, family, or part of the broader Sephardic world, your support goes directly to programs that build character, strengthen emunah, and grow true Bnei Torah.</p>
+    <div class="family-boxes">
+      <div class="family-card">
+        <h3 class="family-name">Harry and Alice Adjmi</h3>
+        <p class="family-description">Pillars of our community, whose generosity illuminates countless paths for our students and programs.</p>
+      </div>
 
-      <p>We extend a big thank you to our generous supporters, including:</p>
-      <ul>
-        <li>**Harry and Alice Adjmi**</li>
-        <li>**Joe and Trina Carie**</li>
-        <li>**Irwin and Jill Mizrahi** for immensely supporting the yeshivah</li>
-        <li>**Avi & Gili Ovaknin**</li>
-        <li>**Adam Sassounes**</li>
-      </ul>
+      <div class="family-card">
+        <h3 class="family-name">Joe and Trina Carie</h3>
+        <p class="family-description">Their dedication is honored through our campus, a testament to their unwavering commitment to Torah education.</p>
+      </div>
+
+      <div class="family-card">
+        <h3 class="family-name">Irwin and Jill Mizrahi</h3>
+        <p class="family-description">Immense supporters whose contributions are foundational to the continued growth and success of the Yeshivah.</p>
+      </div>
+
+      <div class="family-card">
+        <h3 class="family-name">Avi & Gili Ovaknin</h3>
+        <p class="family-description">Their commitment helps us provide a nurturing and enriching environment for all our students.</p>
+      </div>
+
+      <div class="family-card">
+        <h3 class="family-name">Adam Sassounes</h3>
+        <p class="family-description">A valued supporter whose vision helps us build the next generation of proud Jewish leaders.</p>
+      </div>
     </div>
 
     <div class="cta">
