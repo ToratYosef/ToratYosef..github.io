@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#ffffff">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Why Buy - Yeshivat Torat Yosef Raffle</title>
+  <title>About - Yeshivat Torat Yosef Raffle</title>
   <style>
     :root {
       --primary-bg: #ffffff;
@@ -14,7 +14,7 @@
       --accent: #7F0031;
       --hover: #590023;
       --button-gradient-start: #a30040; /* Added for consistency */
-      --button-gradient-end: #7F0031;   /* Added for consistency */
+      --button-gradient-end: #7F0031;    /* Added for consistency */
     }
 
     /* Added body flex for consistent layout with other pages */
@@ -188,20 +188,31 @@
   <nav>
     <a href="index.html" class="nav-link">Home</a>
     <a href="prizes.html" class="nav-link">Prizes</a>
-    <a href="why.html" class="active">Why Buy</a>
+    <a href="about.html" class="active">About</a>
     <a href="donors.html" class="nav-link">Donors</a>
     
   </nav>
 
   <div class="container">
-    <h1>Why Support Yeshivat Torat Yosef?</h1>
+    <h1>About Yeshivat Torat Yosef</h1>
 
     <div class="reasons">
       <p>Yeshivat Torat Yosef is an all-Sephardic yeshiva dedicated to building the next generation of passionate, learned, and proud Jews from the heart of the Brooklyn and Deal communities — now thriving in South Florida.</p>
 
+      <p>The Yeshiva was **created in 2022** and is located in **Hollywood, FL, on the Joe and Trina Carie campus**.</p>
+
       <p>Your ticket doesn't just enter you for incredible prizes. It helps fund Torah learning, excellent education, and a warm, community-first environment where every student is seen and uplifted.</p>
 
       <p>Whether you're alumni, family, or part of the broader Sephardic world, your support goes directly to programs that build character, strengthen emunah, and grow true Bnei Torah.</p>
+
+      <p>We extend a big thank you to our generous supporters, including:</p>
+      <ul>
+        <li>**Harry and Alice Adjmi**</li>
+        <li>**Joe and Trina Carie**</li>
+        <li>**Irwin and Jill Mizrahi** for immensely supporting the yeshivah</li>
+        <li>**Avi & Gili Ovaknin**</li>
+        <li>**Adam Sassounes**</li>
+      </ul>
     </div>
 
     <div class="cta">
@@ -235,8 +246,8 @@
           // Only modify if it's an internal link and not already pointing to current page's active state
           if (originalHref && !originalHref.startsWith('http') && !link.classList.contains('active')) {
             const newHref = originalHref.includes('?')
-                           ? `${originalHref}&ref=${referrerId}`
-                           : `${originalHref}?ref=${referrerId}`;
+                               ? `${originalHref}&ref=${referrerId}`
+                               : `${originalHref}?ref=${referrerId}`;
             link.href = newHref;
           }
         });
@@ -246,8 +257,8 @@
             const originalHref = buyLinkMain.getAttribute('href');
             if (originalHref && !originalHref.startsWith('http')) {
                 const newHref = originalHref.includes('?')
-                               ? `${originalHref}&ref=${referrerId}`
-                               : `${originalHref}?ref=${referrerId}`;
+                                     ? `${originalHref}&ref=${referrerId}`
+                                     : `${originalHref}?ref=${referrerId}`;
                 buyLinkMain.href = newHref;
             }
         }
