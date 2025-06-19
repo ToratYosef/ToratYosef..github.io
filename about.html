@@ -26,7 +26,6 @@
       flex-direction: column;
       align-items: center;
       min-height: 100vh; /* Ensure it takes full viewport height */
-      /* padding-bottom: 1rem; Removed as footer will handle spacing */
     }
 
     .logo-container {
@@ -78,9 +77,9 @@
     .container {
       max-width: 900px;
       margin: 2rem auto;
-      padding: 1rem;
+      padding: 0 1rem; /* Adjust padding to avoid cutting off general content */
       text-align: center;
-      flex-grow: 1; /* Allows container to grow and push footer down */
+      flex-grow: 1;
       width: 100%;
       box-sizing: border-box;
     }
@@ -96,7 +95,7 @@
       text-align: left;
       font-size: 1.1rem;
       line-height: 1.6;
-      max-width: 90%;
+      max-width: 100%; /* Allow info section to use full container width */
       margin-left: auto;
       margin-right: auto;
     }
@@ -105,36 +104,40 @@
       margin: 1rem 0;
     }
 
-    .family-boxes {
-      margin-top: 2rem;
-      display: flex; /* Changed to flexbox */
-      flex-wrap: nowrap; /* Keep all items on one line */
-      gap: 1rem;
-      justify-content: center; /* Center the items if they don't fill the width */
-      padding: 0 1rem;
-      overflow-x: auto; /* Enable horizontal scrolling if needed */
+    .family-boxes-wrapper { /* New wrapper to handle full width and horizontal scrolling */
+      width: 100%; /* Take full width of its parent */
+      overflow-x: auto; /* Enable horizontal scrolling */
       -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
       scroll-snap-type: x mandatory; /* Optional: Snap to items on scroll */
-      scrollbar-width: thin; /* Firefox */
-      scrollbar-color: var(--accent) #f0f0f0; /* Firefox */
+      padding: 0 1rem; /* Padding to show half of the first/last card */
+      margin-top: 2rem; /* Add margin here instead of .family-boxes */
+      box-sizing: border-box; /* Include padding in width */
+    }
+
+    .family-boxes {
+      display: flex;
+      flex-wrap: nowrap; /* Keep all items on one line */
+      gap: 1rem; /* Spacing between cards */
+      justify-content: flex-start; /* Start from the beginning to show peek */
+      align-items: flex-start; /* Align items to the top if heights differ */
+      min-width: fit-content; /* Ensure container is wide enough for all cards */
     }
 
     /* Webkit scrollbar for Chrome, Safari */
-    .family-boxes::-webkit-scrollbar {
+    .family-boxes-wrapper::-webkit-scrollbar {
       height: 8px;
     }
 
-    .family-boxes::-webkit-scrollbar-track {
+    .family-boxes-wrapper::-webkit-scrollbar-track {
       background: #f0f0f0;
       border-radius: 10px;
     }
 
-    .family-boxes::-webkit-scrollbar-thumb {
+    .family-boxes-wrapper::-webkit-scrollbar-thumb {
       background-color: var(--accent);
       border-radius: 10px;
       border: 2px solid #f0f0f0;
     }
-
 
     .family-card {
       background-color: #f8f8f8;
@@ -147,8 +150,8 @@
       align-items: center;
       text-align: center;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
-      flex-shrink: 0; /* Prevent cards from shrinking smaller than content */
-      width: 200px; /* Fixed width for each card */
+      flex-shrink: 0; /* Prevent cards from shrinking */
+      width: 220px; /* Adjust width slightly for better fit with peek */
       scroll-snap-align: start; /* Optional: Snap to start of card */
     }
 
@@ -247,7 +250,6 @@
         height: auto;
         display: block;
         margin: 0 auto 0.8rem;
-        /* filter: brightness(0) invert(1); */
     }
 
     .footer-section {
@@ -278,12 +280,16 @@
     }
 
     @media (min-width: 768px) {
+      .family-boxes-wrapper {
+        padding: 0; /* No padding needed if container is wide enough on desktop */
+        overflow-x: hidden; /* Hide scrollbar if content fits */
+      }
       .family-boxes {
-        /* No change here from `display: flex` settings for larger screens */
-        justify-content: center; /* Ensure they stay centered if enough space */
+        justify-content: center; /* Center cards on wider screens */
+        flex-wrap: wrap; /* Allow wrapping on larger screens to avoid excessive single-line scroll */
       }
       .family-card {
-        /* No specific changes needed, `width` and `flex-shrink` handle it */
+        width: 200px; /* Adjust width slightly for better wrapping if needed */
       }
       .family-name {
         font-size: 1.1rem;
@@ -347,9 +353,12 @@
         font-size: 0.9rem;
         padding: 0.6rem;
       }
-      /* On very small screens, the horizontal scroll will be primary, so no stacking. */
-      .family-boxes {
-        padding: 0 0.5rem;
+      /* Ensure padding for wrapper on small screens */
+      .family-boxes-wrapper {
+        padding: 0 0.5rem; /* Slightly less padding on very small screens */
+      }
+      .family-card {
+        width: 180px; /* Smaller card width on very small screens */
       }
     }
   </style>
@@ -363,7 +372,6 @@
     <a href="index.html" class="nav-link">Home</a>
     <a href="prizes.html" class="nav-link">Prizes</a>
     <a href="about.html" class="active">About</a>
-    <a href="donors.html" class="nav-link">Donors</a>
     
   </nav>
 
@@ -380,45 +388,45 @@
     <h2 style="color: var(--secondary-bg); margin-top: 3rem;">Our Valued Supporters</h2>
     <p style="margin-bottom: 1.5rem; font-size: 1rem; color: var(--primary-text);">We extend our heartfelt gratitude to these individuals and families for their immense generosity.</p>
 
-    <div class="family-boxes">
-      <div class="family-card">
-        <img src="https://placehold.co/70x70/7F0031/ffffff?text=ADJMI" alt="Harry and Alice Adjmi" class="family-avatar" />
-        <h3 class="family-name">Harry and Alice Adjmi</h3>
-        <p class="family-description">Pillars of our community, whose generosity illuminates countless paths for our students and programs.</p>
-      </div>
+  </div> <div class="family-boxes-wrapper">
+        <div class="family-boxes">
+            <div class="family-card">
+              <img src="https://placehold.co/70x70/7F0031/ffffff?text=ADJMI" alt="Harry and Alice Adjmi" class="family-avatar" />
+              <h3 class="family-name">Harry and Alice Adjmi</h3>
+              <p class="family-description">Pillars of our community, whose generosity illuminates countless paths for our students and programs.</p>
+            </div>
 
-      <div class="family-card">
-        <img src="https://placehold.co/70x70/002141/ffffff?text=CARIE" alt="Joe and Trina Carie" class="family-avatar" />
-        <h3 class="family-name">Joe and Trina Carie</h3>
-        <p class="family-description">Their dedication is honored through our campus, a testament to their unwavering commitment to Torah education.</p>
-      </div>
+            <div class="family-card">
+              <img src="https://placehold.co/70x70/002141/ffffff?text=CARIE" alt="Joe and Trina Carie" class="family-avatar" />
+              <h3 class="family-name">Joe and Trina Carie</h3>
+              <p class="family-description">Their dedication is honored through our campus, a testament to their unwavering commitment to Torah education.</p>
+            </div>
 
-      <div class="family-card">
-        <img src="https://placehold.co/70x70/7F0031/ffffff?text=MIZRAHI" alt="Irwin and Jill Mizrahi" class="family-avatar" />
-        <h3 class="family-name">Irwin and Jill Mizrahi</h3>
-        <p class="family-description">Immense supporters whose contributions are foundational to the continued growth and success of the Yeshivah.</p>
-      </div>
+            <div class="family-card">
+              <img src="https://placehold.co/70x70/7F0031/ffffff?text=MIZRAHI" alt="Irwin and Jill Mizrahi" class="family-avatar" />
+              <h3 class="family-name">Irwin and Jill Mizrahi</h3>
+              <p class="family-description">Immense supporters whose contributions are foundational to the continued growth and success of the Yeshivah.</p>
+            </div>
 
-      <div class="family-card">
-        <img src="https://placehold.co/70x70/002141/ffffff?text=OVAKNIN" alt="Avi & Gili Ovaknin" class="family-avatar" />
-        <h3 class="family-name">Avi & Gili Ovaknin</h3>
-        <p class="family-description">Their commitment helps us provide a nurturing and enriching environment for all our students.</p>
-      </div>
+            <div class="family-card">
+              <img src="https://placehold.co/70x70/002141/ffffff?text=OVAKNIN" alt="Avi & Gili Ovaknin" class="family-avatar" />
+              <h3 class="family-name">Avi & Gili Ovaknin</h3>
+              <p class="family-description">Their commitment helps us provide a nurturing and enriching environment for all our students.</p>
+            </div>
 
-      <div class="family-card">
-        <img src="https://placehold.co/70x70/7F0031/ffffff?text=SASSOUNES" alt="Adam Sassounes" class="family-avatar" />
-        <h3 class="family-name">Adam Sassounes</h3>
-        <p class="family-description">A valued supporter whose vision helps us build the next generation of proud Jewish leaders.</p>
-      </div>
+            <div class="family-card">
+              <img src="https://placehold.co/70x70/7F0031/ffffff?text=SASSOUNES" alt="Adam Sassounes" class="family-avatar" />
+              <h3 class="family-name">Adam Sassounes</h3>
+              <p class="family-description">A valued supporter whose vision helps us build the next generation of proud Jewish leaders.</p>
+            </div>
+        </div>
+    </div> <div class="container"> <div class="cta">
+            Be a part of something eternal. Buy your ticket today.
+        </div>
+        <div class="buy-links">
+            <a href="checkout.html" rel="noopener" class="buy-link-main">Buy Ticket Now</a>
+        </div>
     </div>
-
-    <div class="cta">
-      Be a part of something eternal. Buy your ticket today.
-    </div>
-    <div class="buy-links">
-        <a href="checkout.html" rel="noopener" class="buy-link-main">Buy Ticket Now</a>
-    </div>
-  </div>
 
   <script>
     // Function to parse URL parameters
