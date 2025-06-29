@@ -832,9 +832,10 @@
           // Ensure proceed button remains hidden as PayPal buttons are now taking over
           proceedToPaymentButton.style.display = 'none';
 
+
           return createOrderCallable({
             amount: amount,
-            quantity: quantity, // NEW: Pass quantity to the backend
+            quantity: quantity, // Pass quantity to the backend
             name: name,
             email: email,
             phone: phone,
@@ -920,6 +921,8 @@
       paypalButtonContainer.style.display = 'none'; // Hide PayPal container
       paypalButtonContainer.setAttribute('aria-busy', 'false');
       proceedToPaymentButton.style.display = 'block'; // Show original button for full reset
+      quantityInput.value = '1'; // Reset quantity
+      updateCalculatedTotal(); // Update total display
     }
   </script>
 

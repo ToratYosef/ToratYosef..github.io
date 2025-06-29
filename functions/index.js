@@ -68,16 +68,16 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
   //   throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to create an order.');
   // }
 
-  const { amount, quantity, name, email, phone, referral } = data; // NEW: Receive quantity
+  const { amount, quantity, name, email, phone, referral } = data; // Receive quantity
 
-  if (!amount || !quantity || !name || !email || !phone) { // NEW: Validate quantity
+  if (!amount || !quantity || !name || !email || !phone) { // Validate quantity
     throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, quantity, name, email, or phone.');
   }
 
-  // Optional: Server-side validation of amount vs. quantity to prevent tampering
+  // Server-side validation of amount vs. quantity to prevent tampering
   const calculatedAmount = quantity * RAFFLE_TICKET_PRICE;
   if (parseFloat(amount.toFixed(2)) !== parseFloat(calculatedAmount.toFixed(2))) {
-      throw new functions.https.HttpsError('invalid-argument', 'Mismatched amount and quantity provided.');
+      throw new functions.https.HttpsError('invalid-argument', `Mismatched amount (${amount.toFixed(2)}) and quantity (${quantity}). Expected amount: ${calculatedAmount.toFixed(2)}.`);
   }
 
   try {
@@ -96,9 +96,7 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
             currency_code: 'USD',
             value: amount.toFixed(2) // Use the amount provided by the frontend (already validated)
           }
-          // No need to add custom_id here, as it's optional
         }],
-        // ADDED: application_context to remove shipping address requirement
         application_context: {
             shipping_preference: 'NO_SHIPPING'
         }
@@ -112,14 +110,15 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', 'Failed to create PayPal order. Details:', orderData);
     }
 
-    // Save initial order details to 'paypal_orders' collection, NOT 'raffle_entries'
+    // Save initial order details to 'paypal_orders' collection
+    // IMPORTANT: Store the quantity here as it's crucial for the webhook processing
     await admin.firestore().collection('paypal_orders').doc(orderData.id).set({
       name,
       email,
       phone,
       referrerRefId: referral || null,
       amount,
-      quantity, // NEW: Store quantity in Firestore
+      quantity, // Store the quantity here
       status: 'CREATED',
       orderID: orderData.id,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -128,7 +127,6 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
     return { orderID: orderData.id };
   } catch (err) {
     console.error('createPayPalOrder caught error:', err);
-    // Re-throw as an HttpsError for the client to handle
     if (err instanceof functions.https.HttpsError) {
       throw err;
     }
@@ -212,7 +210,6 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
 
       // Process only relevant events for raffle entries
       if (event.event_type === 'CHECKOUT.ORDER.APPROVED' || event.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-        // Extract order ID, prioritizing the order ID from the event resource
         const orderID = event.resource.id ||
                        event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
                        event.resource.billing_agreement_id;
@@ -227,26 +224,32 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
 
         if (!orderDoc.exists) {
           console.error('Order not found in Firestore for PayPal ID:', orderID);
-          // Acknowledge the webhook to prevent PayPal retries, even if local record is missing.
-          // You might log this as a critical alert or have a separate reconciliation process.
           return res.status(200).send('Order not found in local DB, but webhook acknowledged.');
         }
 
         const orderData = orderDoc.data();
 
-        // Prevent duplicate raffle entries if webhook is received multiple times
-        if (orderData.raffleEntryCreatedAt) {
-          console.log(`Raffle entry already processed for order ${orderID}. Event type: ${event.event_type}`);
-          return res.status(200).send('Raffle entry already processed.');
+        // NEW: Check if raffle entries for this order have already been processed
+        // This is crucial to prevent duplicate entries if the webhook fires multiple times.
+        if (orderData.webhookProcessedForEntries) {
+          console.log(`Raffle entries for order ${orderID} already processed. Event type: ${event.event_type}`);
+          return res.status(200).send('Raffle entries already processed.');
         }
 
-        // NEW: Use the 'quantity' directly from the stored order data if available.
-        // Fallback to calculating from amount if for some reason quantity isn't there (e.g., old orders).
-        const ticketsBought = orderData.quantity || Math.floor(orderData.amount / RAFFLE_TICKET_PRICE);
+        const numberOfTickets = orderData.quantity || Math.floor(orderData.amount / RAFFLE_TICKET_PRICE);
+        if (numberOfTickets <= 0) {
+            console.warn(`Order ${orderID} has zero or negative tickets calculated. Skipping raffle entry creation.`);
+            await orderDocRef.update({
+                webhookProcessed: true, // Mark as processed even if no entries, to avoid retries
+                webhookProcessedForEntries: true,
+                lastWebhookEvent: event,
+                notes: 'No tickets created (quantity 0 or less).'
+            });
+            return res.status(200).send('No tickets to process.');
+        }
 
         let referrerUid = null;
         if (orderData.referrerRefId) {
-            // Look up the referrer's UID from the 'referrers' collection using their refId
             const referrerQuerySnapshot = await admin.firestore().collection('referrers')
                 .where('refId', '==', orderData.referrerRefId)
                 .limit(1)
@@ -260,30 +263,42 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
             }
         }
 
+        const batch = admin.firestore().batch();
+        const raffleEntriesCollection = admin.firestore().collection('raffle_entries');
 
-        // Add the raffle entry to a separate collection (raffle_entries)
-        await admin.firestore().collection('raffle_entries').add({
-          name: orderData.name,
-          email: orderData.email,
-          phone: orderData.phone,
-          referrerRefId: orderData.referrerRefId || null,
-          referrerUid: referrerUid,
-          amount: orderData.amount,
-          ticketsBought: ticketsBought,
-          paymentStatus: 'completed',
-          orderID: orderID,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          webhookEventType: event.event_type,
-          paypalEventId: event.id
+        // NEW LOGIC: Create a separate document for each ticket
+        for (let i = 0; i < numberOfTickets; i++) {
+            const newEntryRef = raffleEntriesCollection.doc(); // Firestore auto-generates ID
+            batch.set(newEntryRef, {
+                name: orderData.name,
+                email: orderData.email,
+                phone: orderData.phone,
+                referrerRefId: orderData.referrerRefId || null,
+                referrerUid: referrerUid,
+                amount: RAFFLE_TICKET_PRICE, // Each ticket is RAFFLE_TICKET_PRICE
+                ticketsBought: 1, // Each entry represents 1 ticket
+                paymentStatus: 'completed',
+                orderID: orderID, // Link back to the original PayPal order
+                ticketIndexInOrder: i + 1, // Useful for tracking, e.g., "ticket 1 of 5"
+                // You could generate a more unique 'ticketNumber' here if needed,
+                // e.g., by combining a prefix with a counter or part of the document ID
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                webhookEventType: event.event_type,
+                paypalEventId: event.id
+            });
+        }
+
+        // Update the original PayPal order as processed by the webhook for entries
+        batch.update(orderDocRef, {
+          webhookProcessed: true, // This can remain as a general processed flag
+          webhookProcessedForEntries: true, // NEW: Specific flag for entries creation
+          lastWebhookEvent: event,
+          entriesCreatedCount: numberOfTickets // NEW: Track how many entries were created
         });
 
-        // Mark the original PayPal order as processed by the webhook
-        await orderDocRef.update({
-          raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          webhookProcessed: true,
-          lastWebhookEvent: event
-        });
+        await batch.commit();
 
+        console.log(`Successfully created ${numberOfTickets} raffle entries for order ${orderID}.`);
         return res.status(200).send('Webhook processed successfully.');
       }
 
@@ -373,7 +388,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                     aggregatedSales[entry.referrerUid] = { totalTickets: 0, totalAmount: 0 };
                 }
                 aggregatedSales[entry.referrerUid].totalTickets += (entry.ticketsBought || 0);
-                aggregatedSales[entry.referrerUid].totalAmount += (entry.amount || 0);
+                aggregatedSales[entry.referrerUid].totalAmount += (entry.amount || 0); // Each individual ticket's amount
             }
         });
 
@@ -400,14 +415,16 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
 
             ownSalesSnapshot.forEach(doc => {
                 const entry = doc.data();
-                totalTicketsSold += (entry.ticketsBought || 0);
+                totalTicketsSold += (entry.ticketsBought || 0); // This will now always be 1 for individual tickets
 
                 buyerDetails.push({
                     id: doc.id,
                     name: entry.name,
                     email: entry.email,
                     phone: entry.phone,
-                    ticketsBought: entry.ticketsBought,
+                    ticketsBought: entry.ticketsBought, // This will be 1
+                    orderID: entry.orderID, // Display the linked order ID
+                    ticketIndexInOrder: entry.ticketIndexInOrder, // Display the ticket index
                     timestamp: entry.timestamp ? entry.timestamp.toDate().toLocaleString('en-US', {
                         month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
                         timeZone: 'America/New_York'
@@ -424,7 +441,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
 
         ticketsSoldSnapshot.forEach(doc => {
             const entry = doc.data();
-            totalTicketsSold += (entry.ticketsBought || 0);
+            totalTicketsSold += (entry.ticketsBought || 0); // This will now always be 1 for individual tickets
 
             if (!isViewerAccount) {
                 buyerDetails.push({
@@ -432,7 +449,9 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                     name: entry.name,
                     email: entry.email,
                     phone: entry.phone,
-                    ticketsBought: entry.ticketsBought,
+                    ticketsBought: entry.ticketsBought, // This will be 1
+                    orderID: entry.orderID,
+                    ticketIndexInOrder: entry.ticketIndexInOrder,
                     timestamp: entry.timestamp ? entry.timestamp.toDate().toLocaleString('en-US', {
                         month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
                         timeZone: 'America/New_York'
@@ -588,49 +607,4 @@ exports.createViewerAccount = functions.https.onCall(async (data, context) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log(`Successfully created new viewer account: ${viewerName} (${email}) for referrer UID: ${assignedReferrerUid}`);
-        return { success: true, uid: userRecord.uid, message: 'Viewer account created successfully.' };
-
-    } catch (error) {
-        console.error('Error creating viewer account:', error);
-        if (error.code === 'auth/email-already-exists') {
-            throw new functions.https.HttpsError('already-exists', 'The email address is already in use by another account.');
-        } else if (error instanceof functions.https.HttpsError) {
-            throw error;
-        }
-        throw new functions.https.HttpsError('internal', 'Failed to create viewer account.', error.message);
-    }
-});
-
-
-/**
- * Firebase Callable Function to get a list of all existing referrers.
- * This is used by the admin-create page to populate the dropdown for viewer assignment.
- * Requires authentication to call.
- */
-exports.getReferrersList = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to retrieve referrer list.');
-    }
-    // Optional: Add admin check here if only admins should get this list
-    // if (!context.auth.token.admin) {
-    //   throw new functions.https.HttpsError('permission-denied', 'You do not have permission to view this list.');
-    // }
-
-    try {
-        const referrersSnapshot = await admin.firestore().collection('referrers').get();
-        const referrers = [];
-        referrersSnapshot.forEach(doc => {
-            const data = doc.data();
-            referrers.push({
-                uid: doc.id,
-                name: data.name,
-                refId: data.refId
-            });
-        });
-        return { referrers: referrers };
-    } catch (error) {
-        console.error('Error fetching referrers list:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to retrieve referrers list.', error.message);
-    }
-});
+        console.log(`Successfully created new viewer account: ${viewerName} (${email}) for referrer UID: ${assignedReferr
