@@ -1,390 +1,404 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="favicon-32x32" href="favicon/favicon.ico">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yeshivat Torat Yosef - Home</title>
+
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="shortcut icon" type="image/png" href="assets/logo.png">
 <meta name="theme-color" content="#ffffff">
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Yeshivat Torat Yosef - Home</title>
-  <style>
-    :root {
-      --primary-bg: #ffffff;
-      --primary-text: rgb(0, 33, 65);
-      --secondary-bg: rgb(0, 33, 65);
-      --accent: #7F0031;
-      --hover: #590023;
-    }
 
-    html, body {
-      margin: 0;
-      height: 100%;
-      overflow-x: hidden;
-      overflow-y: auto;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--primary-bg);
-      color: var(--primary-text);
-      display: flex;
-      flex-direction: column; /* Arranges logo, nav, slideshow, and footer vertically */
-      align-items: center; /* Centers content horizontally */
-    }
+<meta property="og:title" content="Yeshivat Torat Yosef - Home" />
+<meta property="og:description" content="Empowering Sephardic Youth through Torah and Tradition. Join the Yeshiva Family!" />
+<meta property="og:image" content="https://www.yourwebsite.com/assets/logo.png" />
+<meta property="og:url" content="https://www.yourwebsite.com/index.html" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Yeshivat Torat Yosef" />
 
-    .logo-container {
-      text-align: center;
-      padding: 1rem 0 0.5rem;
-      flex-shrink: 0; /* Prevents this section from shrinking */
-    }
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Yeshivat Torat Yosef - Home">
+<meta name="twitter:description" content="Empowering Sephardic Youth through Torah and Tradition. Join the Yeshiva Family!">
+<meta name="twitter:image" content="https://www.yourwebsite.com/assets/logo.png">
+<style>
+  :root {
+    --primary-bg: #ffffff;
+    --primary-text: rgb(0, 33, 65);
+    --secondary-bg: rgb(0, 33, 65);
+    --accent: #7F0031;
+    --hover: #590023;
+  }
 
-    .logo {
-      max-width: 250px;
-      width: 80vw;
-      height: auto;
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
-      box-sizing: border-box;
-    }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--primary-bg);
+    color: var(--primary-text);
+    display: flex;
+    flex-direction: column; /* Arranges logo, nav, slideshow, and footer vertically */
+    align-items: center; /* Centers content horizontally */
+  }
 
-    nav {
-      background-color: var(--secondary-bg);
-      display: flex;
-      justify-content: center;
-      gap: 1rem;
-      padding: 0.5rem 0;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      flex-shrink: 0; /* Prevents this section from shrinking */
-      width: 100%;
-      flex-wrap: wrap;
-      box-sizing: border-box;
-    }
+  .logo-container {
+    text-align: center;
+    padding: 1rem 0 0.5rem;
+    flex-shrink: 0; /* Prevents this section from shrinking */
+  }
 
-    nav a {
-      color: white;
-      text-decoration: none;
-      font-weight: bold;
-      font-size: 1rem;
-      padding: 0.3rem 0.7rem;
-      white-space: nowrap;
-    }
+  .logo {
+    max-width: 250px;
+    width: 80vw;
+    height: auto;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
 
-    nav a.active {
-      border-bottom: 3px solid var(--accent);
-      color: var(--accent);
-    }
+  nav {
+    background-color: var(--secondary-bg);
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    flex-shrink: 0; /* Prevents this section from shrinking */
+    width: 100%;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+  }
 
-    nav a:hover {
-      color: var(--accent);
-    }
+  nav a {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1rem;
+    padding: 0.3rem 0.7rem;
+    white-space: nowrap;
+  }
 
-    .slideshow-container {
-      position: relative;
-      width: 100vw;
-      flex-grow: 1; /* Allows this section to take up available space */
-      max-height: calc(100vh - 130px); /* Default for larger screens */
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+  nav a.active {
+    border-bottom: 3px solid var(--accent);
+    color: var(--accent);
+  }
 
-    .slide {
-      display: none;
-      position: absolute;
-      width: 100%;
-      height: 100%;
-    }
+  nav a:hover {
+    color: var(--accent);
+  }
 
-    /* Default image styling for larger screens */
-    .slide img {
-      width: 100%;
-      height: 90%;
-      object-fit: cover;
-    }
+  .slideshow-container {
+    position: relative;
+    width: 100vw;
+    flex-grow: 1; /* Allows this section to take up available space */
+    max-height: calc(100vh - 130px); /* Default for larger screens */
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-    .slide.active {
-      display: block;
-    }
+  .slide {
+    display: none;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+  }
 
+  /* Default image styling for larger screens */
+  .slide img {
+    width: 100%;
+    height: 90%;
+    object-fit: cover;
+  }
+
+  .slide.active {
+    display: block;
+  }
+
+  .slide-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(127, 0, 49, 0.7);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    max-width: 80%;
+    user-select: none;
+  }
+
+  .buy-ticket-btn {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--accent);
+    color: white;
+    padding: 0.7rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 10px;
+    text-decoration: none;
+    box-shadow: 0 4px 10px rgba(127, 0, 49, 0.4);
+    transition: background-color 0.3s;
+    max-width: 280px;
+    white-space: nowrap;
+    z-index: 10;
+  }
+
+  .buy-ticket-btn:hover {
+    background-color: var(--hover);
+  }
+
+  /* Footer Styles */
+  footer {
+    background-color: var(--secondary-bg);
+    color: white;
+    padding: 1.5rem 1rem; /* Reduced vertical padding */
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    flex-shrink: 0;
+    margin-top: auto;
+  }
+
+  .footer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2rem; /* Slightly reduced gap */
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .footer-logo img {
+    max-width: 150px; /* Reduced logo size */
+    height: auto;
+    display: block;
+    margin: 0 auto 0.8rem; /* Reduced bottom margin */
+    /* If your logo is dark and needs to be white on the dark blue background,
+        uncomment the line below. If it's already white, leave commented. */
+    /* filter: brightness(0) invert(1); */
+  }
+
+  .footer-section {
+    padding: 0 1rem;
+  }
+
+  .footer-section h3 {
+    color: var(--accent);
+    margin-top: 0;
+    margin-bottom: 0.6rem; /* Reduced bottom margin */
+    font-size: 1.1rem; /* Reduced heading font size */
+  }
+
+  .footer-section p {
+    margin: 0.2rem 0; /* Reduced vertical margin for paragraphs */
+    font-size: 0.85rem; /* Slightly reduced paragraph font size */
+    line-height: 1.4;
+  }
+
+  .footer-section a {
+    color: white;
+    text-decoration: none;
+  }
+
+  .footer-section a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  /* Media query for screens up to 600px wide */
+  @media (max-width: 600px) {
     .slide-text {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(127, 0, 49, 0.7);
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 10px;
-      font-size: 1.5rem;
-      font-weight: bold;
-      text-align: center;
-      max-width: 80%;
-      user-select: none;
+      font-size: 1.1rem;
+      padding: 0.3rem 0.7rem;
+      max-width: 90%;
     }
 
     .buy-ticket-btn {
-      position: absolute;
-      bottom: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: var(--accent);
-      color: white;
-      padding: 0.7rem 1.5rem;
-      font-size: 1rem;
-      font-weight: bold;
-      border-radius: 10px;
-      text-decoration: none;
-      box-shadow: 0 4px 10px rgba(127, 0, 49, 0.4);
-      transition: background-color 0.3s;
-      max-width: 280px;
-      white-space: nowrap;
-      z-index: 10;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      max-width: 200px;
     }
 
-    .buy-ticket-btn:hover {
-      background-color: var(--hover);
+    nav a {
+      font-size: 0.9rem;
+      padding: 0.3rem 0.5rem;
     }
 
-    /* Footer Styles */
-    footer {
-      background-color: var(--secondary-bg);
-      color: white;
-      padding: 1.5rem 1rem; /* Reduced vertical padding */
-      width: 100%;
-      box-sizing: border-box;
-      text-align: center;
-      flex-shrink: 0;
-      margin-top: auto;
+    .slide img {
+      object-fit: contain;
     }
 
+    .slideshow-container {
+      max-height: 350px;
+    }
+  }
+
+  /* Media query for screens up to 400px wide (even smaller adjustments) */
+  @media (max-width: 400px) {
+    nav a {
+      font-size: 0.8rem;
+      padding: 0.2rem 0.4rem;
+    }
+    .slideshow-container {
+      max-height: 280px;
+    }
+  }
+
+  /* Responsive footer layout for larger screens */
+  @media (min-width: 768px) {
     .footer-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1.2rem; /* Slightly reduced gap */
-      max-width: 1200px;
-      margin: 0 auto;
+      flex-direction: row;
+      justify-content: space-around;
+      align-items: flex-start;
+      text-align: left;
     }
 
+    .footer-logo {
+      flex-basis: 180px; /* Adjusted flex-basis for slightly smaller logo */
+      text-align: center;
+    }
     .footer-logo img {
-      max-width: 150px; /* Reduced logo size */
-      height: auto;
-      display: block;
-      margin: 0 auto 0.8rem; /* Reduced bottom margin */
-      /* If your logo is dark and needs to be white on the dark blue background,
-         uncomment the line below. If it's already white, leave commented. */
-      /* filter: brightness(0) invert(1); */
+      margin-bottom: 0;
     }
 
-    .footer-section {
-      padding: 0 1rem;
+    .school-info {
+      flex-basis: 280px; /* Slightly adjusted width */
     }
 
-    .footer-section h3 {
-      color: var(--accent);
-      margin-top: 0;
-      margin-bottom: 0.6rem; /* Reduced bottom margin */
-      font-size: 1.1rem; /* Reduced heading font size */
+    .dev-info {
+      flex-basis: 220px; /* Slightly adjusted width */
     }
-
-    .footer-section p {
-      margin: 0.2rem 0; /* Reduced vertical margin for paragraphs */
-      font-size: 0.85rem; /* Slightly reduced paragraph font size */
-      line-height: 1.4;
-    }
-
-    .footer-section a {
-      color: white;
-      text-decoration: none;
-    }
-
-    .footer-section a:hover {
-      color: var(--accent);
-      text-decoration: underline;
-    }
-
-    /* Media query for screens up to 600px wide */
-    @media (max-width: 600px) {
-      .slide-text {
-        font-size: 1.1rem;
-        padding: 0.3rem 0.7rem;
-        max-width: 90%;
-      }
-
-      .buy-ticket-btn {
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
-        max-width: 200px;
-      }
-
-      nav a {
-        font-size: 0.9rem;
-        padding: 0.3rem 0.5rem;
-      }
-
-      .slide img {
-        object-fit: contain;
-      }
-
-      .slideshow-container {
-        max-height: 350px;
-      }
-    }
-
-    /* Media query for screens up to 400px wide (even smaller adjustments) */
-    @media (max-width: 400px) {
-      nav a {
-        font-size: 0.8rem;
-        padding: 0.2rem 0.4rem;
-      }
-      .slideshow-container {
-        max-height: 280px;
-      }
-    }
-
-    /* Responsive footer layout for larger screens */
-    @media (min-width: 768px) {
-      .footer-content {
-        flex-direction: row;
-        justify-content: space-around;
-        align-items: flex-start;
-        text-align: left;
-      }
-
-      .footer-logo {
-        flex-basis: 180px; /* Adjusted flex-basis for slightly smaller logo */
-        text-align: center;
-      }
-      .footer-logo img {
-        margin-bottom: 0;
-      }
-
-      .school-info {
-        flex-basis: 280px; /* Slightly adjusted width */
-      }
-
-      .dev-info {
-        flex-basis: 220px; /* Slightly adjusted width */
-      }
-    }
-  </style>
+  }
+</style>
 </head>
 <body>
 
-  <div class="logo-container">
-    <img src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
+<div class="logo-container">
+  <img src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
+</div>
+
+<nav>
+  <a href="index.html" class="active">Home</a>
+  <a href="prizes.html" class="nav-link">Prizes</a>
+  <a href="about.html" class="nav-link">About</a>
+  
+</nav>
+
+<div class="slideshow-container">
+  <div class="slide active">
+    <img src="assets/slide1.jpg" alt="Slide 1">
+    <div class="slide-text">Join the Yeshiva Family</div>
+  </div>
+  <div class="slide">
+    <img src="assets/slide2.jpg" alt="Slide 2">
+    <div class="slide-text">Empowering Sephardic Youth</div>
+  </div>
+  <div class="slide">
+    <img src="assets/slide3.jpg" alt="Slide 3">
+    <div class="slide-text">Support Torah & Tradition</div>
+  </div>
+  <div class="slide">
+    <img src="assets/slide4.jpeg" alt="Slide 4">
+    <div class="slide-text">Building Leaders for Tomorrow</div>
+  </div>
+  <div class="slide">
+    <img src="assets/slide5.jpeg" alt="Slide 5">
+    <div class="slide-text">Invest in Eternal Torah</div>
+  </div>
+  <div class="slide">
+    <img src="assets/slide6.jpeg" alt="Slide 6">
+    <div class="slide-text">Secure Our Spiritual Future</div>
   </div>
 
-  <nav>
-    <a href="index.html" class="active">Home</a>
-    <a href="prizes.html" class="nav-link">Prizes</a>
-    <a href="about.html" class="nav-link">About</a>
-    
-  </nav>
+  <a href="prizes.html" class="buy-ticket-btn">Buy Ticket</a>
+</div>
 
-  <div class="slideshow-container">
-    <div class="slide active">
-      <img src="assets/slide1.jpg" alt="Slide 1">
-      <div class="slide-text">Join the Yeshiva Family</div>
-    </div>
-    <div class="slide">
-      <img src="assets/slide2.jpg" alt="Slide 2">
-      <div class="slide-text">Empowering Sephardic Youth</div>
-    </div>
-    <div class="slide">
-      <img src="assets/slide3.jpg" alt="Slide 3">
-      <div class="slide-text">Support Torah & Tradition</div>
-    </div>
-    <div class="slide">
-      <img src="assets/slide4.jpeg" alt="Slide 4">
-      <div class="slide-text">Building Leaders for Tomorrow</div>
-    </div>
-    <div class="slide">
-      <img src="assets/slide5.jpeg" alt="Slide 5">
-      <div class="slide-text">Invest in Eternal Torah</div>
-    </div>
-    <div class="slide">
-      <img src="assets/slide6.jpeg" alt="Slide 6">
-      <div class="slide-text">Secure Our Spiritual Future</div>
-    </div>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const slides = document.querySelectorAll('.slide');
+    let current = 0;
 
-    <a href="prizes.html" class="buy-ticket-btn">Buy Ticket</a>
-  </div>
+    function showSlide(index) {
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === index);
+      });
+    }
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const slides = document.querySelectorAll('.slide');
-      let current = 0;
+    // Show the first slide immediately on load
+    showSlide(current);
 
-      function showSlide(index) {
-        slides.forEach((slide, i) => {
-          slide.classList.toggle('active', i === index);
-        });
-      }
-
-      // Show the first slide immediately on load
+    // Start the interval for automatic slideshow
+    setInterval(() => {
+      current = (current + 1) % slides.length;
       showSlide(current);
+    }, 3000); // Change slide every 3 seconds
 
-      // Start the interval for automatic slideshow
-      setInterval(() => {
-        current = (current + 1) % slides.length;
-        showSlide(current);
-      }, 3000); // Change slide every 3 seconds
+    // Function to parse URL parameters
+    function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      var results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    };
 
-      // Function to parse URL parameters
-      function getUrlParameter(name) {
-        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-        var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-        var results = regex.exec(location.search);
-        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-      };
+    const navLinks = document.querySelectorAll('nav a');
+    const buyTicketBtn = document.querySelector('.buy-ticket-btn');
 
-      const navLinks = document.querySelectorAll('nav a');
-      const buyTicketBtn = document.querySelector('.buy-ticket-btn');
+    const referrerId = getUrlParameter('ref');
 
-      const referrerId = getUrlParameter('ref');
+    if (referrerId) {
+      navLinks.forEach(link => {
+        const originalHref = link.getAttribute('href');
+        if (originalHref && !originalHref.startsWith('http')) {
+          const newHref = originalHref.includes('?')
+                                  ? `${originalHref}&ref=${referrerId}`
+                                  : `${originalHref}?ref=${referrerId}`;
+          link.href = newHref;
+        }
+      });
 
-      if (referrerId) {
-        navLinks.forEach(link => {
-          const originalHref = link.getAttribute('href');
-          if (originalHref && !originalHref.startsWith('http')) {
-            const newHref = originalHref.includes('?')
-                               ? `${originalHref}&ref=${referrerId}`
-                               : `${originalHref}?ref=${referrerId}`;
-            link.href = newHref;
-          }
-        });
-
-        if (buyTicketBtn) {
-          const originalHref = buyTicketBtn.getAttribute('href');
-          if (originalHref && !originalHref.startsWith('http')) {
-            const newHref = originalHref.includes('?')
-                               ? `${originalHref}&ref=${referrerId}`
-                               : `${originalHref}?ref=${referrerId}`;
-            buyTicketBtn.href = newHref;
-          }
+      if (buyTicketBtn) {
+        const originalHref = buyTicketBtn.getAttribute('href');
+        if (originalHref && !originalHref.startsWith('http')) {
+          const newHref = originalHref.includes('?')
+                                  ? `${originalHref}&ref=${referrerId}`
+                                  : `${originalHref}?ref=${referrerId}`;
+          buyTicketBtn.href = newHref;
         }
       }
-    });
-  </script>
+    }
+  });
+</script>
 
-  <footer>
-    <div class="footer-content">
-      <div class="footer-logo">
-        <img src="https://static.wixstatic.com/media/2de2be_3f32007405f243d6b0dd807b656ea835~mv2.png/v1/fill/w_652,h_248,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/IMG_4131-B.png" alt="Yeshivat Torah Yosef Footer Logo">
-      </div>
-      <div class="footer-section school-info">
-        <h3>School Info</h3>
-        <p>&copy; 2025 by Yeshivat Torat Yosef.</p>
-        <p>8950 Stirling Rd</p>
-        <p>Hollywood, FL 33024</p>
-        <p>(754) 263 3126</p>
-        <p><a href="mailto:office@toratyosef.org">office@toratyosef.org</a></p>
-      </div>
-      <div class="footer-section dev-info">
-        <p>Website made by Saul Setton</p>
-        <p>929-584-5753</p>
-        <p><a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a></p>
-      </div>
+<footer>
+  <div class="footer-content">
+    <div class="footer-logo">
+      <img src="https://static.wixstatic.com/media/2de2be_3f32007405f243d6b0dd807b656ea835~mv2.png/v1/fill/w_652,h_248,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/IMG_4131-B.png" alt="Yeshivat Torah Yosef Footer Logo">
     </div>
-  </footer>
+    <div class="footer-section school-info">
+      <h3>School Info</h3>
+      <p>&copy; 2025 by Yeshivat Torat Yosef.</p>
+      <p>8950 Stirling Rd</p>
+      <p>Hollywood, FL 33024</p>
+      <p>(754) 263 3126</p>
+      <p><a href="mailto:office@toratyosef.org">office@toratyosef.org</a></p>
+    </div>
+    <div class="footer-section dev-info">
+      <p>Website made by Saul Setton</p>
+      <p>929-584-5753</p>
+      <p><a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a></p>
+    </div>
+  </div>
+</footer>
 
 </body>
 </html>
