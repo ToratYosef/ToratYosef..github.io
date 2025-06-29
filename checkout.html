@@ -7,7 +7,7 @@
   <link rel="favicon-32x32" href="favicon/favicon.ico">
   <meta name="theme-color" content="#ffffff" />
   <style>
-    /* Your CSS as provided, with additions for spinners */
+    /* Your existing CSS */
     :root {
       --primary-bg: #ffffff;
       --primary-text: rgb(0, 33, 65);
@@ -110,7 +110,9 @@
 
     .form-group input[type="text"],
     .form-group input[type="email"],
-    .form-group input[type="tel"] {
+    .form-group input[type="tel"],
+    /* NEW: Style for number input */
+    .form-group input[type="number"] {
       width: calc(100% - 20px);
       padding: 10px;
       border: 1px solid #ccc;
@@ -121,7 +123,9 @@
 
     .form-group input[type="text"]:focus,
     .form-group input[type="email"]:focus,
-    .form-group input[type="tel"]:focus {
+    .form-group input[type="tel"]:focus,
+    /* NEW: Style for number input focus */
+    .form-group input[type="number"]:focus {
       border-color: var(--accent);
       outline: none;
       box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
@@ -144,6 +148,62 @@
       text-align: left;
       display: none;
       border-radius: 4px;
+    }
+
+    /* NEW: Styles for quantity selector group */
+    .quantity-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+
+    .quantity-group label {
+      font-weight: bold;
+      margin-right: 5px;
+    }
+
+    .quantity-input {
+      width: 80px; /* Adjust width as needed */
+      text-align: center;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 1em;
+    }
+
+    .quantity-button {
+      background-color: var(--secondary-bg);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      width: 35px;
+      height: 35px;
+      font-size: 1.2em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.2s ease;
+      user-select: none;
+    }
+
+    .quantity-button:hover {
+      background-color: var(--accent);
+    }
+
+    .quantity-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #total-amount-display {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: var(--accent);
+      margin-top: 15px;
+      margin-bottom: 20px;
     }
 
     .pay-button {
@@ -398,6 +458,11 @@
       .custom-popup p {
         font-size: 1rem;
       }
+      /* Adjust quantity selector for small screens */
+      .quantity-group {
+          flex-direction: column;
+          gap: 5px;
+      }
     }
 
     /* Responsive footer layout for larger screens */
@@ -459,6 +524,15 @@
       Referral: <span id="referral-name"></span>
     </div>
 
+    <div class="quantity-group">
+      <button type="button" class="quantity-button" id="decrease-quantity">-</button>
+      <label for="quantity">Tickets:</label>
+      <input type="number" id="quantity" class="quantity-input" value="1" min="1" max="99" aria-label="Number of tickets">
+      <button type="button" class="quantity-button" id="increase-quantity">+</button>
+    </div>
+
+    <div id="total-amount-display">Total: $<span id="calculated-total-amount">0.00</span></div>
+
     <button class="pay-button" id="proceed-to-payment">
         <span class="button-text">Proceed to Payment</span>
         <div class="button-spinner"></div>
@@ -510,6 +584,12 @@
     const emailInput = document.getElementById('email');
     const phoneInput = document.getElementById('phone');
 
+    // NEW: Quantity Selector Elements
+    const quantityInput = document.getElementById('quantity');
+    const decreaseQuantityButton = document.getElementById('decrease-quantity');
+    const increaseQuantityButton = document.getElementById('increase-quantity');
+    const totalAmountDisplay = document.getElementById('calculated-total-amount');
+
     // Main container to apply grayscale/blur filter (no longer used for filter directly)
     const mainContainer = document.getElementById('main-container'); // This refers to the main content box
     const formInputs = document.querySelectorAll('#main-container input'); // Get all form inputs within main container
@@ -537,6 +617,52 @@
     let loadStartTime = 0;
     let isLoadingProcessComplete = false;
     let loadingCallback = null; // Function to call when minimum time is met
+
+    const raffleTicketPrice = 126.00; // Define this once, consistent with backend
+
+    // Function to calculate and display total amount
+    function updateCalculatedTotal() {
+        let quantity = parseInt(quantityInput.value, 10);
+        if (isNaN(quantity) || quantity < 1) {
+            quantity = 1; // Default to 1 if invalid
+            quantityInput.value = 1;
+        }
+        if (quantity > 99) { // Enforce max if you have one
+            quantity = 99;
+            quantityInput.value = 99;
+        }
+
+        const totalAmount = quantity * raffleTicketPrice;
+        totalAmountDisplay.textContent = totalAmount.toFixed(2);
+
+        // Disable/enable buttons based on quantity
+        decreaseQuantityButton.disabled = quantity <= parseInt(quantityInput.min, 10);
+        increaseQuantityButton.disabled = quantity >= parseInt(quantityInput.max, 10);
+    }
+
+    // Initial calculation when the page loads
+    updateCalculatedTotal();
+
+    // Event listeners for quantity buttons
+    decreaseQuantityButton.addEventListener('click', () => {
+        let currentQuantity = parseInt(quantityInput.value, 10);
+        if (currentQuantity > parseInt(quantityInput.min, 10)) {
+            quantityInput.value = currentQuantity - 1;
+            updateCalculatedTotal();
+        }
+    });
+
+    increaseQuantityButton.addEventListener('click', () => {
+        let currentQuantity = parseInt(quantityInput.value, 10);
+        if (currentQuantity < parseInt(quantityInput.max, 10)) {
+            quantityInput.value = currentQuantity + 1;
+            updateCalculatedTotal();
+        }
+    });
+
+    // Event listener for direct input changes to quantity
+    quantityInput.addEventListener('change', updateCalculatedTotal);
+    quantityInput.addEventListener('input', updateCalculatedTotal); // For real-time updates as user types
 
     // Show referral if present in URL ?ref=
     const urlParams = new URLSearchParams(window.location.search);
@@ -594,6 +720,9 @@
         });
         // Also disable the proceed button if inputs are disabled
         // Note: proceedToPaymentButton.disabled is also set directly by showButtonSpinner/hideButtonSpinner
+        quantityInput.disabled = disabled; // NEW: Disable quantity input too
+        decreaseQuantityButton.disabled = disabled; // NEW: Disable quantity buttons
+        increaseQuantityButton.disabled = disabled; // NEW: Disable quantity buttons
     }
 
     // Helper to show global loading overlay
@@ -641,15 +770,19 @@
         }
     }
 
-    const raffleTicketAmount = 126.00; // Define this once
-
     proceedToPaymentButton.addEventListener('click', () => {
       const name = nameInput.value.trim();
       const email = emailInput.value.trim();
       const phone = phoneInput.value.trim();
+      const quantity = parseInt(quantityInput.value, 10);
+      const totalAmount = parseFloat(totalAmountDisplay.textContent); // Get calculated amount
 
       if (!name || !email || !phone) {
         showCustomPopup('Missing Information', 'Please fill in all fields before proceeding.');
+        return;
+      }
+      if (isNaN(quantity) || quantity < 1) {
+        showCustomPopup('Invalid Quantity', 'Please enter a valid number of tickets (at least 1).');
         return;
       }
 
@@ -661,10 +794,10 @@
       showGlobalLoadingOverlay("Loading payment options...", false);
 
       // Render PayPal buttons immediately without a separate setTimeout for this specific action
-      renderPayPalButtons(raffleTicketAmount, name, email, phone, referral);
+      renderPayPalButtons(totalAmount, quantity, name, email, phone, referral); // Pass totalAmount and quantity
     });
 
-    function renderPayPalButtons(amount, name, email, phone, referral) {
+    function renderPayPalButtons(amount, quantity, name, email, phone, referral) {
       paypalButtonContainer.innerHTML = ''; // Clear old buttons
 
       if (typeof paypal === 'undefined' || !paypal.Buttons) {
@@ -699,9 +832,9 @@
           // Ensure proceed button remains hidden as PayPal buttons are now taking over
           proceedToPaymentButton.style.display = 'none';
 
-
           return createOrderCallable({
             amount: amount,
+            quantity: quantity, // NEW: Pass quantity to the backend
             name: name,
             email: email,
             phone: phone,
@@ -737,6 +870,8 @@
               nameInput.value = '';
               emailInput.value = '';
               phoneInput.value = '';
+              quantityInput.value = '1'; // Reset quantity
+              updateCalculatedTotal(); // Update total display
               resetCheckoutUI(); // Full reset on successful payment
             } else {
               showCustomPopup('Payment Issue', 'Payment issue detected. Please contact support.');

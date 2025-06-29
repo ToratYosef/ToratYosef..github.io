@@ -55,6 +55,9 @@ async function getPayPalAccessToken() {
   return data.access_token;
 }
 
+// Define the fixed ticket price here for consistency
+const RAFFLE_TICKET_PRICE = 126.00;
+
 /**
  * Firebase Callable Function to create a PayPal order.
  * This is invoked directly from your frontend.
@@ -65,10 +68,16 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
   //   throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to create an order.');
   // }
 
-  const { amount, name, email, phone, referral } = data;
+  const { amount, quantity, name, email, phone, referral } = data; // NEW: Receive quantity
 
-  if (!amount || !name || !email || !phone) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, name, email, or phone.');
+  if (!amount || !quantity || !name || !email || !phone) { // NEW: Validate quantity
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, quantity, name, email, or phone.');
+  }
+
+  // Optional: Server-side validation of amount vs. quantity to prevent tampering
+  const calculatedAmount = quantity * RAFFLE_TICKET_PRICE;
+  if (parseFloat(amount.toFixed(2)) !== parseFloat(calculatedAmount.toFixed(2))) {
+      throw new functions.https.HttpsError('invalid-argument', 'Mismatched amount and quantity provided.');
   }
 
   try {
@@ -85,7 +94,7 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
         purchase_units: [{
           amount: {
             currency_code: 'USD',
-            value: amount.toFixed(2)
+            value: amount.toFixed(2) // Use the amount provided by the frontend (already validated)
           }
           // No need to add custom_id here, as it's optional
         }],
@@ -110,6 +119,7 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
       phone,
       referrerRefId: referral || null,
       amount,
+      quantity, // NEW: Store quantity in Firestore
       status: 'CREATED',
       orderID: orderData.id,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -230,9 +240,9 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
           return res.status(200).send('Raffle entry already processed.');
         }
 
-        // Calculate ticketsBought based on the amount for this order.
-        // Ensure $126.00 is the fixed price per ticket.
-        const ticketsBought = Math.floor(orderData.amount / 126.00);
+        // NEW: Use the 'quantity' directly from the stored order data if available.
+        // Fallback to calculating from amount if for some reason quantity isn't there (e.g., old orders).
+        const ticketsBought = orderData.quantity || Math.floor(orderData.amount / RAFFLE_TICKET_PRICE);
 
         let referrerUid = null;
         if (orderData.referrerRefId) {
