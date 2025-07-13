@@ -232,7 +232,7 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
 
         // Calculate ticketsBought based on the amount for this order.
         // Ensure $126.00 is the fixed price per ticket.
-        const ticketsBought = Math.floor(orderData.amount / 126.00);
+        const ticketsBought = Math.floor(orderData.amount / 1.00);
 
         let referrerUid = null;
         if (orderData.referrerRefId) {
