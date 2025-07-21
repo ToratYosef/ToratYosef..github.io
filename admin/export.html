@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Export Login - Yeshivat Torat Yosef Raffle</title>
+  <title>Admin Export & Diagnostics</title>
   <link rel="icon" href="/favicon.ico">
   <meta name="theme-color" content="#ffffff" />
   <style>
-    /* ... your existing styles are fine, no changes needed here ... */
     :root{--primary-bg:#fff;--primary-text:rgb(0, 33, 65);--secondary-bg:rgb(0, 33, 65);--accent:#7F0031;--hover:#590023;--button-gradient-start:#a30040;--button-gradient-end:#7F0031}body{margin:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background-color:var(--primary-bg);color:var(--primary-text);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding-bottom:1rem}.logo-container{text-align:center;padding:.8rem 0 .4rem;flex-shrink:0}.logo{max-width:250px;width:80vw;height:auto;border:1px solid rgba(0,0,0,.1);border-radius:8px;box-sizing:border-box}.container{max-width:450px;margin:2rem auto;padding:30px;background-color:#f8f8f8;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,.2);text-align:center;flex-grow:1;width:90%;box-sizing:border-box}h1{color:var(--accent);margin-bottom:25px;font-size:1.8rem}.form-group{margin-bottom:20px;text-align:left}.form-group label{display:block;margin-bottom:8px;font-weight:700;color:var(--primary-text)}.form-group input[type=text],.form-group input[type=password]{width:calc(100% - 20px);padding:12px;border:1px solid #ccc;border-radius:5px;font-size:1.1em;box-sizing:border-box}.form-group input[type=text]:focus,.form-group input[type=password]:focus{border-color:var(--accent);outline:0;box-shadow:0 0 5px rgba(127,0,49,.2)}.action-button{display:inline-block;padding:12px 30px;background:linear-gradient(to right,var(--button-gradient-start),var(--button-gradient-end));color:#fff;font-size:1.1em;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:background .3s ease;-webkit-user-select:none;user-select:none;width:100%;margin-top:10px}.action-button:hover{background:linear-gradient(to right,var(--hover),var(--accent))}.action-button:disabled{background:#ccc;cursor:not-allowed}.message-area{color:#d9534f;margin-top:15px;font-size:.95em;min-height:20px;font-weight:700}.footer{width:100%;background-color:var(--secondary-bg);color:#fff;text-align:center;padding:1.5rem 1rem;font-size:.9em;margin-top:auto;flex-shrink:0}.footer a{color:var(--accent);text-decoration:none;font-weight:700}
   </style>
 </head>
@@ -33,8 +32,9 @@
       </form>
     </div>
     
-    <div id="export-container" style="display: none;">
-        <p>You have Super Admin permissions.</p>
+    <div id="loggedin-container" style="display: none;">
+        <p id="loggedin-as-message"></p>
+        <p id="permission-status" style="font-weight: bold;"></p>
         <button id="exportButton" class="action-button">Export All Entries</button>
         <button id="checkClaimsButton" class="action-button" style="background: #17a2b8; margin-top: 1rem;">Check My Permissions</button>
         <button id="logoutButton" class="action-button" style="background: #6c757d; margin-top: 1rem;">Log Out</button>
@@ -70,15 +70,15 @@
     // DOM Elements
     const mainHeading = document.getElementById('main-heading');
     const loginContainer = document.getElementById('login-container');
-    const exportContainer = document.getElementById('export-container');
+    const loggedinContainer = document.getElementById('loggedin-container');
+    const loggedinAsMessage = document.getElementById('loggedin-as-message');
+    const permissionStatus = document.getElementById('permission-status');
     const loginForm = document.getElementById('login-form');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
     const loginButton = document.getElementById('login-button');
     const exportButton = document.getElementById('exportButton');
     const logoutButton = document.getElementById('logoutButton');
     const messageArea = document.getElementById('message-area');
-    const checkClaimsButton = document.getElementById('checkClaimsButton'); // New button
+    const checkClaimsButton = document.getElementById('checkClaimsButton');
     
     const FIXED_DOMAIN = '@toratyosefsummerraffle.com';
 
@@ -90,17 +90,25 @@
     function clearMessage() {
       messageArea.textContent = '';
     }
-    
-    function showExportUI() {
-        mainHeading.textContent = 'Admin Export';
+
+    function showLoggedInUI(user, isSuperAdmin) {
+        mainHeading.textContent = 'Admin Panel';
         loginContainer.style.display = 'none';
-        exportContainer.style.display = 'block';
+        loggedinContainer.style.display = 'block';
+        loggedinAsMessage.textContent = `Logged in as: ${user.email}`;
+        if (isSuperAdmin) {
+            permissionStatus.textContent = "Status: Super Admin";
+            permissionStatus.style.color = '#28a745';
+        } else {
+            permissionStatus.textContent = "Status: Access Denied (Not a Super Admin)";
+            permissionStatus.style.color = '#d9534f';
+        }
     }
 
     function showLoginUI() {
         mainHeading.textContent = 'Admin Login';
         loginContainer.style.display = 'block';
-        exportContainer.style.display = 'none';
+        loggedinContainer.style.display = 'none';
     }
 
     auth.onAuthStateChanged(async (user) => {
@@ -108,18 +116,12 @@
       if (user) {
         try {
           const idTokenResult = await user.getIdTokenResult(true);
-          if (idTokenResult.claims.superAdminReferrer) {
-            showExportUI();
-          } else {
-            showMessage('Access Denied. This account is not a Super Admin.');
-            await auth.signOut();
-            showLoginUI();
-          }
+          const isSuperAdmin = idTokenResult.claims.superAdminReferrer === true;
+          showLoggedInUI(user, isSuperAdmin);
         } catch (error) {
            console.error("Error getting user token:", error);
            showMessage('Could not verify user permissions.');
            await auth.signOut();
-           showLoginUI();
         }
       } else {
         showLoginUI();
@@ -129,6 +131,8 @@
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       clearMessage();
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
       let enteredValue = usernameInput.value.trim();
       const password = passwordInput.value.trim();
       if (!enteredValue || !password) {
@@ -142,7 +146,6 @@
       try {
         await auth.signInWithEmailAndPassword(emailToLogin, password);
       } catch (error) {
-        console.error('Login error:', error);
         let userMessage = 'Login failed. Please check your credentials.';
         if (error.code === 'auth/invalid-credential') {
           userMessage = 'Invalid username/email or password.';
@@ -161,22 +164,51 @@
         try {
             const result = await checkMyClaimsCallable();
             console.log('--- USER CLAIMS ---', result.data);
-            showMessage('Claims logged to console (Press F12).', false);
+            alert('Claims have been printed to the developer console. Press F12 to view them.');
+            showMessage('Claims logged to console.', false);
         } catch(error) {
             console.error("Error checking claims:", error);
             showMessage(`Error: ${error.message}`);
         }
     }
 
-    // --- EXPORT FUNCTIONALITY ---
+    // --- EXPORT FUNCTIONALITY (NOW WITH CODE) ---
     async function downloadRaffleEntries() {
-      // ... (This function remains the same as before) ...
+      exportButton.disabled = true;
+      showMessage('🔄 Generating export... Please wait.', false);
+      const exportRaffleEntriesCallable = functions.httpsCallable('exportRaffleEntries');
+      try {
+        const result = await exportRaffleEntriesCallable();
+        const data = result.data;
+        if (data.success) {
+          const byteCharacters = atob(data.fileContent);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = data.fileName || 'raffle_entries.xlsx';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showMessage('✅ Export successful! Check your downloads.', false);
+        } else {
+          showMessage(`ℹ️ ${data.message}`, false);
+        }
+      } catch (error) {
+        console.error("Error calling export function:", error);
+        showMessage(`❌ An error occurred: ${error.message}`);
+      } finally {
+        exportButton.disabled = false;
+      }
     }
 
     exportButton.addEventListener('click', downloadRaffleEntries);
     logoutButton.addEventListener('click', () => auth.signOut());
-    checkClaimsButton.addEventListener('click', checkUserClaims); // Attach listener to new button
-
+    checkClaimsButton.addEventListener('click', checkUserClaims);
   </script>
 </body>
 </html>
