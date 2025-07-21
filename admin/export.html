@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Raffle Entries</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+            text-align: center;
+        }
+        .container {
+            padding: 2rem 3rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        p {
+            color: #666;
+            margin-top: 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 1.5rem;
+            font-weight: bold;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Admin Raffle Export 📋</h1>
+        <p>Click the button to download an XLSX file of all raffle ticket entries.</p>
+        <button id="exportButton">Export All Entries</button>
+        <p id="status"></p>
+    </div>
+
+    <script type="module">
+        // Import the functions you need from the SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+
+        // ===================================================================================
+        // TODO: Replace with your project's Firebase configuration
+        // You can find this in your Firebase project settings -> General
+        // ===================================================================================
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const functions = getFunctions(app);
+
+        const exportButton = document.getElementById('exportButton');
+        const statusElement = document.getElementById('status');
+        
+        // Disable button initially until user is verified
+        exportButton.disabled = true;
+
+        // Check user's auth state. Only enable the button for logged-in users.
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User is signed in, enable the button.
+                exportButton.disabled = false;
+                statusElement.textContent = "Ready to export.";
+            } else {
+                // User is signed out.
+                exportButton.disabled = true;
+                statusElement.textContent = "Please log in to use this feature.";
+            }
+        });
+
+        // Function to trigger the export and download the file
+        async function downloadRaffleEntries() {
+            // Disable button and show processing status
+            exportButton.disabled = true;
+            statusElement.textContent = "🔄 Generating export... Please wait.";
+
+            const exportRaffleEntriesCallable = httpsCallable(functions, 'exportRaffleEntries');
+
+            try {
+                console.log("Calling export function...");
+                const result = await exportRaffleEntriesCallable();
+                const data = result.data;
+
+                if (data.success) {
+                    // 1. Decode the Base64 string back into binary data
+                    const byteCharacters = atob(data.fileContent);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+
+                    // 2. Create a Blob from the binary data
+                    const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+                    // 3. Create a temporary link to trigger the download
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = data.fileName || 'raffle_entries.xlsx'; // Use filename from server
+                    
+                    // 4. Append to body, click, and then remove
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    console.log("File download initiated.");
+                    statusElement.textContent = "✅ Export successful! Check your downloads.";
+                } else {
+                    console.error("Export failed:", data.message);
+                    statusElement.textContent = `❌ Export failed: ${data.message}`;
+                }
+            } catch (error) {
+                console.error("Error calling export function:", error);
+                statusElement.textContent = `❌ An error occurred: ${error.message}`;
+            } finally {
+                // Re-enable the button if the user is still logged in
+                if (auth.currentUser) {
+                    exportButton.disabled = false;
+                }
+            }
+        }
+
+        // Attach the function to the button's click event
+        exportButton.addEventListener('click', downloadRaffleEntries);
+    </script>
+
+</body>
+</html>
