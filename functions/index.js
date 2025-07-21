@@ -64,7 +64,7 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
   const { amount, name, email, phone, referral } = data;
 
   if (!amount || !name || !email || !phone) {
-    throw new new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, name, email, or phone.');
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, name, email, or phone.');
   }
 
   try {
@@ -276,8 +276,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
         return { success: true, message: 'No completed orders found to process.' };
     }
 
-    const processingPromises = [];
-    ordersToProcessSnapshot.forEach(doc => {
+    const processingPromises = ordersToProcessSnapshot.docs.map(async (doc) => {
         const orderData = doc.data();
         const orderID = doc.id;
 
@@ -285,50 +284,46 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
             return;
         }
 
-        const processPromise = (async () => {
-            try {
-                const ticketsBought = Math.floor(orderData.amount / 126.00);
-                let referrerUid = null;
+        try {
+            const ticketsBought = Math.floor(orderData.amount / 126.00);
+            let referrerUid = null;
 
-                if (orderData.referrerRefId) {
-                    const referrerQuerySnapshot = await db.collection('referrers')
-                        .where('refId', '==', orderData.referrerRefId)
-                        .limit(1)
-                        .get();
-                    
-                    if (!referrerQuerySnapshot.empty) {
-                        referrerUid = referrerQuerySnapshot.docs[0].id;
-                    }
+            if (orderData.referrerRefId) {
+                const referrerQuerySnapshot = await db.collection('referrers')
+                    .where('refId', '==', orderData.referrerRefId)
+                    .limit(1)
+                    .get();
+                
+                if (!referrerQuerySnapshot.empty) {
+                    referrerUid = referrerQuerySnapshot.docs[0].id;
                 }
-
-                await db.collection('raffle_entries').add({
-                    name: orderData.name,
-                    email: orderData.email,
-                    phone: orderData.phone,
-                    referrerRefId: orderData.referrerRefId || null,
-                    referrerUid: referrerUid,
-                    amount: orderData.amount,
-                    ticketsBought: ticketsBought,
-                    paymentStatus: 'completed',
-                    orderID: orderID,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.'
-                });
-
-                await db.collection('paypal_orders').doc(orderID).update({
-                    raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    webhookProcessed: true,
-                    reprocessingComplete: true
-                });
-
-                processedCount++;
-            } catch (error) {
-                console.error(`Failed to process order ID ${orderID}:`, error);
-                errors.push(`Order ${orderID}: ${error.message}`);
             }
-        })();
-        
-        processingPromises.push(processPromise);
+
+            await db.collection('raffle_entries').add({
+                name: orderData.name,
+                email: orderData.email,
+                phone: orderData.phone,
+                referrerRefId: orderData.referrerRefId || null,
+                referrerUid: referrerUid,
+                amount: orderData.amount,
+                ticketsBought: ticketsBought,
+                paymentStatus: 'completed',
+                orderID: orderID,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.'
+            });
+
+            await db.collection('paypal_orders').doc(orderID).update({
+                raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                webhookProcessed: true,
+                reprocessingComplete: true
+            });
+
+            processedCount++;
+        } catch (error) {
+            console.error(`Failed to process order ID ${orderID}:`, error);
+            errors.push(`Order ${orderID}: ${error.message}`);
+        }
     });
 
     await Promise.all(processingPromises);
@@ -603,6 +598,11 @@ exports.exportRaffleEntries = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'An unexpected error occurred during export.', error.message);
     }
 });
+
+/**
+ * A utility function to check the claims of the currently authenticated user.
+ * This helps diagnose permission issues.
+ */
 exports.checkMyClaims = functions.https.onCall((data, context) => {
   // Make sure the user is authenticated.
   if (!context.auth) {
