@@ -2,6 +2,7 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const ExcelJS = require('exceljs'); // <-- ADD THIS LINE
 
 admin.initializeApp();
 
@@ -735,5 +736,90 @@ exports.getReferrersList = functions.https.onCall(async (data, context) => {
     } catch (error) {
         console.error('Error fetching referrers list:', error);
         throw new functions.https.HttpsError('internal', 'Failed to retrieve referrers list.', error.message);
+    }
+});
+
+// ==========================================================================================
+// =================================== NEW FUNCTION =========================================
+// ==========================================================================================
+
+/**
+ * Exports all raffle entries to an XLSX file.
+ * Each ticket purchased corresponds to a single row in the spreadsheet.
+ * For example, if a user bought 15 tickets, their name will appear on 15 rows.
+ * IMPORTANT: You must be authenticated as a Super Admin Referrer to run this.
+ */
+exports.exportRaffleEntries = functions.https.onCall(async (data, context) => {
+    // 1. Security Check: Ensure the caller is an authenticated super admin.
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to run this operation.');
+    }
+
+    console.log('Starting export of all raffle entries...');
+    const db = admin.firestore();
+    const exportRows = [];
+
+    try {
+        // 2. Fetch all documents from the 'raffle_entries' collection.
+        const entriesSnapshot = await db.collection('raffle_entries').get();
+
+        if (entriesSnapshot.empty) {
+            throw new functions.https.HttpsError('not-found', 'No raffle entries found to export.');
+        }
+
+        // 3. Process each entry to create the expanded list of rows.
+        entriesSnapshot.forEach(doc => {
+            const entry = doc.data();
+            const ticketsBought = entry.ticketsBought || 0;
+            
+            // Add a row for each ticket purchased.
+            for (let i = 0; i < ticketsBought; i++) {
+                exportRows.push({
+                    name: entry.name,
+                    email: entry.email,
+                    phone: entry.phone,
+                    orderID: entry.orderID,
+                    purchaseDate: entry.timestamp ? entry.timestamp.toDate().toISOString() : 'N/A'
+                });
+            }
+        });
+        
+        console.log(`Processed ${entriesSnapshot.size} purchase entries, resulting in ${exportRows.length} total ticket rows for export.`);
+
+        // 4. Generate the XLSX file in memory using ExcelJS.
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Raffle Tickets');
+
+        // Define the columns for the spreadsheet.
+        worksheet.columns = [
+            { header: 'Name', key: 'name', width: 30 },
+            { header: 'Email', key: 'email', width: 30 },
+            { header: 'Phone', key: 'phone', width: 20 },
+            { header: 'PayPal Order ID', key: 'orderID', width: 35 },
+            { header: 'Purchase Date', key: 'purchaseDate', width: 25 }
+        ];
+
+        // Add the data rows.
+        worksheet.addRows(exportRows);
+        
+        // 5. Write the workbook to a buffer and convert to a Base64 string.
+        const buffer = await workbook.xlsx.writeBuffer();
+        const base64File = buffer.toString('base64');
+        
+        // 6. Return the Base64 encoded file content to the client.
+        // The client-side code will decode this and trigger a download.
+        return {
+            success: true,
+            fileContent: base64File,
+            fileName: `raffle_entries_${new Date().toISOString().split('T')[0]}.xlsx`,
+            message: `Successfully generated export with ${exportRows.length} ticket entries.`
+        };
+
+    } catch (error) {
+        console.error('Failed to export raffle entries:', error);
+        if (error instanceof functions.https.HttpsError) {
+            throw error; // Re-throw HttpsError as is
+        }
+        throw new functions.https.HttpsError('internal', 'An unexpected error occurred while generating the export file.', error.message);
     }
 });
