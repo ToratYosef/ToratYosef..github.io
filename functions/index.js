@@ -603,3 +603,19 @@ exports.exportRaffleEntries = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'An unexpected error occurred during export.', error.message);
     }
 });
+exports.checkMyClaims = functions.https.onCall((data, context) => {
+  // Make sure the user is authenticated.
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'You must be logged in to check your claims.'
+    );
+  }
+
+  // Return the user's UID, email, and all their custom claims.
+  return {
+    uid: context.auth.uid,
+    email: context.auth.token.email,
+    claims: context.auth.token,
+  };
+});
