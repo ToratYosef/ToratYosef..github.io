@@ -85,7 +85,7 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
           }
         }],
         application_context: {
-            shipping_preference: 'NO_SHIPPING'
+          shipping_preference: 'NO_SHIPPING'
         }
       })
     });
@@ -181,8 +181,8 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
 
       if (event.event_type === 'CHECKOUT.ORDER.APPROVED' || event.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
         const orderID = event.resource.id ||
-                        event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
-                        event.resource.billing_agreement_id;
+                      event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
+                      event.resource.billing_agreement_id;
 
         if (!orderID) {
           console.error('No orderID found in PayPal webhook event:', event);
@@ -416,13 +416,13 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
         });
 
         if (currentReferrerDetails.refId !== "N/A") {
-             const ownSalesSnapshot = await admin.firestore().collection('raffle_entries')
+              const ownSalesSnapshot = await admin.firestore().collection('raffle_entries')
                 .where('referrerUid', '==', loggedInUid).orderBy('timestamp', 'desc').get();
-             ownSalesSnapshot.forEach(doc => {
-                 const entry = doc.data();
-                 totalTicketsSold += (entry.ticketsBought || 0);
-                 buyerDetails.push({ id: doc.id, name: entry.name, email: entry.email, phone: entry.phone, ticketsBought: entry.ticketsBought, timestamp: entry.timestamp?.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' }) || 'N/A' });
-             });
+              ownSalesSnapshot.forEach(doc => {
+                  const entry = doc.data();
+                  totalTicketsSold += (entry.ticketsBought || 0);
+                  buyerDetails.push({ id: doc.id, name: entry.name, email: entry.email, phone: entry.phone, ticketsBought: entry.ticketsBought, timestamp: entry.timestamp?.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' }) || 'N/A' });
+              });
         }
     } else {
         const ticketsSoldSnapshot = await admin.firestore().collection('raffle_entries')
@@ -431,7 +431,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             const entry = doc.data();
             totalTicketsSold += (entry.ticketsBought || 0);
             if (!isViewerAccount) {
-                 buyerDetails.push({ id: doc.id, name: entry.name, email: entry.email, phone: entry.phone, ticketsBought: entry.ticketsBought, timestamp: entry.timestamp?.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' }) || 'N/A' });
+                buyerDetails.push({ id: doc.id, name: entry.name, email: entry.email, phone: entry.phone, ticketsBought: entry.ticketsBought, timestamp: entry.timestamp?.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' }) || 'N/A' });
             }
         });
     }
@@ -442,6 +442,78 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
     console.error('Error fetching referrer dashboard data:', error);
     throw new functions.https.HttpsError('internal', 'Failed to retrieve dashboard data.', error.message);
   }
+});
+
+/**
+ * NEW FUNCTION
+ * Firebase Callable Function for a Super Admin to add a manual (cash/check) sale.
+ */
+exports.addManualSale = functions.https.onCall(async (data, context) => {
+    // 1. Authentication Check
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "You must be logged in to perform this action."
+      );
+    }
+  
+    // 2. Authorization Check (using custom claims)
+    if (!context.auth.token.superAdminReferrer) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "You do not have permission to perform this action."
+      );
+    }
+  
+    // 3. Data Validation
+    const { name, email, phone, ticketsBought } = data;
+    if (!name || !email || !phone || !ticketsBought || ticketsBought < 1) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Please provide all required fields: name, email, phone, and ticketsBought."
+      );
+    }
+    
+    const uid = context.auth.uid;
+    const db = admin.firestore();
+  
+    try {
+      // 4. Get the admin's own referrer details to stamp the sale with their refId
+      const referrerDoc = await db.collection("referrers").doc(uid).get();
+      if (!referrerDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "The logged-in admin's referrer profile could not be found."
+        );
+      }
+      const adminRefId = referrerDoc.data().refId;
+  
+      // 5. Create the raffle entry document, matching the schema of PayPal entries
+      await db.collection("raffle_entries").add({
+        name: name,
+        email: email,
+        phone: phone,
+        ticketsBought: Number(ticketsBought),
+        referrerRefId: adminRefId, // The admin's own referral ID
+        referrerUid: uid,         // The admin's own UID
+        amount: 0, // Manual sales have no monetary amount tracked here
+        purchaseMethod: "Manual", // Distinguish from PayPal sales
+        paymentStatus: "completed",
+        orderID: `manual_${new Date().getTime()}`, // Create a unique ID for tracking
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+  
+      return { success: true, message: "Manual sale added successfully!" };
+    } catch (error) {
+      console.error("Error adding manual sale:", error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      throw new functions.https.HttpsError(
+        "internal",
+        "An internal error occurred while adding the manual sale."
+      );
+    }
 });
 
 /**
