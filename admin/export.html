@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Export Login - Yeshivat Torat Yosef Raffle</title>
-  <link rel="favicon-32x32" href="favicon/favicon.ico">
+  <link rel="icon" href="/favicon.ico">
   <meta name="theme-color" content="#ffffff" />
   <style>
     /* Reusing your existing CSS for consistency */
@@ -118,11 +118,12 @@
       cursor: not-allowed;
     }
 
-    .error-message {
-      color: #d9534f; /* Bootstrap red for errors */
+    .message-area {
+      color: #d9534f; /* Default to error color */
       margin-top: 15px;
       font-size: 0.95em;
       min-height: 20px;
+      font-weight: bold;
     }
 
     .footer {
@@ -171,7 +172,7 @@
         <button id="logoutButton" class="action-button" style="background: #6c757d; margin-top: 1rem;">Log Out</button>
     </div>
 
-    <p id="message-area" class="error-message" aria-live="assertive"></p>
+    <p id="message-area" class="message-area" aria-live="assertive"></p>
   </div>
 
   <footer class="footer">
@@ -188,7 +189,7 @@
       apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
       authDomain: "torat-yosef.firebaseapp.com",
       projectId: "torat-yosef",
-      storageBucket: "torat-yosef.firebasestorage.app",
+      storageBucket: "torat-yosef.appspot.com",
       messagingSenderId: "1033400220494",
       appId: "1:1033400220494:web:1437414bdad44399d6bc1f",
       measurementId: "G-331D9RHZWH"
@@ -214,39 +215,35 @@
 
     function showMessage(text, isError = true) {
       messageArea.textContent = text;
-      messageArea.style.color = isError ? '#d9534f' : '#28a745';
+      messageArea.style.color = isError ? '#d9534f' : '#28a745'; // Red for error, green for success
     }
 
     function clearMessage() {
       messageArea.textContent = '';
     }
     
-    // Function to switch UI to export mode
     function showExportUI() {
         mainHeading.textContent = 'Admin Export';
         loginContainer.style.display = 'none';
         exportContainer.style.display = 'block';
     }
 
-    // Function to switch UI to login mode
     function showLoginUI() {
         mainHeading.textContent = 'Admin Login';
         loginContainer.style.display = 'block';
         exportContainer.style.display = 'none';
     }
 
-    // Check user state on page load
     auth.onAuthStateChanged(async (user) => {
+      clearMessage();
       if (user) {
         try {
-          const idTokenResult = await user.getIdTokenResult();
+          const idTokenResult = await user.getIdTokenResult(true); // Force refresh
           if (idTokenResult.claims.superAdminReferrer) {
-            // User is a logged-in Super Admin
             showExportUI();
           } else {
-            // User is logged in but NOT a Super Admin
             showMessage('Access Denied. You do not have permission to view this page.');
-            await auth.signOut(); // Force logout
+            await auth.signOut();
             showLoginUI();
           }
         } catch (error) {
@@ -256,12 +253,10 @@
            showLoginUI();
         }
       } else {
-        // No user is logged in
         showLoginUI();
       }
     });
 
-    // Handle login form submission
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       clearMessage();
@@ -284,17 +279,7 @@
 
       try {
         const userCredential = await auth.signInWithEmailAndPassword(emailToLogin, password);
-        const idTokenResult = await userCredential.user.getIdTokenResult();
-        
-        // Check for the super admin claim IMMEDIATELY after login
-        if (idTokenResult.claims.superAdminReferrer) {
-          showExportUI(); // Access granted
-        } else {
-          // Logged in, but not an admin. Deny access and log out.
-          await auth.signOut();
-          showMessage('Access Denied. This account does not have admin privileges.');
-        }
-
+        // The onAuthStateChanged listener will handle the UI switch after successful login.
       } catch (error) {
         console.error('Login error:', error);
         let userMessage = 'Login failed. Please check your credentials.';
@@ -310,7 +295,6 @@
       }
     });
 
-    // --- EXPORT FUNCTIONALITY ---
     async function downloadRaffleEntries() {
       exportButton.disabled = true;
       logoutButton.disabled = true;
@@ -321,6 +305,7 @@
       try {
         const result = await exportRaffleEntriesCallable();
         const data = result.data;
+
         if (data.success) {
           const byteCharacters = atob(data.fileContent);
           const byteNumbers = new Array(byteCharacters.length);
@@ -337,7 +322,7 @@
           document.body.removeChild(link);
           showMessage('✅ Export successful! Check your downloads.', false);
         } else {
-            showMessage(`❌ Export failed: ${data.message}`);
+          showMessage(`ℹ️ ${data.message}`, false); // Use info color for non-error messages
         }
       } catch (error) {
         console.error("Error calling export function:", error);
