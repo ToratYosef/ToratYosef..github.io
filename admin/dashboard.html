@@ -1,21 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
-<link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
-<link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
-<link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
-<link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
-<link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
-<link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
-<link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/android-icon-192x192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<meta name="msapplication-TileColor" content="#ffffff">
-<meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
 <meta name="theme-color" content="#ffffff">
   <meta charset="UTF-8">
   <title>Referrer Dashboard - Yeshivat Torat Yosef Raffle</title>
@@ -118,6 +103,32 @@
     .logout-button:hover {
       background-color: #c82333;
     }
+
+    /* --- NEW STYLES FOR TOTAL SOLD DISPLAY --- */
+    .total-sold-container {
+        text-align: center;
+        margin: 0 0 30px 0;
+        padding: 20px;
+        background-color: #f0f4f8; /* A light blue-gray background */
+        border-radius: 8px;
+        border: 1px solid #dde;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .total-sold-label {
+        margin: 0 0 10px 0;
+        font-size: 1.2em;
+        color: var(--primary-text);
+        font-weight: 500;
+    }
+
+    .total-sold-value {
+        font-size: 4em; /* BIG font size */
+        font-weight: 700; /* Bold */
+        color: var(--accent); /* Use accent color for impact */
+        line-height: 1;
+    }
+    /* --- END NEW STYLES --- */
 
     .section-title {
         color: var(--secondary-bg);
@@ -412,6 +423,10 @@
       .section-title {
         font-size: 1.2em;
       }
+      
+      .total-sold-value {
+        font-size: 3em; /* Slightly smaller on mobile */
+      }
     }
   </style>
 </head>
@@ -430,6 +445,10 @@
       <button id="logout-button" class="logout-button">Log Out</button>
     </div>
 
+    <div id="total-sold-container" class="total-sold-container hidden">
+        <p class="total-sold-label">Total Tickets Sold</p>
+        <div id="total-sold-value" class="total-sold-value">0</div>
+    </div>
     <div class="referral-link-section" id="referral-link-section">
       <p>Your unique referral link:</p>
       <div class="referral-link-input-group">
@@ -540,8 +559,8 @@
     const referralLinkSection = document.getElementById('referral-link-section'); 
     const referralLinkDisplay = document.getElementById('referral-link-display');
     const copyLinkButton = document.getElementById('copy-link-button');
-    const generateQrButton = document.getElementById('generate-qr-button'); // New QR button
-    const copyStatusMessage = document.getElementById('copy-status-message'); // NEW: Status message element
+    const generateQrButton = document.getElementById('generate-qr-button');
+    const copyStatusMessage = document.getElementById('copy-status-message');
     const ticketsSoldElement = document.getElementById('tickets-sold');
     const goalTicketsElement = document.getElementById('goal-tickets');
     const progressBar = document.getElementById('progress-bar');
@@ -550,8 +569,12 @@
     const buyersTableBody = document.getElementById('buyers-table-body');
     const emptyBuyersState = document.getElementById('empty-buyers-state');
     const buyersTable = document.getElementById('buyers-table');
+    
+    // NEW Total Sold elements
+    const totalSoldContainer = document.getElementById('total-sold-container');
+    const totalSoldValue = document.getElementById('total-sold-value');
 
-    // NEW Summary elements
+    // Summary elements
     const allReferrersSummaryContainer = document.getElementById('all-referrers-summary-container');
     const summaryTableBody = document.getElementById('summary-table-body');
     const emptySummaryState = document.getElementById('empty-summary-state');
@@ -586,6 +609,10 @@
         buyersTableBody.innerHTML = ''; // Clear table content
         emptyBuyersState.classList.remove('hidden'); // Show "No tickets sold"
         buyersTable.style.display = 'none'; // Hide table itself
+        
+        // NEW: Hide total sold container on error/default
+        totalSoldContainer.classList.add('hidden');
+        totalSoldValue.textContent = '0';
 
         // Disable buttons if critical data (like referral link) is missing
         generateQrButton.disabled = true;
@@ -636,31 +663,32 @@
             copyLinkButton.disabled = true;
         }
 
-        // Populate buyer details table (FIXED LOGIC HERE)
+        // Populate buyer details table
         buyersTableBody.innerHTML = ''; // Clear existing rows
         if (data.buyerDetails && data.buyerDetails.length > 0) {
-          emptyBuyersState.classList.add('hidden'); // Hide "No tickets sold" message
-          buyersTable.style.display = 'table'; // Show the table
+          emptyBuyersState.classList.add('hidden');
+          buyersTable.style.display = 'table';
           data.buyerDetails.forEach(buyer => {
-            const row = buyersTableBody.insertRow(); // Create a new row
+            const row = buyersTableBody.insertRow();
             row.insertCell().textContent = buyer.name;
             row.insertCell().textContent = buyer.email;
             row.insertCell().textContent = buyer.phone;
             row.insertCell().textContent = buyer.ticketsBought;
-            row.insertCell().textContent = buyer.timestamp; // Time format is now 12-hour from function
+            row.insertCell().textContent = buyer.timestamp;
           });
         } else {
-          emptyBuyersState.classList.remove('hidden'); // Show "No tickets sold" message
-          buyersTable.style.display = 'none'; // Hide table itself
+          emptyBuyersState.classList.remove('hidden');
+          buyersTable.style.display = 'none';
         }
 
         // Handle visibility and population of All Referrers Summary
         if (data.isSuperAdminReferrer) {
-            allReferrersSummaryContainer.classList.remove('hidden'); // Show summary for Super Admins
+            allReferrersSummaryContainer.classList.remove('hidden');
             summaryTableBody.innerHTML = '';
             if (data.allReferrersSummary && data.allReferrersSummary.length > 0) {
                 emptySummaryState.classList.add('hidden');
                 summaryTable.style.display = 'table';
+                let totalTicketsFromAll = 0; // NEW: Initialize total counter
                 data.allReferrersSummary.forEach(referrer => {
                     const row = summaryTableBody.insertRow();
                     row.insertCell().textContent = referrer.name;
@@ -668,18 +696,23 @@
                     row.insertCell().textContent = referrer.goal;
                     row.insertCell().textContent = referrer.totalTicketsSold;
                     row.insertCell().textContent = referrer.ticketsRemaining;
+                    totalTicketsFromAll += referrer.totalTicketsSold; // NEW: Add to total
                 });
+                // NEW: Update and show the total tickets display
+                totalSoldValue.textContent = totalTicketsFromAll;
+                totalSoldContainer.classList.remove('hidden');
             } else {
                 emptySummaryState.classList.remove('hidden');
                 summaryTable.style.display = 'none';
+                totalSoldContainer.classList.add('hidden'); // Hide if no data
             }
         } else {
-            allReferrersSummaryContainer.classList.add('hidden'); // Hide summary for others
+            allReferrersSummaryContainer.classList.add('hidden');
+            totalSoldContainer.classList.add('hidden'); // NEW: Hide for non-admins
         }
 
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        // Do NOT show alert or redirect. Instead, set default values.
         setDefaultDashboardData();
       } finally {
         hideLoading();
@@ -704,12 +737,10 @@
           showCopyStatus('No referral link available to copy.', false);
           return;
       }
-      // Using navigator.clipboard for modern browsers
       navigator.clipboard.writeText(linkToCopy).then(() => {
         showCopyStatus('Referral link copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy text: ', err);
-        // Fallback for older browsers or if permission is denied
         const tempInput = document.createElement('textarea');
         tempInput.value = linkToCopy;
         document.body.appendChild(tempInput);
@@ -734,28 +765,25 @@
             return;
         }
 
-        // Clear previous QR code
         qrcodeCanvas.getContext('2d').clearRect(0, 0, qrcodeCanvas.width, qrcodeCanvas.height);
 
-        // Generate QR code on canvas
         const qr = new QRious({
             element: qrcodeCanvas,
             value: link,
-            size: 200, // Fixed size for QR code in modal
-            level: 'H', // High error correction
+            size: 200,
+            level: 'H',
         });
         
-        qrCodeDataUrl = qrcodeCanvas.toDataURL(); // Store data URL for sharing/download
+        qrCodeDataUrl = qrcodeCanvas.toDataURL(); 
 
-        qrCodeModal.classList.add('visible'); // Show the modal
+        qrCodeModal.classList.add('visible');
     });
 
     closeQrModalButton.addEventListener('click', () => {
-        qrCodeModal.classList.remove('visible'); // Hide the modal
+        qrCodeModal.classList.remove('visible');
     });
 
     qrCodeModal.addEventListener('click', (event) => {
-        // Close modal if clicking outside the content
         if (event.target === qrCodeModal) {
             qrCodeModal.classList.remove('visible');
         }
@@ -767,7 +795,6 @@
             return;
         }
 
-        // Convert Data URL to Blob for sharing
         const blob = await (await fetch(qrCodeDataUrl)).blob();
         const file = new File([blob], 'referral_qr_code.png', { type: 'image/png' });
 
@@ -781,16 +808,12 @@
                 console.log('QR Code shared successfully!');
             } catch (error) {
                 console.error('Error sharing QR Code:', error);
-                // User cancelled or another error
-                if (error.name !== 'AbortError') { // Don't alert if user just closed share dialog
+                if (error.name !== 'AbortError') {
                     alert('Failed to share QR code. ' + (error.message || 'Please try again.'));
                 }
             }
         } else {
-            // Fallback for browsers that don't support Web Share API for files
             alert('Web Share API for files is not supported in this browser. Please use the "Download" button to save the image and share it manually.');
-            // Optionally, automatically trigger download as a fallback
-            // downloadQrButton.click(); // This would cause an automatic download on incompatible browsers
         }
     });
 
@@ -805,7 +828,6 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        // No alert needed here as download is a direct action.
     });
     // --- End QR Code Generation and Sharing Logic ---
   </script>
