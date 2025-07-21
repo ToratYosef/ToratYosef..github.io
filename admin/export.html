@@ -98,10 +98,10 @@
         loggedinAsMessage.textContent = `Logged in as: ${user.email}`;
         if (isSuperAdmin) {
             permissionStatus.textContent = "Status: Super Admin";
-            permissionStatus.style.color = '#28a745';
+            permissionStatus.style.color = '#28a745'; // Green
         } else {
             permissionStatus.textContent = "Status: Access Denied (Not a Super Admin)";
-            permissionStatus.style.color = '#d9534f';
+            permissionStatus.style.color = '#d9534f'; // Red
         }
     }
 
@@ -117,6 +117,7 @@
         try {
           const idTokenResult = await user.getIdTokenResult(true);
           const isSuperAdmin = idTokenResult.claims.superAdminReferrer === true;
+          // This function now shows the panel for ANY logged-in user
           showLoggedInUI(user, isSuperAdmin);
         } catch (error) {
            console.error("Error getting user token:", error);
@@ -145,6 +146,7 @@
       loginButton.textContent = 'Logging In...';
       try {
         await auth.signInWithEmailAndPassword(emailToLogin, password);
+        // onAuthStateChanged will handle showing the next screen
       } catch (error) {
         let userMessage = 'Login failed. Please check your credentials.';
         if (error.code === 'auth/invalid-credential') {
@@ -157,7 +159,6 @@
       }
     });
 
-    // --- DIAGNOSTIC FUNCTION ---
     async function checkUserClaims() {
         showMessage('Checking permissions...', false);
         const checkMyClaimsCallable = functions.httpsCallable('checkMyClaims');
@@ -172,7 +173,6 @@
         }
     }
 
-    // --- EXPORT FUNCTIONALITY (NOW WITH CODE) ---
     async function downloadRaffleEntries() {
       exportButton.disabled = true;
       showMessage('🔄 Generating export... Please wait.', false);
@@ -200,7 +200,8 @@
         }
       } catch (error) {
         console.error("Error calling export function:", error);
-        showMessage(`❌ An error occurred: ${error.message}`);
+        // The most common error is permission-denied, which looks like an 'internal' error here
+        showMessage(`❌ Export failed. Make sure you are a Super Admin.`);
       } finally {
         exportButton.disabled = false;
       }
