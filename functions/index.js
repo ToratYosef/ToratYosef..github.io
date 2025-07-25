@@ -204,8 +204,8 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
       if (event.event_type === 'CHECKOUT.ORDER.APPROVED' || event.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
         // Extract order ID, prioritizing the order ID from the event resource
         const orderID = event.resource.id ||
-                       event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
-                       event.resource.billing_agreement_id;
+                        event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
+                        event.resource.billing_agreement_id;
 
         if (!orderID) {
           console.error('No orderID found in PayPal webhook event:', event);
@@ -286,6 +286,119 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
       res.status(500).send('Internal Server Error during webhook processing.');
     }
   });
+});
+
+/**
+ * ONE-TIME ADMIN FUNCTION to reprocess completed PayPal orders that failed 
+ * to generate a raffle entry. This function finds orders that are 'COMPLETED' 
+ * but are missing the 'raffleEntryCreatedAt' field and processes them.
+ * * IMPORTANT: You must be authenticated as a Super Admin Referrer to run this.
+ */
+exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, context) => {
+    // Security Check: Ensure the caller is an authenticated super admin.
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to run this operation.');
+    }
+
+    console.log('Starting reprocessing of missing raffle entries...');
+    const db = admin.firestore();
+    let processedCount = 0;
+    const errors = [];
+
+    // 1. Find all PayPal orders that are completed but were not processed by the webhook.
+    const ordersToProcessSnapshot = await db.collection('paypal_orders')
+        .where('status', '==', 'COMPLETED')
+        .get();
+
+    if (ordersToProcessSnapshot.empty) {
+        return { success: true, message: 'No completed orders found to process.' };
+    }
+
+    const processingPromises = [];
+
+    ordersToProcessSnapshot.forEach(doc => {
+        const orderData = doc.data();
+        const orderID = doc.id;
+
+        // Skip if a raffle entry has already been created for this order.
+        if (orderData.raffleEntryCreatedAt) {
+            return;
+        }
+
+        console.log(`Processing order ID: ${orderID}`);
+
+        // This creates a separate asynchronous task for each order.
+        const processPromise = (async () => {
+            try {
+                // 2. Re-run the logic from your original webhook for this specific order.
+                const ticketsBought = Math.floor(orderData.amount / 126.00);
+                let referrerUid = null;
+
+                if (orderData.referrerRefId) {
+                    const referrerQuerySnapshot = await db.collection('referrers')
+                        .where('refId', '==', orderData.referrerRefId)
+                        .limit(1)
+                        .get();
+                    
+                    if (!referrerQuerySnapshot.empty) {
+                        referrerUid = referrerQuerySnapshot.docs[0].id;
+                    } else {
+                        console.warn(`Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}.`);
+                    }
+                }
+
+                // 3. Create the missing raffle_entries document.
+                await db.collection('raffle_entries').add({
+                    name: orderData.name,
+                    email: orderData.email,
+                    phone: orderData.phone,
+                    referrerRefId: orderData.referrerRefId || null,
+                    referrerUid: referrerUid,
+                    amount: orderData.amount,
+                    ticketsBought: ticketsBought,
+                    paymentStatus: 'completed',
+                    orderID: orderID,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    // Add a note that this was created via a manual reprocessing script.
+                    reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.'
+                });
+
+                // 4. Update the original order to mark it as processed.
+                await db.collection('paypal_orders').doc(orderID).update({
+                    raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    webhookProcessed: true, // You can use the same flag
+                    reprocessingComplete: true
+                });
+
+                processedCount++;
+                console.log(`Successfully created raffle entry for order ID: ${orderID}`);
+
+            } catch (error) {
+                console.error(`Failed to process order ID ${orderID}:`, error);
+                errors.push(`Order ${orderID}: ${error.message}`);
+            }
+        })();
+        
+        processingPromises.push(processPromise);
+    });
+
+    // Wait for all the individual order processing tasks to complete.
+    await Promise.all(processingPromises);
+
+    console.log(`Reprocessing complete. Processed: ${processedCount}. Errors: ${errors.length}`);
+    
+    if (errors.length > 0) {
+        return { 
+            success: false, 
+            message: `Completed with errors. Processed ${processedCount} entries successfully.`,
+            errors: errors 
+        };
+    }
+
+    return { 
+        success: true, 
+        message: `Successfully processed ${processedCount} missing raffle entries.` 
+    };
 });
 
 /**
@@ -476,7 +589,7 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
         throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 6 characters long.');
     }
     if (!refId.match(/^[a-zA-Z0-9]+$/)) {
-      throw new functions.https.HttpsError('invalid-argument', 'Referral ID must be alphanumeric (letters and numbers only).');
+        throw new functions.https.HttpsError('invalid-argument', 'Referral ID must be alphanumeric (letters and numbers only).');
     }
 
     try {
@@ -622,5 +735,65 @@ exports.getReferrersList = functions.https.onCall(async (data, context) => {
     } catch (error) {
         console.error('Error fetching referrers list:', error);
         throw new functions.https.HttpsError('internal', 'Failed to retrieve referrers list.', error.message);
+    }
+});
+exports.addManualSale = functions.https.onCall(async (data, context) => {
+    // Security Check: Ensure the caller is an authenticated super admin.
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to add manual entries.');
+    }
+
+    const { name, email, phone, ticketsBought, referrerRefId } = data; // referrerRefId is optional
+
+    // Basic validation
+    if (!name || !email || !phone || typeof ticketsBought !== 'number' || ticketsBought <= 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing or invalid fields: name, email, phone, or ticketsBought.');
+    }
+
+    const db = admin.firestore();
+    let referrerUid = null;
+
+    try {
+        // If a referrerRefId is provided, try to find the corresponding referrer UID
+        if (referrerRefId) {
+            const referrerQuerySnapshot = await db.collection('referrers')
+                .where('refId', '==', referrerRefId)
+                .limit(1)
+                .get();
+
+            if (!referrerQuerySnapshot.empty) {
+                referrerUid = referrerQuerySnapshot.docs[0].id;
+                console.log(`Manual entry: Found referrer UID: ${referrerUid} for refId: ${referrerRefId}`);
+            } else {
+                console.warn(`Manual entry: Referrer with refId ${referrerRefId} not found. Entry will not be linked to a referrer.`);
+            }
+        }
+        // If no referrerRefId, or referrer not found, it defaults to null
+
+        // Add the manual raffle entry to the 'raffle_entries' collection
+        await db.collection('raffle_entries').add({
+            name: name,
+            email: email,
+            phone: phone,
+            referrerRefId: referrerRefId || null, // Store the provided refId or null
+            referrerUid: referrerUid, // Store the resolved UID or null
+            amount: ticketsBought * 126.00, // Assuming $126 per ticket for manual entries
+            ticketsBought: ticketsBought,
+            paymentStatus: 'manual_entry', // Custom status for manual entries
+            orderID: `MANUAL_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`, // Unique ID
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            entryType: 'manual', // Explicitly mark as manual
+            processedBy: context.auth.uid // Record who added it
+        });
+
+        console.log(`Successfully added manual raffle entry for ${name}. Tickets: ${ticketsBought}`);
+        return { success: true, message: `Manual entry for ${ticketsBought} tickets added successfully for ${name}.` };
+
+    } catch (error) {
+        console.error('Error adding manual raffle entry:', error);
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', 'An unexpected error occurred while adding manual entry.', error.message);
     }
 });

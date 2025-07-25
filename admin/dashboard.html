@@ -435,7 +435,7 @@
         color: var(--primary-text);
     }
 
-    #manual-sale-form input {
+    #manual-sale-form input, #manual-sale-form select { /* Added select for referrer dropdown */
         width: 100%;
         padding: 10px;
         border: 1px solid #ccc;
@@ -610,6 +610,12 @@
                   <label for="tickets-bought">Number of Tickets</label>
                   <input type="number" id="tickets-bought" value="1" min="1" required>
               </div>
+              <div class="form-group" id="manual-sale-referrer-group" style="display: none;">
+                  <label for="manual-sale-referrer">Associate with Referrer (Optional)</label>
+                  <select id="manual-sale-referrer">
+                      <option value="">-- No Referrer --</option>
+                  </select>
+              </div>
               <button type="submit" id="submit-manual-sale-button" class="submit-button">Submit Sale</button>
               <p id="manual-sale-status" class="status-message"></p>
           </form>
@@ -637,6 +643,7 @@
     const functions = firebase.functions();
     const getReferrerDashboardData = functions.httpsCallable('getReferrerDashboardData');
     const addManualSale = functions.httpsCallable('addManualSale');
+    const getReferrersList = functions.httpsCallable('getReferrersList'); // New: for referrer dropdown
 
     // DOM elements
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -660,7 +667,7 @@
     const emptySummaryState = document.getElementById('empty-summary-state');
     const summaryTable = document.getElementById('summary-table');
 
-    // QR Code Modal elements (Restored)
+    // QR Code Modal elements
     const qrCodeModal = document.getElementById('qr-code-modal');
     const closeQrModalButton = document.getElementById('close-qr-modal');
     const qrcodeCanvas = document.getElementById('qrcode-canvas');
@@ -676,6 +683,8 @@
     const manualSaleForm = document.getElementById('manual-sale-form');
     const submitManualSaleButton = document.getElementById('submit-manual-sale-button');
     const manualSaleStatus = document.getElementById('manual-sale-status');
+    const manualSaleReferrerGroup = document.getElementById('manual-sale-referrer-group'); // New group
+    const manualSaleReferrerSelect = document.getElementById('manual-sale-referrer'); // New select element
 
     function showLoading() { loadingOverlay.classList.remove('hidden'); }
     function hideLoading() { loadingOverlay.classList.add('hidden'); }
@@ -748,6 +757,12 @@
         if (data.isSuperAdminReferrer) {
             adminActionsContainer.classList.remove('hidden');
             allReferrersSummaryContainer.classList.remove('hidden');
+            totalSoldContainer.classList.remove('hidden'); // Show total sold for super admin
+            
+            // Populate Referrer dropdown for Manual Sale
+            await populateReferrersDropdown();
+            manualSaleReferrerGroup.style.display = 'block'; // Show referrer selection for super admin
+
             summaryTableBody.innerHTML = '';
             if (data.allReferrersSummary && data.allReferrersSummary.length > 0) {
                 emptySummaryState.classList.add('hidden');
@@ -763,16 +778,16 @@
                     totalTicketsFromAll += referrer.totalTicketsSold;
                 });
                 totalSoldValue.textContent = `${totalTicketsFromAll}/300`;
-                totalSoldContainer.classList.remove('hidden');
             } else {
                 emptySummaryState.classList.remove('hidden');
                 summaryTable.style.display = 'none';
-                totalSoldContainer.classList.add('hidden');
+                totalSoldValue.textContent = '0/300';
             }
         } else {
             adminActionsContainer.classList.add('hidden');
             allReferrersSummaryContainer.classList.add('hidden');
             totalSoldContainer.classList.add('hidden');
+            manualSaleReferrerGroup.style.display = 'none'; // Hide referrer selection for non-super admin
         }
 
       } catch (error) {
@@ -826,6 +841,25 @@
         if (event.target === manualSaleModal) manualSaleModal.classList.remove('visible');
     });
 
+    // Function to populate the referrer dropdown
+    async function populateReferrersDropdown() {
+        try {
+            const result = await getReferrersList();
+            const referrers = result.data.referrers;
+            manualSaleReferrerSelect.innerHTML = '<option value="">-- No Referrer --</option>'; // Default option
+            referrers.sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by name
+            referrers.forEach(referrer => {
+                const option = document.createElement('option');
+                option.value = referrer.refId; // Use refId as the value to send to the function
+                option.textContent = `${referrer.name} (${referrer.refId})`;
+                manualSaleReferrerSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error fetching referrers list for dropdown:', error);
+            // Optionally, disable the dropdown or show an error state
+        }
+    }
+
     // --- Manual Sale Form Submission ---
     manualSaleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -833,32 +867,61 @@
         manualSaleStatus.textContent = 'Submitting...';
         manualSaleStatus.style.color = 'var(--primary-text)';
 
+        const ticketsInput = document.getElementById('tickets-bought');
+        const ticketsBought = parseInt(ticketsInput.value, 10);
+
+        if (isNaN(ticketsBought) || ticketsBought <= 0) {
+            manualSaleStatus.textContent = 'Please enter a valid number of tickets (at least 1).';
+            manualSaleStatus.style.color = 'red';
+            submitManualSaleButton.disabled = false;
+            return;
+        }
+
         const saleData = {
-            name: document.getElementById('buyer-name').value,
-            email: document.getElementById('buyer-email').value,
-            phone: document.getElementById('buyer-phone').value,
-            ticketsBought: parseInt(document.getElementById('tickets-bought').value, 10),
+            name: document.getElementById('buyer-name').value.trim(),
+            email: document.getElementById('buyer-email').value.trim(),
+            phone: document.getElementById('buyer-phone').value.trim(),
+            ticketsBought: ticketsBought,
+            // Only include referrerRefId if one is selected
+            referrerRefId: manualSaleReferrerSelect.value || null
         };
         
+        // Basic client-side validation for required fields
+        if (!saleData.name || !saleData.email || !saleData.phone) {
+            manualSaleStatus.textContent = 'Please fill in all required fields (Name, Email, Phone).';
+            manualSaleStatus.style.color = 'red';
+            submitManualSaleButton.disabled = false;
+            return;
+        }
+
         try {
             const result = await addManualSale(saleData);
             manualSaleStatus.textContent = result.data.message;
             manualSaleStatus.style.color = 'var(--success-green)';
             manualSaleForm.reset();
+            // Reset referrer selection to default
+            manualSaleReferrerSelect.value = '';
+            
             setTimeout(() => {
                 manualSaleModal.classList.remove('visible');
-                fetchDashboardData();
+                fetchDashboardData(); // Re-fetch dashboard data to show new entry
             }, 1500);
         } catch (error) {
             console.error('Error adding manual sale:', error);
-            manualSaleStatus.textContent = `Error: ${error.message}`;
+            let errorMessage = 'An unknown error occurred.';
+            if (error.code) {
+                errorMessage = `Error (${error.code}): ${error.message}`;
+            } else {
+                errorMessage = `Error: ${error.message}`;
+            }
+            manualSaleStatus.textContent = errorMessage;
             manualSaleStatus.style.color = 'red';
         } finally {
             submitManualSaleButton.disabled = false;
         }
     });
 
-    // --- QR Code Generation and Sharing Logic (Restored) ---
+    // --- QR Code Generation and Sharing Logic ---
     generateQrButton.addEventListener('click', () => {
         const link = referralLinkDisplay.textContent;
         if (!link || link === 'N/A' || link === 'Loading...') {
