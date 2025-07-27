@@ -250,6 +250,8 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
             }
         }
 
+        // NEW: Pull the timestamp from paypal_orders.createdAt
+        const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
 
         // Add the raffle entry to a separate collection (raffle_entries)
         await admin.firestore().collection('raffle_entries').add({
@@ -262,7 +264,7 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
           ticketsBought: ticketsBought,
           paymentStatus: 'completed',
           orderID: orderID,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: entryTimestamp, // Use the timestamp from paypal_orders.createdAt
           webhookEventType: event.event_type,
           paypalEventId: event.id
         });
@@ -347,6 +349,9 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     }
                 }
 
+                // NEW: Pull the timestamp from paypal_orders.createdAt
+                const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
+
                 // 3. Create the missing raffle_entries document.
                 await db.collection('raffle_entries').add({
                     name: orderData.name,
@@ -358,7 +363,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     ticketsBought: ticketsBought,
                     paymentStatus: 'completed',
                     orderID: orderID,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    timestamp: entryTimestamp, // Use the timestamp from paypal_orders.createdAt
                     // Add a note that this was created via a manual reprocessing script.
                     reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.'
                 });
@@ -793,7 +798,7 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
             ticketsBought: ticketsBought,
             paymentStatus: 'manual_entry', // Custom status for manual entries
             orderID: `MANUAL_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`, // Unique ID
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: admin.firestore.FieldValue.serverTimestamp(), // Timestamp for manual entries is current server time
             entryType: 'manual', // Explicitly mark as manual
             processedBy: context.auth.uid // Record who added it
         });
@@ -854,8 +859,8 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
             }
 
             const formattedTimestamp = sale.timestamp ? sale.timestamp.toDate().toLocaleString('en-US', {
-                month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
-                timeZone: 'America/New_York'
+                month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+                timeZone: 'America/New_York' // Explicitly set timezone for consistency
             }) : 'N/A';
 
             // Create one entry for each ticket bought
