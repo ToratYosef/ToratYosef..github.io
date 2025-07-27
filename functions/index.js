@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // Make sure node-fetch is installed: npm install node-fetch@2
 const cors = require('cors');
 
 admin.initializeApp();
@@ -68,7 +68,7 @@ exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
   const { amount, name, email, phone, referral } = data;
 
   if (!amount || !name || !email || !phone) {
-    throw new new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, name, email, or phone.');
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, name, email, or phone.');
   }
 
   try {
@@ -289,8 +289,8 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
 });
 
 /**
- * ONE-TIME ADMIN FUNCTION to reprocess completed PayPal orders that failed 
- * to generate a raffle entry. This function finds orders that are 'COMPLETED' 
+ * ONE-TIME ADMIN FUNCTION to reprocess completed PayPal orders that failed
+ * to generate a raffle entry. This function finds orders that are 'COMPLETED'
  * but are missing the 'raffleEntryCreatedAt' field and processes them.
  * * IMPORTANT: You must be authenticated as a Super Admin Referrer to run this.
  */
@@ -339,7 +339,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                         .where('refId', '==', orderData.referrerRefId)
                         .limit(1)
                         .get();
-                    
+
                     if (!referrerQuerySnapshot.empty) {
                         referrerUid = referrerQuerySnapshot.docs[0].id;
                     } else {
@@ -378,7 +378,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                 errors.push(`Order ${orderID}: ${error.message}`);
             }
         })();
-        
+
         processingPromises.push(processPromise);
     });
 
@@ -386,18 +386,18 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
     await Promise.all(processingPromises);
 
     console.log(`Reprocessing complete. Processed: ${processedCount}. Errors: ${errors.length}`);
-    
+
     if (errors.length > 0) {
-        return { 
-            success: false, 
+        return {
+            success: false,
             message: `Completed with errors. Processed ${processedCount} entries successfully.`,
-            errors: errors 
+            errors: errors
         };
     }
 
-    return { 
-        success: true, 
-        message: `Successfully processed ${processedCount} missing raffle entries.` 
+    return {
+        success: true,
+        message: `Successfully processed ${processedCount} missing raffle entries.`
     };
 });
 
@@ -452,6 +452,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                  throw new functions.https.HttpsError('not-found', 'Referrer data not found for this user.');
             }
             dashboardTitleName = "Master Admin";
+            // Create a dummy referrerData object for superadmins who might not have a direct referrer profile
             referrerData = {
                 data: () => ({ name: "Master Admin", refId: "N/A", goal: 0 })
             };
@@ -495,7 +496,8 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             allReferrersSummary.push(referrerSummary);
         });
 
-        if (currentReferrerDetails.refId) {
+        // For superadmins, their "own" sales are also filtered if they have a refId
+        if (currentReferrerDetails.refId && currentReferrerDetails.refId !== "N/A") { // Added check for "N/A"
             const ownSalesSnapshot = await admin.firestore().collection('raffle_entries')
                 .where('referrerUid', '==', loggedInUid)
                 .orderBy('timestamp', 'desc')
@@ -517,9 +519,14 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
                     }) : 'N/A'
                 });
             });
+        } else {
+             // If superadmin doesn't have a refId, their "Your Buyer Details" will be empty
+             totalTicketsSold = 0;
+             buyerDetails.length = 0; // Clear array
         }
 
-    } else {
+
+    } else { // Not a SuperAdminReferrer
         const ticketsSoldSnapshot = await admin.firestore().collection('raffle_entries')
           .where('referrerUid', '==', targetReferrerUid)
           .orderBy('timestamp', 'desc')
@@ -529,7 +536,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             const entry = doc.data();
             totalTicketsSold += (entry.ticketsBought || 0);
 
-            if (!isViewerAccount) {
+            if (!isViewerAccount) { // Only show buyer details if not a viewer
                 buyerDetails.push({
                     id: doc.id,
                     name: entry.name,
@@ -545,7 +552,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
         });
     }
 
-    const referralLink = currentReferrerDetails.refId ? `https://www.toratyosefsummerraffle.com/?ref=${currentReferrerDetails.refId}` : null;
+    const referralLink = currentReferrerDetails.refId && currentReferrerDetails.refId !== "N/A" ? `https://www.toratyosefsummerraffle.com/?ref=${currentReferrerDetails.refId}` : null;
 
     return {
       name: currentReferrerDetails.name,
@@ -737,6 +744,11 @@ exports.getReferrersList = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'Failed to retrieve referrers list.', error.message);
     }
 });
+
+/**
+ * Firebase Callable Function to add a manual ticket sale entry.
+ * This function should only be callable by super admins.
+ */
 exports.addManualSale = functions.https.onCall(async (data, context) => {
     // Security Check: Ensure the caller is an authenticated super admin.
     if (!context.auth || !context.auth.token.superAdminReferrer) {
@@ -796,4 +808,62 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
         }
         throw new functions.https.HttpsError('internal', 'An unexpected error occurred while adding manual entry.', error.message);
     }
+});
+
+/**
+ * NEW: Firebase Callable Function to retrieve all ticket sales.
+ * This function should only be callable by super admins.
+ */
+exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
+    // 1. Authenticate and authorize the user
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+
+    // IMPORTANT: Ensure your 'superAdminReferrer' custom claim is correctly set for superadmins.
+    if (!context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You do not have permission to view all tickets.');
+    }
+
+    const db = admin.firestore();
+
+    // 2. Fetch all ticket sales from 'raffle_entries' collection
+    // This assumes all actual ticket sales (PayPal and manual) are recorded here.
+    const salesRef = db.collection('raffle_entries');
+    const snapshot = await salesRef.orderBy('timestamp', 'desc').get(); // Order by timestamp for recent sales first
+
+    const allTickets = [];
+    // Using a for...of loop to correctly await inside the loop for referrer lookups
+    for (const doc of snapshot.docs) {
+        const sale = doc.data();
+        let referrerInfo = sale.referrerRefId || 'N/A'; // Default to Ref ID or 'N/A'
+
+        // Attempt to fetch referrer's name if referrerUid exists
+        if (sale.referrerUid && sale.referrerRefId !== 'N/A') {
+            try {
+                const referrerDoc = await db.collection('referrers').doc(sale.referrerUid).get();
+                if (referrerDoc.exists) {
+                    referrerInfo = `${referrerDoc.data().name} (${sale.referrerRefId})`;
+                }
+            } catch (err) {
+                console.warn(`Could not fetch referrer name for UID ${sale.referrerUid}:`, err.message);
+                // Fallback to just Ref ID if lookup fails
+            }
+        }
+
+        allTickets.push({
+            id: doc.id,
+            buyerName: sale.name,
+            buyerEmail: sale.email,
+            buyerPhone: sale.phone,
+            ticketsBought: sale.ticketsBought,
+            referrerInfo: referrerInfo, // This will be the Referrer Name (Ref ID) or 'N/A'
+            timestamp: sale.timestamp ? sale.timestamp.toDate().toLocaleString('en-US', {
+                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
+                        timeZone: 'America/New_York'
+                    }) : 'N/A'
+        });
+    }
+
+    return { tickets: allTickets };
 });
