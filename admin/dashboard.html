@@ -124,7 +124,7 @@
         color: var(--accent); /* Use accent color for impact */
         line-height: 1;
     }
-    
+
     .section-title {
         color: var(--secondary-bg);
         font-size: 1.4em;
@@ -311,7 +311,7 @@
     .footer a:hover {
         text-decoration: underline;
     }
-    
+
     /* MODAL STYLES (SHARED) */
     .modal-overlay {
         position: fixed;
@@ -405,7 +405,7 @@
         flex-wrap: wrap; /* Allow wrapping on smaller screens */
         gap: 10px; /* Space between buttons */
     }
-    
+
     .admin-action-button {
         padding: 12px 20px;
         background-color: var(--success-green);
@@ -417,11 +417,11 @@
         font-weight: bold;
         transition: background-color 0.3s ease;
     }
-    
+
     .admin-action-button:hover {
         background-color: #218838;
     }
-    
+
     #manual-sale-form .form-group {
         margin-bottom: 15px;
         text-align: left;
@@ -442,7 +442,7 @@
         box-sizing: border-box;
         font-size: 1em;
     }
-    
+
     #manual-sale-form .submit-button {
         width: 100%;
         padding: 12px;
@@ -451,15 +451,15 @@
         color: white;
         background-color: var(--accent);
         border: none;
-        border-radius: 5ph;
+        border-radius: 5px;
         cursor: pointer;
         transition: background-color 0.3s ease;
     }
-    
+
     #manual-sale-form .submit-button:hover {
         background-color: var(--hover);
     }
-    
+
     #manual-sale-form .submit-button:disabled {
         background-color: #ccc;
         cursor: not-allowed;
@@ -562,8 +562,7 @@
                 <thead>
                     <tr>
                         <th>Referrer Name</th>
-                        <th>Ref ID</th>
-                        <th>Goal</th>
+                        <th>Ref ID</th> <th>Goal</th>
                         <th>Tickets Sold</th>
                         <th>Tickets Left</th>
                     </tr>
@@ -581,10 +580,8 @@
                         <th>Buyer Name</th>
                         <th>Email</th>
                         <th>Phone</th>
-                        <th>Tickets</th>
-                        <th>Referrer (Ref ID)</th>
-                        <th>Time</th>
-                    </tr>
+                        <th>Ticket No.</th> <th>Referrer (Ref ID)</th>
+                        <th>Time of Sale</th> <th>Original Order ID</th> </tr>
                 </thead>
                 <tbody id="all-tickets-table-body"></tbody>
             </table>
@@ -596,7 +593,7 @@
 
   <footer class="footer">
     Website made by Saul Setton<br />
-    <a href="tel:9295845753">929-584-5753</a> | 
+    <a href="tel:9295845753">929-584-5753</a> |
     <a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a>
   </footer>
 
@@ -666,8 +663,8 @@
     const functions = firebase.functions();
     const getReferrerDashboardData = functions.httpsCallable('getReferrerDashboardData');
     const addManualSale = functions.httpsCallable('addManualSale');
-    const getReferrersList = functions.httpsCallable('getReferrersList'); // New: for referrer dropdown
-    const getAllTicketsSold = functions.httpsCallable('getAllTicketsSold'); // NEW: Function to get all tickets
+    const getReferrersList = functions.httpsCallable('getReferrersList');
+    const getAllTicketsSold = functions.httpsCallable('getAllTicketsSold');
 
     // DOM elements
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -697,7 +694,7 @@
     const qrcodeCanvas = document.getElementById('qrcode-canvas');
     const shareQrButton = document.getElementById('share-qr-button');
     const downloadQrButton = document.getElementById('download-qr-button');
-    let qrCodeDataUrl = ''; 
+    let qrCodeDataUrl = '';
 
     // Manual Sale Modal elements
     const adminActionsContainer = document.getElementById('admin-actions-container');
@@ -707,8 +704,8 @@
     const manualSaleForm = document.getElementById('manual-sale-form');
     const submitManualSaleButton = document.getElementById('submit-manual-sale-button');
     const manualSaleStatus = document.getElementById('manual-sale-status');
-    const manualSaleReferrerGroup = document.getElementById('manual-sale-referrer-group'); // New group
-    const manualSaleReferrerSelect = document.getElementById('manual-sale-referrer'); // New select element
+    const manualSaleReferrerGroup = document.getElementById('manual-sale-referrer-group');
+    const manualSaleReferrerSelect = document.getElementById('manual-sale-referrer');
 
     // NEW DOM elements for all tickets sold
     const viewAllTicketsButton = document.getElementById('view-all-tickets-button');
@@ -747,7 +744,7 @@
     }
 
     auth.onAuthStateChanged(user => {
-        if (!user) { window.location.href = './login.html'; } 
+        if (!user) { window.location.href = './login.html'; }
         else { fetchDashboardData(); }
     });
 
@@ -757,13 +754,13 @@
         const result = await getReferrerDashboardData();
         const data = result.data;
 
-        welcomeMessageElement.textContent = `Welcome, ${data.name}!`; 
+        welcomeMessageElement.textContent = `Welcome, ${data.name}!`;
         referralLinkDisplay.textContent = data.referralLink || 'N/A';
         ticketsSoldElement.textContent = data.totalTicketsSold;
         goalTicketsElement.textContent = data.goal;
-        
+
         const progress = data.goal > 0 ? (data.totalTicketsSold / data.goal) * 100 : 0;
-        progressBar.style.width = `${Math.min(progress, 100)}%`; 
+        progressBar.style.width = `${Math.min(progress, 100)}%`;
         progressPercentage.textContent = `${Math.round(progress)}%`;
 
         if (data.referralLink && data.referralLink !== 'N/A') {
@@ -782,6 +779,8 @@
             row.insertCell().textContent = buyer.phone;
             row.insertCell().textContent = buyer.ticketsBought;
             row.insertCell().textContent = buyer.timestamp;
+            // If you want to show referrer Ref ID in 'Your Buyer Details' (always your own), add another cell here:
+            // row.insertCell().textContent = data.refId; // Or whatever format you prefer
           });
         } else {
           emptyBuyersState.classList.remove('hidden');
@@ -792,7 +791,7 @@
             adminActionsContainer.classList.remove('hidden');
             allReferrersSummaryContainer.classList.remove('hidden');
             totalSoldContainer.classList.remove('hidden'); // Show total sold for super admin
-            
+
             // Populate Referrer dropdown for Manual Sale
             await populateReferrersDropdown();
             manualSaleReferrerGroup.style.display = 'block'; // Show referrer selection for super admin
@@ -805,7 +804,7 @@
                 data.allReferrersSummary.forEach(referrer => {
                     const row = summaryTableBody.insertRow();
                     row.insertCell().textContent = referrer.name;
-                    row.insertCell().textContent = referrer.refId;
+                    row.insertCell().textContent = referrer.refId; // CHECK: This correctly pulls referrer.refId
                     row.insertCell().textContent = referrer.goal;
                     row.insertCell().textContent = referrer.totalTicketsSold;
                     row.insertCell().textContent = referrer.ticketsRemaining;
@@ -922,7 +921,7 @@
             // Only include referrerRefId if one is selected
             referrerRefId: manualSaleReferrerSelect.value || null
         };
-        
+
         // Basic client-side validation for required fields
         if (!saleData.name || !saleData.email || !saleData.phone) {
             manualSaleStatus.textContent = 'Please fill in all required fields (Name, Email, Phone).';
@@ -938,7 +937,7 @@
             manualSaleForm.reset();
             // Reset referrer selection to default
             manualSaleReferrerSelect.value = '';
-            
+
             setTimeout(() => {
                 manualSaleModal.classList.remove('visible');
                 fetchDashboardData(); // Re-fetch dashboard data to show new entry
@@ -1028,7 +1027,7 @@
         showLoading();
         try {
             const result = await getAllTicketsSold();
-            const allTickets = result.data.tickets;
+            const allTickets = result.data.tickets; // This now contains expanded, one-by-one entries
 
             allTicketsTableBody.innerHTML = '';
             if (allTickets && allTickets.length > 0) {
@@ -1039,18 +1038,20 @@
                     row.insertCell().textContent = ticket.buyerName;
                     row.insertCell().textContent = ticket.buyerEmail;
                     row.insertCell().textContent = ticket.buyerPhone;
-                    row.insertCell().textContent = ticket.ticketsBought;
-                    row.insertCell().textContent = ticket.referrerRefId; // Display referrer ID or N/A
+                    row.insertCell().textContent = ticket.ticketNumberInOrder; // Display the sequential ticket number
+                    row.insertCell().textContent = ticket.referrerInfo; // Now includes name (Ref ID)
                     row.insertCell().textContent = ticket.timestamp;
+                    row.insertCell().textContent = ticket.originalOrderId; // Display original order ID
                 });
             } else {
                 emptyAllTicketsState.classList.remove('hidden');
                 allTicketsTable.style.display = 'none';
             }
             allTicketsSoldContainer.classList.remove('hidden'); // Show the container
-            // Optionally, hide other sections like the referrer summary if you only want to show one at a time
-            // summaryTable.style.display = 'none';
-            // emptySummaryState.classList.add('hidden');
+            // You might want to hide the referrer summary table when showing all tickets
+            summaryTable.style.display = 'none';
+            emptySummaryState.classList.add('hidden'); // Hide the empty state for summary
+            document.getElementById('buyers-details-master-container').classList.add('hidden'); // Hide "Your Buyer Details" too
 
         } catch (error) {
             console.error('Error fetching all tickets sold:', error);
