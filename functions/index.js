@@ -1000,7 +1000,7 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
             const orderID = orderDoc.id;
 
             try {
-                const entryTimestamp = orderData.createdAt;
+                const entryTimestamp = orderData.createdAt; // This is a Firestore Timestamp object from the DB
                 if (!entryTimestamp || typeof entryTimestamp.toDate !== 'function') {
                     throw new Error(`PayPal order ${orderID} missing valid 'createdAt' timestamp.`);
                 }
@@ -1039,9 +1039,10 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
                     ticketsBought: ticketsBought,
                     paymentStatus: 'completed',
                     orderID: orderID,
-                    timestamp: entryTimestamp,
+                    timestamp: entryTimestamp, // Use the actual PayPal order creation timestamp
                     entryType: 'paypal', // Mark as PayPal originated
-                    reprocessingNote: `Repopulated from PayPal order on ${admin.firestore.FieldValue.serverTimestamp().toDate().toLocaleString('en-US', { timeZone: 'America/New_York' })}`,
+                    // CORRECTED LINE: Using entryTimestamp (which is a valid Timestamp object)
+                    reprocessingNote: `Repopulated from PayPal order on ${entryTimestamp.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' })}`,
                     reprocessedBy: context.auth.uid
                 };
 
@@ -1074,10 +1075,4 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
         console.error('Top-level error in repopulateRaffleEntriesFromPaypalOrders:', error);
         throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during repopulation.', error.message);
     }
-});
-
-// Added this simple test function again just to be sure your environment is fully healthy
-exports.testLogFunction = functions.https.onCall(async (data, context) => {
-    console.log("TEST LOG: testLogFunction was called successfully!");
-    return { status: "success", message: "Test log generated." };
 });
