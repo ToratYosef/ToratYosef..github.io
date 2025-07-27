@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const fetch = require('node-fetch'); // Make sure node-fetch is installed: npm install node-fetch@2
+const fetch = require('node-fetch'); // Make sure node-fetch is installed: npm install --save node-fetch@2
 const cors = require('cors');
 
 admin.initializeApp();
@@ -907,12 +907,14 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
  * after ensuring a full database backup. Only callable by superadmins.
  */
 exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, context) => {
+    console.log('HARD_REPROCESS_LOG: Function execution started.'); // <-- Added log
     // SECURITY CHECK: ABSOLUTELY ESSENTIAL
     if (!context.auth || !context.auth.token.superAdminReferrer) {
+        console.error('HARD_REPROCESS_LOG: Permission denied for user:', context.auth ? context.auth.uid : 'unauthenticated'); // <-- Added log
         throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to run this dangerous operation.');
     }
+    console.log('HARD_REPROCESS_LOG: User is superadmin. Proceeding.'); // <-- Added log
 
-    console.log('--- STARTING HARD REPROCESSING OF ALL PAYPAL TICKETS ---');
     const db = admin.firestore();
     let entriesDeletedCount = 0;
     let entriesCreatedCount = 0;
@@ -921,23 +923,28 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
     let batchOperations = 0; // Counter for batch operations
 
     try {
+        console.log('HARD_REPROCESS_LOG: Fetching referrers map.'); // <-- Added log
         // Fetch all referrer names and refIds once to ensure referrerUid can be resolved if needed
         const referrersMap = new Map(); // Map<referrerUid, { name: string, refId: string }>
         const referrersSnapshot = await db.collection('referrers').get();
         referrersSnapshot.forEach(doc => {
             referrersMap.set(doc.id, { name: doc.data().name, refId: doc.data().refId });
         });
+        console.log(`HARD_REPROCESS_LOG: Referrers map built with ${referrersMap.size} entries.`); // <-- Added log
 
+
+        console.log('HARD_REPROCESS_LOG: Fetching COMPLETED PayPal orders.'); // <-- Added log
         // Step 1: Get all COMPLETED PayPal orders
         const paypalOrdersSnapshot = await db.collection('paypal_orders')
             .where('status', '==', 'COMPLETED')
             .get();
 
         if (paypalOrdersSnapshot.empty) {
+            console.log('HARD_REPROCESS_LOG: No COMPLETED PayPal orders found.'); // <-- Added log
             return { success: true, message: 'No COMPLETED PayPal orders found to reprocess.', deleted: 0, created: 0, errors: [] };
         }
 
-        console.log(`Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to process.`);
+        console.log(`HARD_REPROCESS_LOG: Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to process.`); // <-- Added log
 
         const processPromises = [];
 
@@ -945,9 +952,11 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
             const orderData = orderDoc.data();
             const orderID = orderDoc.id;
 
+            // Optional: Add a very verbose log here if you want to see every order being considered.
+            // console.log(`HARD_REPROCESS_LOG: Considering PayPal order: ${orderID}`);
+
             processPromises.push((async () => {
                 try {
-                    // Get the timestamp from paypal_orders.createdAt
                     const entryTimestamp = orderData.createdAt;
 
                     if (!entryTimestamp || typeof entryTimestamp.toDate !== 'function') {
@@ -965,7 +974,7 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
                             batch.delete(docToDelete.ref);
                             batchOperations++;
                             entriesDeletedCount++;
-                            console.log(`Batching delete for existing raffle_entry ${docToDelete.id} (Order ID: ${orderID})`);
+                            console.log(`HARD_REPROCESS_LOG: Batching delete for existing raffle_entry ${docToDelete.id} (Order ID: ${orderID})`);
                         });
                     }
 
@@ -988,7 +997,7 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
                             if (!referrerQuerySnapshot.empty) {
                                 referrerUidForNewEntry = referrerQuerySnapshot.docs[0].id;
                             } else {
-                                console.warn(`Hard Reprocess: Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}. New entry will not be linked to UID.`);
+                                console.warn(`HARD_REPROCESS_LOG: Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}. New entry will not be linked to UID.`);
                             }
                         }
                     }
@@ -1015,18 +1024,18 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
                     batch.set(db.collection('raffle_entries').doc(), newRaffleEntryData); // Let Firestore generate new ID
                     batchOperations++;
                     entriesCreatedCount++;
-                    console.log(`Batching creation for new raffle_entry (Order ID: ${orderID})`);
+                    console.log(`HARD_REPROCESS_LOG: Batching creation for new raffle_entry (Order ID: ${orderID})`);
 
                     // --- Commit batch if it's getting large ---
                     if (batchOperations >= 400) { // Keep well under Firestore's 500 operation limit
                         await batch.commit();
-                        console.log(`Batch committed. Current deleted: ${entriesDeletedCount}, created: ${entriesCreatedCount}`);
+                        console.log(`HARD_REPROCESS_LOG: Batch committed. Current deleted: ${entriesDeletedCount}, created: ${entriesCreatedCount}`);
                         batch = db.batch(); // Start a new batch
                         batchOperations = 0;
                     }
 
                 } catch (error) {
-                    console.error(`Error reprocessing PayPal order ${orderID}:`, error);
+                    console.error(`HARD_REPROCESS_LOG: Error reprocessing PayPal order ${orderID}:`, error); // <-- Crucial log
                     errors.push(`Order ${orderID}: ${error.message}`);
                 }
             })());
@@ -1038,13 +1047,13 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
         // Commit any remaining operations in the final batch
         if (batchOperations > 0) {
             await batch.commit();
-            console.log(`Final batch committed. Current deleted: ${entriesDeletedCount}, created: ${entriesCreatedCount}`);
+            console.log(`HARD_REPROCESS_LOG: Final batch committed. Deleted: ${entriesDeletedCount}, Created: ${entriesCreatedCount}`);
         }
 
-        console.log('--- HARD REPROCESSING COMPLETE ---');
-        console.log(`Total raffle entries deleted: ${entriesDeletedCount}`);
-        console.log(`Total raffle entries created: ${entriesCreatedCount}`);
-        console.log(`Total errors: ${errors.length}`);
+        console.log('HARD_REPROCESS_LOG: --- HARD REPROCESSING COMPLETE ---'); // <-- Added log
+        console.log(`HARD_REPROCESS_LOG: Total raffle entries deleted: ${entriesDeletedCount}`);
+        console.log(`HARD_REPROCESS_LOG: Total raffle entries created: ${entriesCreatedCount}`);
+        console.log(`HARD_REPROCESS_LOG: Total errors: ${errors.length}`);
 
         if (errors.length > 0) {
             return {
@@ -1065,10 +1074,16 @@ exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, 
         };
 
     } catch (error) {
-        console.error('hardReprocessAllTicketsFromPayPal caught top-level error:', error);
+        console.error('HARD_REPROCESS_LOG: Top-level error in hardReprocessAllTicketsFromPayPal:', error); // <-- Crucial log
         if (error instanceof functions.https.HttpsError) {
             throw error;
         }
         throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during hard reprocessing.', error.message);
     }
+});
+
+// Add the testLogFunction again just to be sure
+exports.testLogFunction = functions.https.onCall(async (data, context) => {
+    console.log("TEST LOG: testLogFunction was called successfully!");
+    return { status: "success", message: "Test log generated." };
 });
