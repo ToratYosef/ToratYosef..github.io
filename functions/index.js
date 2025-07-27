@@ -897,3 +897,187 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
     }
 });
 
+/**
+ * DANGER ZONE: Deletes ALL PayPal-originated raffle_entries.
+ * This is a destructive, one-time use function for data cleanup.
+ * ONLY use after backing up your data.
+ * Only callable by superadmins.
+ */
+exports.deleteAllPaypalRaffleEntries = functions.https.onCall(async (data, context) => {
+    // SECURITY CHECK: ESSENTIAL
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to delete all PayPal raffle entries.');
+    }
+
+    console.log('--- STARTING DELETION OF ALL PAYPAL-ORIGINATED RAFFLE ENTRIES ---');
+    const db = admin.firestore();
+    let deletedCount = 0;
+    const errors = [];
+    let batch = db.batch();
+    let batchOperations = 0;
+
+    try {
+        const raffleEntriesSnapshot = await db.collection('raffle_entries')
+            .where('entryType', '==', 'paypal') // Target entries specifically marked as 'paypal'
+            .get();
+
+        if (raffleEntriesSnapshot.empty) {
+            console.log('No PayPal-originated raffle entries found to delete.');
+            return { success: true, message: 'No PayPal-originated raffle entries found to delete.', deleted: 0, errors: [] };
+        }
+
+        console.log(`Found ${raffleEntriesSnapshot.size} PayPal-originated raffle entries to delete.`);
+
+        raffleEntriesSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+            deletedCount++;
+            batchOperations++;
+
+            if (batchOperations >= 400) { // Commit in batches of 400
+                batch.commit();
+                console.log(`Batch committed. Deleted: ${deletedCount}`);
+                batch = db.batch();
+                batchOperations = 0;
+            }
+        });
+
+        // Commit any remaining operations
+        if (batchOperations > 0) {
+            await batch.commit();
+            console.log(`Final batch committed. Deleted: ${deletedCount}`);
+        }
+
+        console.log('--- DELETION OF ALL PAYPAL-ORIGINATED RAFFLE ENTRIES COMPLETE ---');
+        return { success: true, message: `Successfully deleted ${deletedCount} PayPal-originated raffle entries.`, deleted: deletedCount, errors: errors };
+
+    } catch (error) {
+        console.error('Error deleting PayPal-originated raffle entries:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to delete PayPal-originated raffle entries.', error.message);
+    }
+});
+
+/**
+ * Repopulates raffle_entries from COMPLETED paypal_orders.
+ * It will create a new raffle_entry for each COMPLETED paypal_order.
+ * This is to be used AFTER existing raffle_entries have been cleared or if
+ * you need to re-generate them from paypal_orders.
+ * Only callable by superadmins.
+ */
+exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (data, context) => {
+    // SECURITY CHECK: ESSENTIAL
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to repopulate raffle entries.');
+    }
+
+    console.log('--- STARTING REPOPULATION OF RAFFLE ENTRIES FROM PAYPAL ORDERS ---');
+    const db = admin.firestore();
+    let createdCount = 0;
+    const errors = [];
+    let batch = db.batch();
+    let batchOperations = 0;
+
+    try {
+        // Pre-fetch referrers for efficiency
+        const referrersMap = new Map();
+        const referrersSnapshot = await db.collection('referrers').get();
+        referrersSnapshot.forEach(doc => {
+            referrersMap.set(doc.id, { name: doc.data().name, refId: doc.data().refId });
+        });
+
+        const paypalOrdersSnapshot = await db.collection('paypal_orders')
+            .where('status', '==', 'COMPLETED')
+            .get();
+
+        if (paypalOrdersSnapshot.empty) {
+            console.log('No COMPLETED PayPal orders found to repopulate from.');
+            return { success: true, message: 'No COMPLETED PayPal orders found to repopulate from.', created: 0, errors: [] };
+        }
+
+        console.log(`Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to process for repopulation.`);
+
+        for (const orderDoc of paypalOrdersSnapshot.docs) {
+            const orderData = orderDoc.data();
+            const orderID = orderDoc.id;
+
+            try {
+                const entryTimestamp = orderData.createdAt;
+                if (!entryTimestamp || typeof entryTimestamp.toDate !== 'function') {
+                    throw new Error(`PayPal order ${orderID} missing valid 'createdAt' timestamp.`);
+                }
+
+                // Resolve referrer UID for the new entry
+                let referrerUidForNewEntry = null;
+                if (orderData.referrerRefId) {
+                    for (const [uid, rData] of referrersMap.entries()) {
+                        if (rData.refId === orderData.referrerRefId) {
+                            referrerUidForNewEntry = uid;
+                            break;
+                        }
+                    }
+                    if (!referrerUidForNewEntry) {
+                        const referrerQuerySnapshot = await db.collection('referrers')
+                            .where('refId', '==', orderData.referrerRefId)
+                            .limit(1)
+                            .get();
+                        if (!referrerQuerySnapshot.empty) {
+                            referrerUidForNewEntry = referrerQuerySnapshot.docs[0].id;
+                        } else {
+                            console.warn(`Repopulate: Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}. New entry will not be linked to UID.`);
+                        }
+                    }
+                }
+
+                const ticketsBought = Math.floor(orderData.amount / 126.00);
+
+                const newRaffleEntryData = {
+                    name: orderData.name,
+                    email: orderData.email,
+                    phone: orderData.phone,
+                    referrerRefId: orderData.referrerRefId || null,
+                    referrerUid: referrerUidForNewEntry,
+                    amount: orderData.amount,
+                    ticketsBought: ticketsBought,
+                    paymentStatus: 'completed',
+                    orderID: orderID,
+                    timestamp: entryTimestamp,
+                    entryType: 'paypal', // Mark as PayPal originated
+                    reprocessingNote: `Repopulated from PayPal order on ${admin.firestore.FieldValue.serverTimestamp().toDate().toLocaleString('en-US', { timeZone: 'America/New_York' })}`,
+                    reprocessedBy: context.auth.uid
+                };
+
+                batch.set(db.collection('raffle_entries').doc(), newRaffleEntryData); // Let Firestore generate new ID
+                batchOperations++;
+                createdCount++;
+
+                if (batchOperations >= 400) {
+                    await batch.commit();
+                    console.log(`Batch committed. Created: ${createdCount}`);
+                    batch = db.batch();
+                    batchOperations = 0;
+                }
+
+            } catch (error) {
+                console.error(`Error repopulating from PayPal order ${orderID}:`, error);
+                errors.push(`Order ${orderID}: ${error.message}`);
+            }
+        }
+
+        if (batchOperations > 0) {
+            await batch.commit();
+            console.log(`Final batch committed. Created: ${createdCount}`);
+        }
+
+        console.log('--- REPOPULATION OF RAFFLE ENTRIES COMPLETE ---');
+        return { success: true, message: `Successfully created ${createdCount} raffle entries from PayPal orders.`, created: createdCount, errors: errors };
+
+    } catch (error) {
+        console.error('Top-level error in repopulateRaffleEntriesFromPaypalOrders:', error);
+        throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during repopulation.', error.message);
+    }
+});
+
+// Added this simple test function again just to be sure your environment is fully healthy
+exports.testLogFunction = functions.https.onCall(async (data, context) => {
+    console.log("TEST LOG: testLogFunction was called successfully!");
+    return { status: "success", message: "Test log generated." };
+});
