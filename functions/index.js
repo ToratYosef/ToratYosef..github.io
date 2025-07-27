@@ -985,7 +985,7 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
         });
 
         const paypalOrdersSnapshot = await db.collection('paypal_orders')
-            .where('status', 'in', ['COMPLETED', 'APPROVED', 'CAPTURED']) // Add any other statuses that mean "done"
+            .where('status', '==', 'COMPLETED')
             .get();
 
         if (paypalOrdersSnapshot.empty) {
@@ -1000,7 +1000,7 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
             const orderID = orderDoc.id;
 
             try {
-                const entryTimestamp = orderData.createdAt; // This is a Firestore Timestamp object from the DB
+                const entryTimestamp = orderData.createdAt;
                 if (!entryTimestamp || typeof entryTimestamp.toDate !== 'function') {
                     throw new Error(`PayPal order ${orderID} missing valid 'createdAt' timestamp.`);
                 }
@@ -1039,9 +1039,8 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
                     ticketsBought: ticketsBought,
                     paymentStatus: 'completed',
                     orderID: orderID,
-                    timestamp: entryTimestamp, // Use the actual PayPal order creation timestamp
+                    timestamp: entryTimestamp,
                     entryType: 'paypal', // Mark as PayPal originated
-                    // CORRECTED LINE: Using entryTimestamp (which is a valid Timestamp object)
                     reprocessingNote: `Repopulated from PayPal order on ${entryTimestamp.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' })}`,
                     reprocessedBy: context.auth.uid
                 };
@@ -1076,6 +1075,7 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
         throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during repopulation.', error.message);
     }
 });
+
 /**
  * ONE-TIME ADMIN FUNCTION: Clears the 'raffleEntryCreatedAt' flag on all COMPLETED paypal_orders.
  * This is used to allow 'reprocessMissingRaffleEntries' to re-create entries from scratch.
@@ -1113,7 +1113,7 @@ exports.clearRaffleEntryFlagsOnPayPalOrders = functions.https.onCall(async (data
             const orderID = doc.id;
 
             // Only update if the flag is actually set
-            if (orderData.raffleEntryCreatedAt) {
+            if (orderData.raffleEntryCreatedAt) { // Check if the flag exists
                 try {
                     batch.update(doc.ref, {
                         raffleEntryCreatedAt: admin.firestore.FieldValue.delete(), // Delete the field
@@ -1154,81 +1154,9 @@ exports.clearRaffleEntryFlagsOnPayPalOrders = functions.https.onCall(async (data
         throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during flag clearing.', error.message);
     }
 });
-/**
- * ONE-TIME ADMIN FUNCTION: Clears the 'raffleEntryCreatedAt' flag on all COMPLETED paypal_orders.
- * This is used to allow 'reprocessMissingRaffleEntries' to re-create entries from scratch.
- * ONLY use after backing up your data and understanding its purpose.
- * Only callable by superadmins.
- */
-exports.clearRaffleEntryFlagsOnPayPalOrders = functions.https.onCall(async (data, context) => {
-    // SECURITY CHECK: ESSENTIAL
-    if (!context.auth || !context.auth.token.superAdminReferrer) {
-        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to clear raffle entry flags.');
-    }
 
-    console.log('--- STARTING CLEARING OF RAFFLE ENTRY FLAGS ON PAYPAL ORDERS ---');
-    const db = admin.firestore();
-    let updatedCount = 0;
-    const errors = [];
-    let batch = db.batch();
-    let batchOperations = 0;
-
-    try {
-        // Query all COMPLETED paypal_orders that have the flag set
-        const paypalOrdersSnapshot = await db.collection('paypal_orders')
-            .where('status', '==', 'COMPLETED')
-            .get(); // We will filter for 'raffleEntryCreatedAt' in memory
-
-        if (paypalOrdersSnapshot.empty) {
-            console.log('No COMPLETED PayPal orders found to clear flags on.');
-            return { success: true, message: 'No COMPLETED PayPal orders found to clear flags on.', updated: 0, errors: [] };
-        }
-
-        console.log(`Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to check flags on.`);
-
-        for (const doc of paypalOrdersSnapshot.docs) {
-            const orderData = doc.data();
-            const orderID = doc.id;
-
-            // Only update if the flag is actually set
-            if (orderData.raffleEntryCreatedAt) {
-                try {
-                    batch.update(doc.ref, {
-                        raffleEntryCreatedAt: admin.firestore.FieldValue.delete(), // Delete the field
-                        reprocessingComplete: admin.firestore.FieldValue.delete(), // Also delete this flag if present
-                        webhookProcessed: admin.firestore.FieldValue.delete(), // Also delete this flag if present
-                        lastWebhookEvent: admin.firestore.FieldValue.delete(), // Also delete this flag if present
-                        flagClearedAt: admin.firestore.FieldValue.serverTimestamp(), // Mark when it was cleared
-                        flagClearedBy: context.auth.uid
-                    });
-                    batchOperations++;
-                    updatedCount++;
-                    console.log(`Batching flag clear for PayPal order: ${orderID}`);
-
-                    if (batchOperations >= 400) { // Commit in batches of 400
-                        await batch.commit();
-                        console.log(`Batch committed. Cleared flags on: ${updatedCount}`);
-                        batch = db.batch();
-                        batchOperations = 0;
-                    }
-                } catch (error) {
-                    console.error(`Error clearing flag for PayPal order ${orderID}:`, error);
-                    errors.push(`Order ${orderID}: ${error.message}`);
-                }
-            }
-        }
-
-        // Commit any remaining operations
-        if (batchOperations > 0) {
-            await batch.commit();
-            console.log(`Final batch committed. Cleared flags on: ${updatedCount}`);
-        }
-
-        console.log('--- CLEARING OF RAFFLE ENTRY FLAGS COMPLETE ---');
-        return { success: true, message: `Successfully cleared flags on ${updatedCount} PayPal orders.`, updated: updatedCount, errors: errors };
-
-    } catch (error) {
-        console.error('Top-level error in clearRaffleEntryFlagsOnPayPalOrders:', error);
-        throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during flag clearing.', error.message);
-    }
+// Added this simple test function again just to be sure your environment is fully healthy
+exports.testLogFunction = functions.https.onCall(async (data, context) => {
+    console.log("TEST LOG: testLogFunction was called successfully!");
+    return { status: "success", message: "Test log generated." };
 });
