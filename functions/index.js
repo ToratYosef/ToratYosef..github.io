@@ -811,7 +811,8 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * NEW: Firebase Callable Function to retrieve all ticket sales.
+ * NEW: Firebase Callable Function to retrieve all ticket sales,
+ * with each ticket counting as a separate entry for export purposes.
  * This function should only be callable by super admins.
  */
 exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
@@ -826,44 +827,60 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
     }
 
     const db = admin.firestore();
+    const allExpandedTickets = []; // This will store the 'one by one' entries
 
-    // 2. Fetch all ticket sales from 'raffle_entries' collection
-    // This assumes all actual ticket sales (PayPal and manual) are recorded here.
-    const salesRef = db.collection('raffle_entries');
-    const snapshot = await salesRef.orderBy('timestamp', 'desc').get(); // Order by timestamp for recent sales first
+    try {
+        // Fetch all referrer names and refIds once to avoid repeated lookups in the loop
+        const referrersMap = new Map(); // Map<referrerUid, { name: string, refId: string }>
+        const referrersSnapshot = await db.collection('referrers').get();
+        referrersSnapshot.forEach(doc => {
+            referrersMap.set(doc.id, { name: doc.data().name, refId: doc.data().refId });
+        });
 
-    const allTickets = [];
-    // Using a for...of loop to correctly await inside the loop for referrer lookups
-    for (const doc of snapshot.docs) {
-        const sale = doc.data();
-        let referrerInfo = sale.referrerRefId || 'N/A'; // Default to Ref ID or 'N/A'
+        // Fetch all ticket sales from 'raffle_entries' collection
+        const salesRef = db.collection('raffle_entries');
+        const snapshot = await salesRef.orderBy('timestamp', 'desc').get();
 
-        // Attempt to fetch referrer's name if referrerUid exists
-        if (sale.referrerUid && sale.referrerRefId !== 'N/A') {
-            try {
-                const referrerDoc = await db.collection('referrers').doc(sale.referrerUid).get();
-                if (referrerDoc.exists) {
-                    referrerInfo = `${referrerDoc.data().name} (${sale.referrerRefId})`;
-                }
-            } catch (err) {
-                console.warn(`Could not fetch referrer name for UID ${sale.referrerUid}:`, err.message);
-                // Fallback to just Ref ID if lookup fails
+        for (const doc of snapshot.docs) {
+            const sale = doc.data();
+            const ticketsBought = sale.ticketsBought || 0; // Ensure ticketsBought is a number
+
+            let referrerInfo = 'N/A';
+            if (sale.referrerUid && referrersMap.has(sale.referrerUid)) {
+                const referrer = referrersMap.get(sale.referrerUid);
+                referrerInfo = `${referrer.name} (${referrer.refId})`;
+            } else if (sale.referrerRefId) { // Fallback if UID lookup fails but refId is present
+                referrerInfo = `(Ref ID: ${sale.referrerRefId})`;
+            }
+
+            const formattedTimestamp = sale.timestamp ? sale.timestamp.toDate().toLocaleString('en-US', {
+                month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
+                timeZone: 'America/New_York'
+            }) : 'N/A';
+
+            // Create one entry for each ticket bought
+            for (let i = 0; i < ticketsBought; i++) {
+                allExpandedTickets.push({
+                    buyerName: sale.name,
+                    buyerEmail: sale.email,
+                    buyerPhone: sale.phone,
+                    // For "one by one" export, ticketsBought is always 1 for each row
+                    ticketsBought: 1, // This column now represents a single ticket
+                    referrerInfo: referrerInfo,
+                    timestamp: formattedTimestamp,
+                    originalOrderId: sale.orderID, // Keep original order ID for reference
+                    ticketNumberInOrder: i + 1 // Which ticket it is within the original order
+                });
             }
         }
 
-        allTickets.push({
-            id: doc.id,
-            buyerName: sale.name,
-            buyerEmail: sale.email,
-            buyerPhone: sale.phone,
-            ticketsBought: sale.ticketsBought,
-            referrerInfo: referrerInfo, // This will be the Referrer Name (Ref ID) or 'N/A'
-            timestamp: sale.timestamp ? sale.timestamp.toDate().toLocaleString('en-US', {
-                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
-                        timeZone: 'America/New_York'
-                    }) : 'N/A'
-        });
-    }
+        return { tickets: allExpandedTickets };
 
-    return { tickets: allTickets };
+    } catch (error) {
+        console.error('Error fetching all tickets sold:', error);
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', 'Failed to retrieve all tickets sold.', error.message);
+    }
 });
