@@ -351,7 +351,6 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     }
                 }
 
-                // --- NEW / UPDATED LINE ---
                 // Get the timestamp from the paypal_orders document's 'createdAt' field
                 const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
 
@@ -366,7 +365,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     ticketsBought: ticketsBought,
                     paymentStatus: 'completed', // Status from PayPal webhook context
                     orderID: orderID,
-                    timestamp: entryTimestamp, // <--- THIS IS THE KEY CHANGE
+                    timestamp: entryTimestamp,
                     // Add a note that this was created via a manual reprocessing script.
                     reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.',
                     reprocessedBy: context.auth.uid // Record who ran the reprocessing
@@ -895,5 +894,181 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
             throw error;
         }
         throw new functions.https.HttpsError('internal', 'Failed to retrieve all tickets sold.', error.message);
+    }
+});
+
+/**
+ * DANGER ZONE: Hard Reprocesses ALL PayPal-originated raffle entries.
+ * For each COMPLETED PayPal order, it will:
+ * 1. Attempt to DELETE any existing raffle_entry with the same orderID.
+ * 2. CREATE a new raffle_entry using data from the PayPal order,
+ * setting its timestamp to paypal_orders.createdAt.
+ * This is a destructive operation and should ONLY be used for data correction
+ * after ensuring a full database backup. Only callable by superadmins.
+ */
+exports.hardReprocessAllTicketsFromPayPal = functions.https.onCall(async (data, context) => {
+    // SECURITY CHECK: ABSOLUTELY ESSENTIAL
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to run this dangerous operation.');
+    }
+
+    console.log('--- STARTING HARD REPROCESSING OF ALL PAYPAL TICKETS ---');
+    const db = admin.firestore();
+    let entriesDeletedCount = 0;
+    let entriesCreatedCount = 0;
+    const errors = [];
+    let batch = db.batch();
+    let batchOperations = 0; // Counter for batch operations
+
+    try {
+        // Fetch all referrer names and refIds once to ensure referrerUid can be resolved if needed
+        const referrersMap = new Map(); // Map<referrerUid, { name: string, refId: string }>
+        const referrersSnapshot = await db.collection('referrers').get();
+        referrersSnapshot.forEach(doc => {
+            referrersMap.set(doc.id, { name: doc.data().name, refId: doc.data().refId });
+        });
+
+        // Step 1: Get all COMPLETED PayPal orders
+        const paypalOrdersSnapshot = await db.collection('paypal_orders')
+            .where('status', '==', 'COMPLETED')
+            .get();
+
+        if (paypalOrdersSnapshot.empty) {
+            return { success: true, message: 'No COMPLETED PayPal orders found to reprocess.', deleted: 0, created: 0, errors: [] };
+        }
+
+        console.log(`Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to process.`);
+
+        const processPromises = [];
+
+        for (const orderDoc of paypalOrdersSnapshot.docs) {
+            const orderData = orderDoc.data();
+            const orderID = orderDoc.id;
+
+            processPromises.push((async () => {
+                try {
+                    // Get the timestamp from paypal_orders.createdAt
+                    const entryTimestamp = orderData.createdAt;
+
+                    if (!entryTimestamp || typeof entryTimestamp.toDate !== 'function') {
+                        throw new Error(`PayPal order ${orderID} missing valid 'createdAt' timestamp.`);
+                    }
+
+                    // --- Step 2: Delete existing raffle_entry if it exists ---
+                    const existingRaffleEntrySnapshot = await db.collection('raffle_entries')
+                        .where('orderID', '==', orderID)
+                        .limit(1) // Assuming one raffle_entry per orderID
+                        .get();
+
+                    if (!existingRaffleEntrySnapshot.empty) {
+                        existingRaffleEntrySnapshot.forEach(docToDelete => {
+                            batch.delete(docToDelete.ref);
+                            batchOperations++;
+                            entriesDeletedCount++;
+                            console.log(`Batching delete for existing raffle_entry ${docToDelete.id} (Order ID: ${orderID})`);
+                        });
+                    }
+
+                    // --- Resolve referrer UID for the new entry ---
+                    let referrerUidForNewEntry = null;
+                    if (orderData.referrerRefId) {
+                        // Find UID from the pre-fetched map or do a direct lookup if not found
+                        for (const [uid, rData] of referrersMap.entries()) {
+                            if (rData.refId === orderData.referrerRefId) {
+                                referrerUidForNewEntry = uid;
+                                break;
+                            }
+                        }
+                        if (!referrerUidForNewEntry) {
+                            // If not found in map, attempt a direct lookup (less efficient, but fallback)
+                            const referrerQuerySnapshot = await db.collection('referrers')
+                                .where('refId', '==', orderData.referrerRefId)
+                                .limit(1)
+                                .get();
+                            if (!referrerQuerySnapshot.empty) {
+                                referrerUidForNewEntry = referrerQuerySnapshot.docs[0].id;
+                            } else {
+                                console.warn(`Hard Reprocess: Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}. New entry will not be linked to UID.`);
+                            }
+                        }
+                    }
+
+                    // --- Step 3: Recreate the raffle_entry ---
+                    const ticketsBought = Math.floor(orderData.amount / 126.00); // Assuming $126 per ticket
+
+                    const newRaffleEntryData = {
+                        name: orderData.name,
+                        email: orderData.email,
+                        phone: orderData.phone,
+                        referrerRefId: orderData.referrerRefId || null,
+                        referrerUid: referrerUidForNewEntry, // Use the resolved UID
+                        amount: orderData.amount,
+                        ticketsBought: ticketsBought,
+                        paymentStatus: 'completed', // Explicitly set status
+                        orderID: orderID,
+                        timestamp: entryTimestamp, // Use the actual PayPal order creation timestamp
+                        entryType: 'paypal', // Mark as PayPal originated
+                        reprocessingNote: `Recreated by hardReprocessAllTicketsFromPayPal on ${admin.firestore.FieldValue.serverTimestamp().toDate().toLocaleString('en-US', { timeZone: 'America/New_York' })}`,
+                        reprocessedBy: context.auth.uid
+                    };
+
+                    batch.set(db.collection('raffle_entries').doc(), newRaffleEntryData); // Let Firestore generate new ID
+                    batchOperations++;
+                    entriesCreatedCount++;
+                    console.log(`Batching creation for new raffle_entry (Order ID: ${orderID})`);
+
+                    // --- Commit batch if it's getting large ---
+                    if (batchOperations >= 400) { // Keep well under Firestore's 500 operation limit
+                        await batch.commit();
+                        console.log(`Batch committed. Current deleted: ${entriesDeletedCount}, created: ${entriesCreatedCount}`);
+                        batch = db.batch(); // Start a new batch
+                        batchOperations = 0;
+                    }
+
+                } catch (error) {
+                    console.error(`Error reprocessing PayPal order ${orderID}:`, error);
+                    errors.push(`Order ${orderID}: ${error.message}`);
+                }
+            })());
+        }
+
+        // Wait for all individual order processing tasks to complete
+        await Promise.all(processPromises);
+
+        // Commit any remaining operations in the final batch
+        if (batchOperations > 0) {
+            await batch.commit();
+            console.log(`Final batch committed. Current deleted: ${entriesDeletedCount}, created: ${entriesCreatedCount}`);
+        }
+
+        console.log('--- HARD REPROCESSING COMPLETE ---');
+        console.log(`Total raffle entries deleted: ${entriesDeletedCount}`);
+        console.log(`Total raffle entries created: ${entriesCreatedCount}`);
+        console.log(`Total errors: ${errors.length}`);
+
+        if (errors.length > 0) {
+            return {
+                success: false,
+                message: `Hard reprocessing finished with errors. Deleted ${entriesDeletedCount}, Created ${entriesCreatedCount}.`,
+                deleted: entriesDeletedCount,
+                created: entriesCreatedCount,
+                errors: errors
+            };
+        }
+
+        return {
+            success: true,
+            message: `Hard reprocessing successful. Deleted ${entriesDeletedCount}, Created ${entriesCreatedCount} entries.`,
+            deleted: entriesDeletedCount,
+            created: entriesCreatedCount,
+            errors: []
+        };
+
+    } catch (error) {
+        console.error('hardReprocessAllTicketsFromPayPal caught top-level error:', error);
+        if (error instanceof functions.https.HttpsError) {
+            throw error;
+        }
+        throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during hard reprocessing.', error.message);
     }
 });
