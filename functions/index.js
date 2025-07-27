@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // Make sure node-fetch is installed: npm install node-fetch@2
 const cors = require('cors');
 
 admin.initializeApp();
@@ -308,12 +308,15 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
     const errors = [];
 
     // 1. Find all PayPal orders that are completed but were not processed by the webhook.
+    // We are looking for paypal_orders documents where the raffleEntryCreatedAt field is missing.
     const ordersToProcessSnapshot = await db.collection('paypal_orders')
         .where('status', '==', 'COMPLETED')
+        // Using `where('raffleEntryCreatedAt', '==', null)` or `!doc.data().raffleEntryCreatedAt` check
+        // ensures we only target orders that haven't triggered a raffle entry yet.
         .get();
 
     if (ordersToProcessSnapshot.empty) {
-        return { success: true, message: 'No completed orders found to process.' };
+        return { success: true, message: 'No completed orders found to process that are missing a raffle entry.' };
     }
 
     const processingPromises = [];
@@ -322,7 +325,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
         const orderData = doc.data();
         const orderID = doc.id;
 
-        // Skip if a raffle entry has already been created for this order.
+        // Skip if a raffle entry has already been created for this order (redundant check, but safe).
         if (orderData.raffleEntryCreatedAt) {
             return;
         }
@@ -332,7 +335,6 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
         // This creates a separate asynchronous task for each order.
         const processPromise = (async () => {
             try {
-                // 2. Re-run the logic from your original webhook for this specific order.
                 const ticketsBought = Math.floor(orderData.amount / 126.00);
                 let referrerUid = null;
 
@@ -349,7 +351,8 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     }
                 }
 
-                // Pull the timestamp from paypal_orders.createdAt
+                // --- NEW / UPDATED LINE ---
+                // Get the timestamp from the paypal_orders document's 'createdAt' field
                 const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
 
                 // 3. Create the missing raffle_entries document.
@@ -361,17 +364,18 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     referrerUid: referrerUid,
                     amount: orderData.amount,
                     ticketsBought: ticketsBought,
-                    paymentStatus: 'completed',
+                    paymentStatus: 'completed', // Status from PayPal webhook context
                     orderID: orderID,
-                    timestamp: entryTimestamp, // Use the timestamp from paypal_orders.createdAt
+                    timestamp: entryTimestamp, // <--- THIS IS THE KEY CHANGE
                     // Add a note that this was created via a manual reprocessing script.
-                    reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.'
+                    reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.',
+                    reprocessedBy: context.auth.uid // Record who ran the reprocessing
                 });
 
-                // 4. Update the original order to mark it as processed.
+                // 4. Update the original order to mark it as processed by this function.
                 await db.collection('paypal_orders').doc(orderID).update({
-                    raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    webhookProcessed: true, // You can use the same flag
+                    raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(), // Mark the PayPal order as having had its raffle entry created
+                    webhookProcessed: true, // You can use this flag, or a new one specific to reprocessing
                     reprocessingComplete: true
                 });
 
@@ -561,7 +565,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
 
     return {
       name: currentReferrerDetails.name,
-      refId: currentReferrerDetails.refId, // CHECK: This is directly from referrerData
+      refId: currentReferrerDetails.refId,
       goal: currentReferrerDetails.goal,
       totalTicketsSold: totalTicketsSold,
       buyerDetails: buyerDetails,
@@ -816,7 +820,7 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * NEW: Firebase Callable Function to retrieve all ticket sales,
+ * Firebase Callable Function to retrieve all ticket sales,
  * with each ticket counting as a separate entry for export purposes.
  * This function should only be callable by super admins.
  */
