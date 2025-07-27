@@ -985,7 +985,7 @@ exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (
         });
 
         const paypalOrdersSnapshot = await db.collection('paypal_orders')
-            .where('status', '==', 'COMPLETED')
+            .where('status', 'in', ['COMPLETED', 'APPROVED', 'CAPTURED']) // Add any other statuses that mean "done"
             .get();
 
         if (paypalOrdersSnapshot.empty) {
