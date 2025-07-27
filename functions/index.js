@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const fetch = require('node-fetch'); // Make sure node-fetch is installed: npm install node-fetch@2
+const fetch = require('node-fetch');
 const cors = require('cors');
 
 admin.initializeApp();
@@ -250,7 +250,7 @@ exports.paypalWebhook = functions.https.onRequest((req, res) => {
             }
         }
 
-        // NEW: Pull the timestamp from paypal_orders.createdAt
+        // Pull the timestamp from paypal_orders.createdAt
         const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
 
         // Add the raffle entry to a separate collection (raffle_entries)
@@ -349,7 +349,7 @@ exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, cont
                     }
                 }
 
-                // NEW: Pull the timestamp from paypal_orders.createdAt
+                // Pull the timestamp from paypal_orders.createdAt
                 const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
 
                 // 3. Create the missing raffle_entries document.
@@ -561,7 +561,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
 
     return {
       name: currentReferrerDetails.name,
-      refId: currentReferrerDetails.refId,
+      refId: currentReferrerDetails.refId, // CHECK: This is directly from referrerData
       goal: currentReferrerDetails.goal,
       totalTicketsSold: totalTicketsSold,
       buyerDetails: buyerDetails,
@@ -850,13 +850,18 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
             const sale = doc.data();
             const ticketsBought = sale.ticketsBought || 0; // Ensure ticketsBought is a number
 
-            let referrerInfo = 'N/A';
+            let referrerInfo = 'N/A'; // Default value
+
+            // Logic to determine referrerInfo string
             if (sale.referrerUid && referrersMap.has(sale.referrerUid)) {
                 const referrer = referrersMap.get(sale.referrerUid);
                 referrerInfo = `${referrer.name} (${referrer.refId})`;
-            } else if (sale.referrerRefId) { // Fallback if UID lookup fails but refId is present
+            } else if (sale.referrerRefId && sale.referrerRefId !== 'N/A') { // Fallback if UID lookup fails but refId is present
+                // This case handles existing entries where only referrerRefId might be present
+                // or if the UID lookup from the map failed for some reason.
                 referrerInfo = `(Ref ID: ${sale.referrerRefId})`;
             }
+            // If neither referrerUid nor referrerRefId is present/valid, it remains 'N/A'
 
             const formattedTimestamp = sale.timestamp ? sale.timestamp.toDate().toLocaleString('en-US', {
                 month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
@@ -869,7 +874,6 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
                     buyerName: sale.name,
                     buyerEmail: sale.email,
                     buyerPhone: sale.phone,
-                    // For "one by one" export, ticketsBought is always 1 for each row
                     ticketsBought: 1, // This column now represents a single ticket
                     referrerInfo: referrerInfo,
                     timestamp: formattedTimestamp,
