@@ -1,950 +1,926 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Complete Your Purchase - Yeshivat Torat Yosef Raffle</title>
-  <link rel="favicon-32x32" href="favicon/favicon.ico">
-  <meta name="theme-color" content="#ffffff" />
-  <style>
-    /* Your existing CSS */
-    :root {
-      --primary-bg: #ffffff;
-      --primary-text: rgb(0, 33, 65);
-      --secondary-bg: rgb(0, 33, 65);
-      --accent: #7F0031;
-      --hover: #590023;
-      --button-gradient-start: #a30040;
-      --button-gradient-end: #7F0031;
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tickets Sold Out - Yeshivat Torat Yosef Raffle</title>
+    <link rel="favicon-32x32" href="favicon/favicon.ico">
+    <meta name="theme-color" content="#ffffff" />
+    <style>
+        /* Your existing CSS */
+        :root {
+            --primary-bg: #ffffff;
+            --primary-text: rgb(0, 33, 65);
+            --secondary-bg: rgb(0, 33, 65);
+            --accent: #7F0031;
+            --hover: #590023;
+            --button-gradient-start: #a30040;
+            --button-gradient-end: #7F0031;
+        }
 
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: var(--primary-bg);
-      color: var(--primary-text);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      padding-bottom: 1rem;
-    }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--primary-text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding-bottom: 1rem;
+        }
 
-    .logo-container {
-      text-align: center;
-      padding: 0.8rem 0 0.4rem;
-      flex-shrink: 0;
-    }
+        .logo-container {
+            text-align: center;
+            padding: 0.8rem 0 0.4rem;
+            flex-shrink: 0;
+        }
 
-    .logo {
-      max-width: 250px;
-      width: 80vw;
-      height: auto;
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
-      box-sizing: border-box;
-    }
+        .logo {
+            max-width: 250px;
+            width: 80vw;
+            height: auto;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
 
-    nav {
-      display: none; /* Nav is hidden on this page as per your existing code */
-      justify-content: center;
-      gap: 1rem;
-      padding: 0.8rem 0;
-      background-color: var(--secondary-bg);
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      flex-shrink: 0;
-      width: 100%;
-      flex-wrap: wrap;
-    }
+        nav {
+            display: none;
+            justify-content: center;
+            gap: 1rem;
+            padding: 0.8rem 0;
+            background-color: var(--secondary-bg);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            width: 100%;
+            flex-wrap: wrap;
+        }
 
-    nav a {
-      color: white;
-      text-decoration: none;
-      padding: 0.4rem 0.8rem;
-      font-weight: bold;
-      font-size: 1rem;
-      white-space: nowrap;
-      user-select: none;
-    }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 0.4rem 0.8rem;
+            font-weight: bold;
+            font-size: 1rem;
+            white-space: nowrap;
+            user-select: none;
+        }
 
-    nav a.active {
-      border-bottom: 3px solid var(--accent);
-      color: var(--accent);
-    }
+        nav a.active {
+            border-bottom: 3px solid var(--accent);
+            color: var(--accent);
+        }
 
-    nav a:hover {
-      color: var(--accent);
-    }
+        nav a:hover {
+            color: var(--accent);
+        }
 
-    .container {
-      max-width: 600px;
-      margin: 2rem auto;
-      padding: 20px;
-      background-color: #f8f8f8;
-      border-radius: 10px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.2);
-      text-align: center;
-      flex-grow: 1;
-      width: 90%;
-      box-sizing: border-box;
-      position: relative; /* Needed for positioning the spinner overlay */
-    }
+        .container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 20px;
+            background-color: #f8f8f8;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            text-align: center;
+            flex-grow: 1;
+            width: 90%;
+            box-sizing: border-box;
+            position: relative;
+        }
 
-    h1 {
-      color: var(--accent);
-      margin-bottom: 20px;
-      font-size: 1.6rem;
-    }
+        h1 {
+            color: var(--accent);
+            margin-bottom: 20px;
+            font-size: 1.6rem;
+        }
 
-    .form-group {
-      margin-bottom: 15px;
-      text-align: left;
-    }
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
 
-    .form-group label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
-      color: var(--primary-text);
-    }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--primary-text);
+        }
 
-    .form-group input[type="text"],
-    .form-group input[type="email"],
-    .form-group input[type="tel"],
-    /* NEW: Style for number input */
-    .form-group input[type="number"] {
-      width: calc(100% - 20px);
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      font-size: 1em;
-      box-sizing: border-box;
-    }
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="tel"],
+        .form-group input[type="number"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
 
-    .form-group input[type="text"]:focus,
-    .form-group input[type="email"]:focus,
-    .form-group input[type="tel"]:focus,
-    /* NEW: Style for number input focus */
-    .form-group input[type="number"]:focus {
-      border-color: var(--accent);
-      outline: none;
-      box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
-    }
+        .form-group input[type="text"]:focus,
+        .form-group input[type="email"]:focus,
+        .form-group input[type="tel"]:focus,
+        .form-group input[type="number"]:focus {
+            border-color: var(--accent);
+            outline: none;
+            box-shadow: 0 0 5px rgba(127, 0, 49, 0.2);
+        }
 
-    /* Disable form inputs when the global overlay is active */
-    .form-inputs-disabled input {
-        cursor: not-allowed;
-        background-color: #e0e0e0;
-        color: #888;
-    }
+        .form-inputs-disabled input {
+            cursor: not-allowed;
+            background-color: #e0e0e0;
+            color: #888;
+        }
 
-    #referral-info {
-      margin-top: 20px;
-      font-size: 0.9em;
-      color: #555;
-      padding: 10px;
-      background-color: #e6f7ff;
-      border-left: 5px solid var(--secondary-bg);
-      text-align: left;
-      display: none;
-      border-radius: 4px;
-    }
+        #referral-info {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #555;
+            padding: 10px;
+            background-color: #e6f7ff;
+            border-left: 5px solid var(--secondary-bg);
+            text-align: left;
+            display: none;
+            border-radius: 4px;
+        }
 
-    /* NEW: Styles for quantity selector group */
-    .quantity-group {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
-      gap: 10px;
-    }
+        .quantity-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
 
-    .quantity-group label {
-      font-weight: bold;
-      margin-right: 5px;
-    }
+        .quantity-group label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
 
-    .quantity-input {
-      width: 80px; /* Adjust width as needed */
-      text-align: center;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      font-size: 1em;
-    }
+        .quantity-input {
+            width: 80px;
+            text-align: center;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
 
-    .quantity-button {
-      background-color: var(--secondary-bg);
-      color: white;
-      border: none;
-      border-radius: 5px;
-      width: 35px;
-      height: 35px;
-      font-size: 1.2em;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background-color 0.2s ease;
-      user-select: none;
-    }
+        .quantity-button {
+            background-color: var(--secondary-bg);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            width: 35px;
+            height: 35px;
+            font-size: 1.2em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+            user-select: none;
+        }
 
-    .quantity-button:hover {
-      background-color: var(--accent);
-    }
+        .quantity-button:hover {
+            background-color: var(--accent);
+        }
 
-    .quantity-button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .quantity-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    #total-amount-display {
-      font-size: 1.2em;
-      font-weight: bold;
-      color: var(--accent);
-      margin-top: 15px;
-      margin-bottom: 20px;
-    }
+        #total-amount-display {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--accent);
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
 
-    .pay-button {
-      display: inline-flex;
-      justify-content: center;
-      align-items: center;
-      padding: 12px 30px;
-      background-color: #635bff;
-      color: white;
-      font-size: 18px;
-      font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      box-shadow: 0 0 0 1px rgba(0,0,0,.1) inset;
-      transition: background-color 0.3s ease;
-      user-select: none;
-      min-width: 180px;
-      height: 48px;
-      margin-top: 10px;
-      position: relative; /* For button spinner */
-      overflow: hidden; /* Hide overflowing spinner parts */
-    }
+        .pay-button {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 30px;
+            background-color: #635bff;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 0 0 1px rgba(0,0,0,.1) inset;
+            transition: background-color 0.3s ease;
+            user-select: none;
+            min-width: 180px;
+            height: 48px;
+            margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+        }
 
-    .pay-button:hover {
-      background-color: #5048e7;
-    }
+        .pay-button:hover {
+            background-color: #5048e7;
+        }
 
-    .pay-button:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
+        .pay-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
 
-    #paypal-button-container {
-      width: 100%;
-      margin-top: 20px;
-      display: none; /* Hidden by default */
-      flex-direction: column;
-      align-items: center;
-      box-sizing: border-box;
-      min-height: 100px; /* Give it some height to avoid layout shift */
-    }
+        #paypal-button-container {
+            width: 100%;
+            margin-top: 20px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+            min-height: 100px;
+        }
 
-    /* Custom Popup Styles */
-    .custom-popup-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.6);
-      display: none; /* Hidden by default */
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
+        .custom-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
 
-    .custom-popup {
-      background-color: white;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-      text-align: center;
-      max-width: 400px;
-      width: 90%;
-      position: relative;
-      transform: translateY(-50px); /* Initial position for animation */
-      opacity: 0; /* Initial opacity for animation */
-      transition: all 0.3s ease-out;
-    }
+        .custom-popup {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            position: relative;
+            transform: translateY(-50px);
+            opacity: 0;
+            transition: all 0.3s ease-out;
+        }
 
-    .custom-popup.show {
-        transform: translateY(0);
-        opacity: 1;
-    }
+        .custom-popup.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
 
-    .custom-popup h2 {
-      color: var(--accent);
-      margin-top: 0;
-      font-size: 1.5rem;
-    }
+        .custom-popup h2 {
+            color: var(--accent);
+            margin-top: 0;
+            font-size: 1.5rem;
+        }
 
-    .custom-popup p {
-      margin-bottom: 20px;
-      font-size: 1.1rem;
-      color: var(--primary-text);
-    }
+        .custom-popup p {
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            color: var(--primary-text);
+        }
 
-    .custom-popup button {
-      background-color: var(--accent);
-      color: white;
-      border: none;
-      padding: 10px 25px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: bold;
-      transition: background-color 0.2s ease;
-    }
+        .custom-popup button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: background-color 0.2s ease;
+        }
 
-    .custom-popup button:hover {
-      background-color: var(--hover);
-    }
+        .custom-popup button:hover {
+            background-color: var(--hover);
+        }
 
-    /* Global loading spinner overlay */
-    .global-loading-overlay {
-      position: fixed; /* Covers the entire viewport */
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white overlay for content behind */
-      backdrop-filter: blur(5px); /* Blurs the entire background content */
-      -webkit-backdrop-filter: blur(5px); /* Safari support */
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 900; /* Below custom popups, above everything else */
-      flex-direction: column;
-      gap: 10px;
-      display: none; /* Hidden by default */
-      transition: backdrop-filter 0.3s ease-in-out, background-color 0.3s ease-in-out;
-    }
+        .global-loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 900;
+            flex-direction: column;
+            gap: 10px;
+            display: none;
+            transition: backdrop-filter 0.3s ease-in-out, background-color 0.3s ease-in-out;
+        }
 
-    /* Styles for the spinner inside the global overlay */
-    .global-loading-overlay .spinner {
-        border-color: rgba(0, 0, 0, 0.1); /* Lighter border for contrast on white overlay */
-        border-top-color: var(--accent); /* Accent color for the spinning part */
-        width: 40px;
-        height: 40px;
-        border-width: 4px;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }
+        .global-loading-overlay .spinner {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-top-color: var(--accent);
+            width: 40px;
+            height: 40px;
+            border-width: 4px;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
 
-    /* Styles for text inside global overlay */
-    .global-loading-overlay .spinner-text {
-        color: var(--primary-text);
-        font-size: 1.2em;
-        font-weight: bold;
-    }
+        .global-loading-overlay .spinner-text {
+            color: var(--primary-text);
+            font-size: 1.2em;
+            font-weight: bold;
+        }
 
-    /* Button Spinner specific styles (for the Proceed button) */
-    .button-spinner {
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #fff; /* White spinner color for button */
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      animation: spin 0.8s linear infinite;
-      display: none; /* Hidden by default */
-    }
+        .button-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
 
-    /* Text inside the button */
-    .button-text {
-        display: block;
-    }
+        .button-text {
+            display: block;
+        }
 
-    /* Keyframe for spinner animation */
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
 
-    /* Footer Styles */
-    footer {
-      background-color: var(--secondary-bg);
-      color: white;
-      padding: 1.5rem 1rem;
-      width: 100%;
-      box-sizing: border-box;
-      text-align: center;
-      flex-shrink: 0;
-      margin-top: auto; /* Pushes the footer to the bottom */
-    }
+        /* Footer Styles */
+        footer {
+            background-color: var(--secondary-bg);
+            color: white;
+            padding: 1.5rem 1rem;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+            flex-shrink: 0;
+            margin-top: auto;
+        }
 
-    .footer-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1.2rem;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
 
-    .footer-logo img {
-      max-width: 150px;
-      height: auto;
-      display: block;
-      margin: 0 auto 0.8rem;
-    }
+        .footer-logo img {
+            max-width: 150px;
+            height: auto;
+            display: block;
+            margin: 0 auto 0.8rem;
+        }
 
-    .footer-section {
-      padding: 0 1rem;
-    }
+        .footer-section {
+            padding: 0 1rem;
+        }
 
-    .footer-section h3 {
-      color: var(--accent);
-      margin-top: 0;
-      margin-bottom: 0.6rem;
-      font-size: 1.1rem;
-    }
+        .footer-section h3 {
+            color: var(--accent);
+            margin-top: 0;
+            margin-bottom: 0.6rem;
+            font-size: 1.1rem;
+        }
 
-    .footer-section p {
-      margin: 0.2rem 0;
-      font-size: 0.85rem;
-      line-height: 1.4;
-    }
+        .footer-section p {
+            margin: 0.2rem 0;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
 
-    .footer-section a {
-      color: white;
-      text-decoration: none;
-    }
+        .footer-section a {
+            color: white;
+            text-decoration: none;
+        }
 
-    .footer-section a:hover {
-      color: var(--accent);
-      text-decoration: underline;
-    }
+        .footer-section a:hover {
+            color: var(--accent);
+            text-decoration: underline;
+        }
 
-    @media (max-width: 600px) {
-      .pay-button {
-        padding: 10px 20px;
-        font-size: 16px;
-        min-width: unset;
-        width: 100%;
-      }
+        @media (max-width: 600px) {
+            .pay-button {
+                padding: 10px 20px;
+                font-size: 16px;
+                min-width: unset;
+                width: 100%;
+            }
 
-      .container {
-        padding: 15px;
-        margin: 1rem auto;
-      }
+            .container {
+                padding: 15px;
+                margin: 1rem auto;
+            }
 
-      h1 {
-        font-size: 1.4rem;
-      }
+            h1 {
+                font-size: 1.4rem;
+            }
 
-      nav a {
-        font-size: 0.9rem;
-        padding: 0.3rem 0.5rem;
-        gap: 0.5rem;
-      }
+            nav a {
+                font-size: 0.9rem;
+                padding: 0.3rem 0.5rem;
+                gap: 0.5rem;
+            }
 
-      .logo {
-        max-width: 200px;
-      }
-      .custom-popup {
-        padding: 20px;
-      }
-      .custom-popup h2 {
-        font-size: 1.3rem;
-      }
-      .custom-popup p {
-        font-size: 1rem;
-      }
-      /* Adjust quantity selector for small screens */
-      .quantity-group {
-          flex-direction: column;
-          gap: 5px;
-      }
-    }
+            .logo {
+                max-width: 200px;
+            }
+            .custom-popup {
+                padding: 20px;
+            }
+            .custom-popup h2 {
+                font-size: 1.3rem;
+            }
+            .custom-popup p {
+                font-size: 1rem;
+            }
+            .quantity-group {
+                flex-direction: column;
+                gap: 5px;
+            }
+        }
 
-    /* Responsive footer layout for larger screens */
-    @media (min-width: 768px) {
-      .footer-content {
-        flex-direction: row;
-        justify-content: space-around;
-        align-items: flex-start;
-        text-align: left;
-      }
+        @media (min-width: 768px) {
+            .footer-content {
+                flex-direction: row;
+                justify-content: space-around;
+                align-items: flex-start;
+                text-align: left;
+            }
 
-      .footer-logo {
-        flex-basis: 180px;
-        text-align: center;
-      }
-      .footer-logo img {
-        margin-bottom: 0;
-      }
+            .footer-logo {
+                flex-basis: 180px;
+                text-align: center;
+            }
+            .footer-logo img {
+                margin-bottom: 0;
+            }
 
-      .school-info {
-        flex-basis: 280px;
-      }
+            .school-info {
+                flex-basis: 280px;
+            }
 
-      .dev-info {
-        flex-basis: 220px;
-      }
-    }
-  </style>
+            .dev-info {
+                flex-basis: 220px;
+            }
+        }
+
+        /* NEW: Styles for the sold-out message container */
+        .sold-out-container {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .sold-out-container h2 {
+            color: var(--accent);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .sold-out-container p {
+            font-size: 1.1rem;
+            color: #555;
+            margin-bottom: 30px;
+        }
+    </style>
 </head>
 <body>
-  <div class="logo-container">
-    <img class="logo" src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" />
-  </div>
-  <nav>
-    <a href="#" class="active">Buy Tickets</a>
-    <a href="/about">About</a>
-    <a href="/rules">Rules</a>
-  </nav>
+    <div class="logo-container">
+        <img class="logo" src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" />
+    </div>
+    <nav>
+        <a href="#" class="active">Buy Tickets</a>
+        <a href="/about">About</a>
+        <a href="/rules">Rules</a>
+    </nav>
 
-  <div class="container" id="main-container">
-    <h1>Complete Your Raffle Ticket Purchase</h1>
+    <div class="container" id="main-container">
+        <!-- New section for "Sold Out" message -->
+        <div class="sold-out-container" id="sold-out-container">
+            <h2>Raffle Tickets are Sold Out!</h2>
+            <p>Thank you for your overwhelming support. The raffle is now closed. Stay tuned for the winners announcement!</p>
+        </div>
 
-    <div class="form-group">
-      <label for="name">Full Name</label>
-      <input type="text" id="name" autocomplete="name" required />
+        <!-- Existing purchase form content, wrapped in a div to easily hide it -->
+        <div id="purchase-form-wrapper">
+            <h1>Complete Your Raffle Ticket Purchase</h1>
+
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" autocomplete="name" required />
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" autocomplete="email" required />
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" autocomplete="tel" required />
+            </div>
+
+            <div id="referral-info">
+                Referral: <span id="referral-name"></span>
+            </div>
+
+            <div class="quantity-group">
+                <button type="button" class="quantity-button" id="decrease-quantity">-</button>
+                <label for="quantity">Tickets:</label>
+                <input type="number" id="quantity" class="quantity-input" value="1" min="1" max="99" aria-label="Number of tickets">
+                <button type="button" class="quantity-button" id="increase-quantity">+</button>
+            </div>
+
+            <div id="total-amount-display">Total: $<span id="calculated-total-amount">0.00</span></div>
+
+            <button class="pay-button" id="proceed-to-payment">
+                <span class="button-text">Proceed to Payment</span>
+                <div class="button-spinner"></div>
+            </button>
+
+            <div id="paypal-button-container" aria-live="polite" aria-busy="false">
+            </div>
+        </div>
     </div>
 
-    <div class="form-group">
-      <label for="email">Email Address</label>
-      <input type="email" id="email" autocomplete="email" required />
+    <div class="global-loading-overlay" id="globalLoadingOverlay">
+        <div class="spinner"></div> <div class="spinner-text"></div> </div>
+
+    <div class="custom-popup-overlay" id="customPopupOverlay">
+        <div class="custom-popup" id="customPopup">
+            <h2 id="popupTitle"></h2>
+            <p id="popupMessage"></p>
+            <button id="popupCloseButton">OK</button>
+        </div>
     </div>
 
-    <div class="form-group">
-      <label for="phone">Phone Number</label>
-      <input type="tel" id="phone" autocomplete="tel" required />
-    </div>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+    <script>
+        // Initialize Firebase with your provided configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+            authDomain: "torat-yosef.firebaseapp.com",
+            projectId: "torat-yosef",
+            storageBucket: "torat-yosef.firebasestorage.app",
+            messagingSenderId: "1033400220494",
+            appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
+            measurementId: "G-331D9RHZWH"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const functions = firebase.functions();
+        // UNCOMMENT AND CONFIGURE IF YOUR FUNCTIONS ARE NOT IN US-CENTRAL1 OR YOU'RE USING EMULATOR
+        // functions.useFunctionsEmulator('http://localhost:5001'); // For local testing
+        // functions.useRegion('europe-west1'); // Example for a different region
+    </script>
 
-    <div id="referral-info">
-      Referral: <span id="referral-name"></span>
-    </div>
+    <script src="https://www.paypal.com/sdk/js?client-id=ARmEcxzk6JoPVo3EX3jVxXZHymmVlf3CUdmRdm54SP8dfaPMi2jHs4Nh23cA_hlMlCxIrM4gTvX4awu2&currency=USD&enable-funding=venmo"></script>
 
-    <div class="quantity-group">
-      <button type="button" class="quantity-button" id="decrease-quantity">-</button>
-      <label for="quantity">Tickets:</label>
-      <input type="number" id="quantity" class="quantity-input" value="1" min="1" max="99" aria-label="Number of tickets">
-      <button type="button" class="quantity-button" id="increase-quantity">+</button>
-    </div>
+    <script>
+        // New variables to control page state
+        const isSoldOut = true;
+        const soldOutContainer = document.getElementById('sold-out-container');
+        const purchaseFormWrapper = document.getElementById('purchase-form-wrapper');
 
-    <div id="total-amount-display">Total: $<span id="calculated-total-amount">0.00</span></div>
+        const proceedToPaymentButton = document.getElementById('proceed-to-payment');
+        const buttonText = proceedToPaymentButton.querySelector('.button-text');
+        const buttonSpinner = proceedToPaymentButton.querySelector('.button-spinner');
+        const paypalButtonContainer = document.getElementById('paypal-button-container');
+        const nameInput = document.getElementById('name');
+        const emailInput = document.getElementById('email');
+        const phoneInput = document.getElementById('phone');
 
-    <button class="pay-button" id="proceed-to-payment">
-        <span class="button-text">Proceed to Payment</span>
-        <div class="button-spinner"></div>
-    </button>
+        const quantityInput = document.getElementById('quantity');
+        const decreaseQuantityButton = document.getElementById('decrease-quantity');
+        const increaseQuantityButton = document.getElementById('increase-quantity');
+        const totalAmountDisplay = document.getElementById('calculated-total-amount');
 
-    <div id="paypal-button-container" aria-live="polite" aria-busy="false">
-      </div>
-  </div>
+        const mainContainer = document.getElementById('main-container');
+        const formInputs = document.querySelectorAll('#purchase-form-wrapper input, #purchase-form-wrapper button');
 
-  <div class="global-loading-overlay" id="globalLoadingOverlay">
-      <div class="spinner"></div> <div class="spinner-text"></div> </div>
+        const globalLoadingOverlay = document.getElementById('globalLoadingOverlay');
+        const globalSpinner = globalLoadingOverlay.querySelector('.spinner');
+        const globalSpinnerText = globalLoadingOverlay.querySelector('.spinner-text');
 
-  <div class="custom-popup-overlay" id="customPopupOverlay">
-    <div class="custom-popup" id="customPopup">
-      <h2 id="popupTitle"></h2>
-      <p id="popupMessage"></p>
-      <button id="popupCloseButton">OK</button>
-    </div>
-  </div>
+        const customPopupOverlay = document.getElementById('customPopupOverlay');
+        const customPopup = document.getElementById('customPopup');
+        const popupTitle = document.getElementById('popupTitle');
+        const popupMessage = document.getElementById('popupMessage');
+        const popupCloseButton = document.getElementById('popupCloseButton');
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
-  <script>
-    // Initialize Firebase with your provided configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
-      authDomain: "torat-yosef.firebaseapp.com",
-      projectId: "torat-yosef",
-      storageBucket: "torat-yosef.firebasestorage.app",
-      messagingSenderId: "1033400220494",
-      appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
-      measurementId: "G-331D9RHZWH"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const functions = firebase.functions();
-    // UNCOMMENT AND CONFIGURE IF YOUR FUNCTIONS ARE NOT IN US-CENTRAL1 OR YOU'RE USING EMULATOR
-    // functions.useFunctionsEmulator('http://localhost:5001'); // For local testing
-    // functions.useRegion('europe-west1'); // Example for a different region
-  </script>
+        const createOrderCallable = functions.httpsCallable('createPayPalOrder');
+        const captureOrderCallable = functions.httpsCallable('capturePayPalOrder');
 
-  <script src="https://www.paypal.com/sdk/js?client-id=ARmEcxzk6JoPVo3EX3jVxXZHymmVlf3CUdmRdm54SP8dfaPMi2jHs4Nh23cA_hlMlCxIrM4gTvX4awu2&currency=USD&enable-funding=venmo"></script>
+        const MIN_LOADING_TIME = 2000;
+        let loadStartTime = 0;
+        let isLoadingProcessComplete = false;
+        let loadingCallback = null;
 
-  <script>
-    const proceedToPaymentButton = document.getElementById('proceed-to-payment');
-    const buttonText = proceedToPaymentButton.querySelector('.button-text');
-    const buttonSpinner = proceedToPaymentButton.querySelector('.button-spinner');
-    const paypalButtonContainer = document.getElementById('paypal-button-container');
-    const nameInput = document.getElementById('name');
-    const emailInput = document.getElementById('email');
-    const phoneInput = document.getElementById('phone');
+        const raffleTicketPrice = 126.00;
 
-    // NEW: Quantity Selector Elements
-    const quantityInput = document.getElementById('quantity');
-    const decreaseQuantityButton = document.getElementById('decrease-quantity');
-    const increaseQuantityButton = document.getElementById('increase-quantity');
-    const totalAmountDisplay = document.getElementById('calculated-total-amount');
-
-    // Main container to apply grayscale/blur filter (no longer used for filter directly)
-    const mainContainer = document.getElementById('main-container'); // This refers to the main content box
-    const formInputs = document.querySelectorAll('#main-container input'); // Get all form inputs within main container
-
-    // Global loading overlay elements
-    const globalLoadingOverlay = document.getElementById('globalLoadingOverlay');
-    const globalSpinner = globalLoadingOverlay.querySelector('.spinner');
-    const globalSpinnerText = globalLoadingOverlay.querySelector('.spinner-text');
-
-    // Custom Popup Elements
-    const customPopupOverlay = document.getElementById('customPopupOverlay');
-    const customPopup = document.getElementById('customPopup');
-    const popupTitle = document.getElementById('popupTitle');
-    const popupMessage = document.getElementById('popupMessage');
-    const popupCloseButton = document.getElementById('popupCloseButton');
-
-    // Make functions callable
-    const createOrderCallable = functions.httpsCallable('createPayPalOrder');
-    const captureOrderCallable = functions.httpsCallable('capturePayPalOrder');
-
-    // Store the minimum delay time (2 seconds)
-    const MIN_LOADING_TIME = 2000; // 2 seconds in milliseconds
-
-    // Variables to track loading state for the minimum display time
-    let loadStartTime = 0;
-    let isLoadingProcessComplete = false;
-    let loadingCallback = null; // Function to call when minimum time is met
-
-    const raffleTicketPrice = 126.00; // Define this once, consistent with backend
-
-    // Function to calculate and display total amount
-    function updateCalculatedTotal() {
-        let quantity = parseInt(quantityInput.value, 10);
-        if (isNaN(quantity) || quantity < 1) {
-            quantity = 1; // Default to 1 if invalid
-            quantityInput.value = 1;
+        function updateCalculatedTotal() {
+            let quantity = parseInt(quantityInput.value, 10);
+            if (isNaN(quantity) || quantity < 1) {
+                quantity = 1;
+                quantityInput.value = 1;
+            }
+            if (quantity > 99) {
+                quantity = 99;
+                quantityInput.value = 99;
+            }
+            const totalAmount = quantity * raffleTicketPrice;
+            totalAmountDisplay.textContent = totalAmount.toFixed(2);
+            decreaseQuantityButton.disabled = quantity <= parseInt(quantityInput.min, 10);
+            increaseQuantityButton.disabled = quantity >= parseInt(quantityInput.max, 10);
         }
-        if (quantity > 99) { // Enforce max if you have one
-            quantity = 99;
-            quantityInput.value = 99;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const referral = urlParams.get('ref');
+        if (referral) {
+            document.getElementById('referral-info').style.display = 'block';
+            document.getElementById('referral-name').textContent = referral;
         }
 
-        const totalAmount = quantity * raffleTicketPrice;
-        totalAmountDisplay.textContent = totalAmount.toFixed(2);
-
-        // Disable/enable buttons based on quantity
-        decreaseQuantityButton.disabled = quantity <= parseInt(quantityInput.min, 10);
-        increaseQuantityButton.disabled = quantity >= parseInt(quantityInput.max, 10);
-    }
-
-    // Initial calculation when the page loads
-    updateCalculatedTotal();
-
-    // Event listeners for quantity buttons
-    decreaseQuantityButton.addEventListener('click', () => {
-        let currentQuantity = parseInt(quantityInput.value, 10);
-        if (currentQuantity > parseInt(quantityInput.min, 10)) {
-            quantityInput.value = currentQuantity - 1;
-            updateCalculatedTotal();
+        function showCustomPopup(title, message) {
+            popupTitle.textContent = title;
+            popupMessage.textContent = message;
+            customPopupOverlay.style.display = 'flex';
+            setTimeout(() => {
+                customPopup.classList.add('show');
+            }, 10);
         }
-    });
 
-    increaseQuantityButton.addEventListener('click', () => {
-        let currentQuantity = parseInt(quantityInput.value, 10);
-        if (currentQuantity < parseInt(quantityInput.max, 10)) {
-            quantityInput.value = currentQuantity + 1;
-            updateCalculatedTotal();
+        function hideCustomPopup() {
+            customPopup.classList.remove('show');
+            setTimeout(() => {
+                customPopupOverlay.style.display = 'none';
+            }, 300);
         }
-    });
 
-    // Event listener for direct input changes to quantity
-    quantityInput.addEventListener('change', updateCalculatedTotal);
-    quantityInput.addEventListener('input', updateCalculatedTotal); // For real-time updates as user types
-
-    // Show referral if present in URL ?ref=
-    const urlParams = new URLSearchParams(window.location.search);
-    const referral = urlParams.get('ref');
-    if (referral) {
-      document.getElementById('referral-info').style.display = 'block';
-      document.getElementById('referral-name').textContent = referral;
-    }
-
-    // Function to display custom popup
-    function showCustomPopup(title, message) {
-      popupTitle.textContent = title;
-      popupMessage.textContent = message;
-      customPopupOverlay.style.display = 'flex';
-      setTimeout(() => {
-          customPopup.classList.add('show');
-      }, 10);
-    }
-
-    // Function to hide custom popup
-    function hideCustomPopup() {
-        customPopup.classList.remove('show');
-        setTimeout(() => {
-            customPopupOverlay.style.display = 'none';
-        }, 300); // Must match CSS transition duration
-    }
-
-    // Event listener for popup close button
-    popupCloseButton.addEventListener('click', hideCustomPopup);
-    // Optional: Close popup if clicking on the overlay
-    customPopupOverlay.addEventListener('click', (event) => {
-        if (event.target === customPopupOverlay) {
-            hideCustomPopup();
-        }
-    });
-
-    // Helper to show button spinner (on "Proceed to Payment" button)
-    function showButtonSpinner() {
-        buttonText.style.display = 'none';
-        buttonSpinner.style.display = 'block';
-        proceedToPaymentButton.disabled = true;
-    }
-
-    // Helper to hide button spinner (on "Proceed to Payment" button)
-    function hideButtonSpinner() {
-        buttonText.style.display = 'block';
-        buttonSpinner.style.display = 'none';
-        proceedToPaymentButton.disabled = false;
-    }
-
-    // Helper to manage form input disabled state
-    function setFormInputsDisabled(disabled) {
-        formInputs.forEach(input => {
-            input.disabled = disabled;
+        popupCloseButton.addEventListener('click', hideCustomPopup);
+        customPopupOverlay.addEventListener('click', (event) => {
+            if (event.target === customPopupOverlay) {
+                hideCustomPopup();
+            }
         });
-        // Also disable the proceed button if inputs are disabled
-        // Note: proceedToPaymentButton.disabled is also set directly by showButtonSpinner/hideButtonSpinner
-        quantityInput.disabled = disabled; // NEW: Disable quantity input too
-        decreaseQuantityButton.disabled = disabled; // NEW: Disable quantity buttons
-        increaseQuantityButton.disabled = disabled; // NEW: Disable quantity buttons
-    }
 
-    // Helper to show global loading overlay
-    function showGlobalLoadingOverlay(message = "Loading...", blurAndDisableForm = false) {
-        globalSpinnerText.textContent = message;
-        if (blurAndDisableForm) {
-            document.body.style.filter = 'grayscale(80%) blur(2px)';
-            document.body.style['-webkit-filter'] = 'grayscale(80%) blur(2px)';
-            setFormInputsDisabled(true); // Disable form inputs
-        } else {
-            document.body.style.filter = 'none';
-            document.body.style['-webkit-filter'] = 'none';
-            setFormInputsDisabled(false); // Re-enable inputs
+        function showButtonSpinner() {
+            buttonText.style.display = 'none';
+            buttonSpinner.style.display = 'block';
+            proceedToPaymentButton.disabled = true;
         }
-        globalLoadingOverlay.style.display = 'flex';
-        
-        // Reset min loading time state when showing loader
-        loadStartTime = Date.now();
-        isLoadingProcessComplete = false;
-        loadingCallback = null;
-    }
 
-    // Helper to hide global loading overlay (with minimum time check)
-    function hideGlobalLoadingOverlay() {
-        isLoadingProcessComplete = true; // Mark process as complete
+        function hideButtonSpinner() {
+            buttonText.style.display = 'block';
+            buttonSpinner.style.display = 'none';
+            proceedToPaymentButton.disabled = false;
+        }
 
-        const elapsedTime = Date.now() - loadStartTime;
-        const remainingTime = MIN_LOADING_TIME - elapsedTime;
+        function setFormInputsDisabled(disabled) {
+            formInputs.forEach(input => {
+                input.disabled = disabled;
+            });
+        }
 
-        if (remainingTime > 0) {
-            // If minimum time not met, delay hiding
-            loadingCallback = () => {
+        function showGlobalLoadingOverlay(message = "Loading...", blurAndDisableForm = false) {
+            globalSpinnerText.textContent = message;
+            if (blurAndDisableForm) {
+                document.body.style.filter = 'grayscale(80%) blur(2px)';
+                document.body.style['-webkit-filter'] = 'grayscale(80%) blur(2px)';
+                setFormInputsDisabled(true);
+            } else {
+                document.body.style.filter = 'none';
+                document.body.style['-webkit-filter'] = 'none';
+                setFormInputsDisabled(false);
+            }
+            globalLoadingOverlay.style.display = 'flex';
+            loadStartTime = Date.now();
+            isLoadingProcessComplete = false;
+            loadingCallback = null;
+        }
+
+        function hideGlobalLoadingOverlay() {
+            isLoadingProcessComplete = true;
+
+            const elapsedTime = Date.now() - loadStartTime;
+            const remainingTime = MIN_LOADING_TIME - elapsedTime;
+
+            if (remainingTime > 0) {
+                loadingCallback = () => {
+                    globalLoadingOverlay.style.display = 'none';
+                    document.body.style.filter = 'none';
+                    document.body.style['-webkit-filter'] = 'none';
+                    setFormInputsDisabled(false);
+                };
+                setTimeout(loadingCallback, remainingTime);
+            } else {
                 globalLoadingOverlay.style.display = 'none';
                 document.body.style.filter = 'none';
                 document.body.style['-webkit-filter'] = 'none';
-                setFormInputsDisabled(false); // Re-enable all inputs
-            };
-            setTimeout(loadingCallback, remainingTime);
+                setFormInputsDisabled(false);
+            }
+        }
+
+        // Add this check at the very beginning of the script execution
+        if (isSoldOut) {
+            purchaseFormWrapper.style.display = 'none';
+            soldOutContainer.style.display = 'block';
+            // Stop further script execution related to the form
+            // by returning from the main execution path.
+            // No need to set up event listeners for a form that is hidden.
         } else {
-            // If minimum time already met or exceeded, hide immediately
-            globalLoadingOverlay.style.display = 'none';
-            document.body.style.filter = 'none';
-            document.body.style['-webkit-filter'] = 'none';
-            setFormInputsDisabled(false); // Re-enable all inputs
-        }
-    }
+            // Only set up the form-related logic if the page is NOT sold out.
+            updateCalculatedTotal();
+            decreaseQuantityButton.addEventListener('click', () => {
+                let currentQuantity = parseInt(quantityInput.value, 10);
+                if (currentQuantity > parseInt(quantityInput.min, 10)) {
+                    quantityInput.value = currentQuantity - 1;
+                    updateCalculatedTotal();
+                }
+            });
+            increaseQuantityButton.addEventListener('click', () => {
+                let currentQuantity = parseInt(quantityInput.value, 10);
+                if (currentQuantity < parseInt(quantityInput.max, 10)) {
+                    quantityInput.value = currentQuantity + 1;
+                    updateCalculatedTotal();
+                }
+            });
+            quantityInput.addEventListener('change', updateCalculatedTotal);
+            quantityInput.addEventListener('input', updateCalculatedTotal);
 
-    proceedToPaymentButton.addEventListener('click', () => {
-      const name = nameInput.value.trim();
-      const email = emailInput.value.trim();
-      const phone = phoneInput.value.trim();
-      const quantity = parseInt(quantityInput.value, 10);
-      const totalAmount = parseFloat(totalAmountDisplay.textContent); // Get calculated amount
+            proceedToPaymentButton.addEventListener('click', () => {
+                const name = nameInput.value.trim();
+                const email = emailInput.value.trim();
+                const phone = phoneInput.value.trim();
+                const quantity = parseInt(quantityInput.value, 10);
+                const totalAmount = parseFloat(totalAmountDisplay.textContent);
 
-      if (!name || !email || !phone) {
-        showCustomPopup('Missing Information', 'Please fill in all fields before proceeding.');
-        return;
-      }
-      if (isNaN(quantity) || quantity < 1) {
-        showCustomPopup('Invalid Quantity', 'Please enter a valid number of tickets (at least 1).');
-        return;
-      }
+                if (!name || !email || !phone) {
+                    showCustomPopup('Missing Information', 'Please fill in all fields before proceeding.');
+                    return;
+                }
+                if (isNaN(quantity) || quantity < 1) {
+                    showCustomPopup('Invalid Quantity', 'Please enter a valid number of tickets (at least 1).');
+                    return;
+                }
 
-      showButtonSpinner(); // Show spinner ON the "Proceed to Payment" button
-      proceedToPaymentButton.style.display = 'none'; // Explicitly hide the button here
+                showButtonSpinner();
+                proceedToPaymentButton.style.display = 'none';
+                showGlobalLoadingOverlay("Loading payment options...", false);
+                renderPayPalButtons(totalAmount, quantity, name, email, phone, referral);
+            });
 
-      // Show global loading overlay, but WITHOUT blurring initially.
-      // Form inputs should NOT be grayed out/disabled here, as the user might want to interact with PayPal's UI.
-      showGlobalLoadingOverlay("Loading payment options...", false);
+            function renderPayPalButtons(amount, quantity, name, email, phone, referral) {
+                paypalButtonContainer.innerHTML = '';
 
-      // Render PayPal buttons immediately without a separate setTimeout for this specific action
-      renderPayPalButtons(totalAmount, quantity, name, email, phone, referral); // Pass totalAmount and quantity
-    });
+                if (typeof paypal === 'undefined' || !paypal.Buttons) {
+                    showCustomPopup('Error', "PayPal SDK failed to load. Please try again.");
+                    resetCheckoutUI();
+                    return;
+                }
 
-    function renderPayPalButtons(amount, quantity, name, email, phone, referral) {
-      paypalButtonContainer.innerHTML = ''; // Clear old buttons
+                paypal.Buttons({
+                    onInit: function(data, actions) {
+                        showGlobalLoadingOverlay("Loading payment options...", false);
+                        proceedToPaymentButton.style.display = 'none';
+                    },
+                    onRendered: function() {
+                        hideGlobalLoadingOverlay();
+                        hideButtonSpinner();
+                        paypalButtonContainer.style.display = 'flex';
+                        paypalButtonContainer.setAttribute('aria-busy', 'false');
+                        proceedToPaymentButton.style.display = 'none';
+                    },
+                    createOrder: function (data, actions) {
+                        hideGlobalLoadingOverlay();
+                        paypalButtonContainer.style.display = 'flex';
+                        proceedToPaymentButton.style.display = 'none';
 
-      if (typeof paypal === 'undefined' || !paypal.Buttons) {
-        showCustomPopup('Error', "PayPal SDK failed to load. Please try again.");
-        resetCheckoutUI(); // Full reset on SDK load failure
-        return;
-      }
-
-      paypal.Buttons({
-        onInit: function(data, actions) {
-            // This happens when PayPal SDK starts its rendering.
-            // Global overlay is already visible (no blur), proceed button hidden.
-            showGlobalLoadingOverlay("Loading payment options...", false); // Confirm no blur here
-            proceedToPaymentButton.style.display = 'none'; // Ensure proceed button is hidden
-        },
-        onRendered: function() {
-            // This event fires when the PayPal buttons are fully drawn on the page.
-            // This is the point where the initial loading is truly "complete" from the UI perspective.
-            hideGlobalLoadingOverlay(); // Hide the global overlay after minimum time
-            hideButtonSpinner(); // Ensure the "Proceed to Payment" button spinner is hidden
-            paypalButtonContainer.style.display = 'flex'; // Ensure button container is visible
-            paypalButtonContainer.setAttribute('aria-busy', 'false');
-            proceedToPaymentButton.style.display = 'none'; // Explicitly keep proceed button hidden
-        },
-        createOrder: function (data, actions) {
-          // This is triggered when the user clicks one of the PayPal buttons.
-          // Hide global loading overlay, as PayPal's own UI will take over (popup/redirect).
-          hideGlobalLoadingOverlay(); // This will enable form inputs again
-          
-          // Ensure the PayPal button container is visible for the buttons themselves to show up
-          paypalButtonContainer.style.display = 'flex';
-          // Ensure proceed button remains hidden as PayPal buttons are now taking over
-          proceedToPaymentButton.style.display = 'none';
-
-
-          return createOrderCallable({
-            amount: amount,
-            quantity: quantity, // Pass quantity to the backend
-            name: name,
-            email: email,
-            phone: phone,
-            referral: referral
-          })
-          .then(result => {
-            if (result.data && result.data.orderID) {
-              return result.data.orderID;
-            } else {
-              throw new Error('No order ID returned from server.');
+                        return createOrderCallable({
+                            amount: amount,
+                            quantity: quantity,
+                            name: name,
+                            email: email,
+                            phone: phone,
+                            referral: referral
+                        })
+                        .then(result => {
+                            if (result.data && result.data.orderID) {
+                                return result.data.orderID;
+                            } else {
+                                throw new Error('No order ID returned from server.');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Create order error:', error);
+                            const errorMessage = error.message || 'Could not start PayPal order.';
+                            showCustomPopup('Order Creation Failed', `Error creating order: ${errorMessage}`);
+                            hideGlobalLoadingOverlay();
+                            hideButtonSpinner();
+                            paypalButtonContainer.style.display = 'flex';
+                            paypalButtonContainer.setAttribute('aria-busy', 'false');
+                            proceedToPaymentButton.style.display = 'none';
+                            return Promise.reject(error);
+                        });
+                    },
+                    onApprove: function (data, actions) {
+                        showGlobalLoadingOverlay("Processing your payment...", true);
+                        return captureOrderCallable({ orderID: data.orderID })
+                        .then(result => {
+                            if (result.data && result.data.success) {
+                                showCustomPopup('Payment Successful!', 'Your entry will be confirmed. Thank you!');
+                                nameInput.value = '';
+                                emailInput.value = '';
+                                phoneInput.value = '';
+                                quantityInput.value = '1';
+                                updateCalculatedTotal();
+                                resetCheckoutUI();
+                            } else {
+                                showCustomPopup('Payment Issue', 'Payment issue detected. Please contact support.');
+                                resetCheckoutUI();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Capture error:', error);
+                            const errorMessage = error.message || 'Payment capture failed.';
+                            showCustomPopup('Payment Failed', `Error capturing payment: ${errorMessage}`);
+                            resetCheckoutUI();
+                        });
+                    },
+                    onError: function (err) {
+                        console.error('PayPal error:', err);
+                        showCustomPopup('Payment Error', 'An error occurred during PayPal payment. Please try again or contact support.');
+                        hideGlobalLoadingOverlay();
+                        hideButtonSpinner();
+                        paypalButtonContainer.style.display = 'flex';
+                        paypalButtonContainer.setAttribute('aria-busy', 'false');
+                        proceedToPaymentButton.style.display = 'none';
+                    },
+                    onCancel: function () {
+                        showCustomPopup('Payment Cancelled', 'You have cancelled the PayPal payment.');
+                        hideGlobalLoadingOverlay();
+                        hideButtonSpinner();
+                        paypalButtonContainer.style.display = 'flex';
+                        paypalButtonContainer.setAttribute('aria-busy', 'false');
+                        proceedToPaymentButton.style.display = 'none';
+                    }
+                }).render('#paypal-button-container')
+                .catch(error => {
+                    console.error('Render error:', error);
+                    showCustomPopup('Error Loading PayPal', 'Could not load PayPal buttons. Please refresh the page.');
+                    resetCheckoutUI();
+                });
             }
-          })
-          .catch(error => {
-            console.error('Create order error:', error);
-            const errorMessage = error.message || 'Could not start PayPal order.';
-            showCustomPopup('Order Creation Failed', `Error creating order: ${errorMessage}`);
-            // On create order error, show PayPal buttons and re-enable form (no blur)
-            hideGlobalLoadingOverlay(); // Re-enable form inputs and remove blur
-            hideButtonSpinner(); // Hide the proceed button spinner if it was still on
-            paypalButtonContainer.style.display = 'flex'; // Ensure PayPal buttons are visible
-            paypalButtonContainer.setAttribute('aria-busy', 'false');
-            proceedToPaymentButton.style.display = 'none'; // Keep proceed button hidden
-            return Promise.reject(error); // Propagate error
-          });
-        },
-        onApprove: function (data, actions) {
-          // Show global loading overlay WITH blurring for payment processing.
-          showGlobalLoadingOverlay("Processing your payment...", true);
-          return captureOrderCallable({ orderID: data.orderID })
-          .then(result => {
-            if (result.data && result.data.success) {
-              showCustomPopup('Payment Successful!', 'Your entry will be confirmed. Thank you!');
-              nameInput.value = '';
-              emailInput.value = '';
-              phoneInput.value = '';
-              quantityInput.value = '1'; // Reset quantity
-              updateCalculatedTotal(); // Update total display
-              resetCheckoutUI(); // Full reset on successful payment
-            } else {
-              showCustomPopup('Payment Issue', 'Payment issue detected. Please contact support.');
-              resetCheckoutUI(); // Full reset on payment issue
+
+            function resetCheckoutUI() {
+                hideGlobalLoadingOverlay();
+                hideButtonSpinner();
+                paypalButtonContainer.innerHTML = '';
+                paypalButtonContainer.style.display = 'none';
+                paypalButtonContainer.setAttribute('aria-busy', 'false');
+                proceedToPaymentButton.style.display = 'block';
+                quantityInput.value = '1';
+                updateCalculatedTotal();
             }
-          })
-          .catch(error => {
-            console.error('Capture error:', error);
-            const errorMessage = error.message || 'Payment capture failed.';
-            showCustomPopup('Payment Failed', `Error capturing payment: ${errorMessage}`);
-            resetCheckoutUI(); // Full reset on capture error
-          });
-        },
-        onError: function (err) {
-          console.error('PayPal error:', err);
-          showCustomPopup('Payment Error', 'An error occurred during PayPal payment. Please try again or contact support.');
-          // On error, hide global overlay (which re-enables form, no blur) and show PayPal buttons
-          hideGlobalLoadingOverlay();
-          hideButtonSpinner(); // Hide button spinner and re-enable button (but keep button hidden below)
-          paypalButtonContainer.style.display = 'flex'; // Ensure buttons are visible
-          paypalButtonContainer.setAttribute('aria-busy', 'false');
-          proceedToPaymentButton.style.display = 'none'; // Keep proceed button hidden
-        },
-        onCancel: function () {
-          showCustomPopup('Payment Cancelled', 'You have cancelled the PayPal payment.');
-          // On cancel, hide global overlay (which re-enables form, no blur) and show PayPal buttons
-          hideGlobalLoadingOverlay();
-          hideButtonSpinner(); // Hide button spinner and re-enable button (but keep button hidden below)
-          paypalButtonContainer.style.display = 'flex'; // Ensure buttons are visible
-          paypalButtonContainer.setAttribute('aria-busy', 'false');
-          proceedToPaymentButton.style.display = 'none'; // Keep proceed button hidden
         }
-      }).render('#paypal-button-container')
-      .catch(error => { // This catch is for issues rendering the buttons themselves
-        console.error('Render error:', error);
-        showCustomPopup('Error Loading PayPal', 'Could not load PayPal buttons. Please refresh the page.');
-        resetCheckoutUI(); // Full reset on rendering error
-      });
-    }
+    </script>
 
-    function resetCheckoutUI() {
-      // This function is now specifically for a full reset back to the initial form state
-      hideGlobalLoadingOverlay(); // Ensure global overlay is hidden and form enabled
-      hideButtonSpinner(); // This will re-enable the button, but we manually hide it below
-      paypalButtonContainer.innerHTML = ''; // Clear buttons (important for full reset)
-      paypalButtonContainer.style.display = 'none'; // Hide PayPal container
-      paypalButtonContainer.setAttribute('aria-busy', 'false');
-      proceedToPaymentButton.style.display = 'block'; // Show original button for full reset
-      quantityInput.value = '1'; // Reset quantity
-      updateCalculatedTotal(); // Update total display
-    }
-  </script>
-
-  <footer>
-    <div class="footer-content">
-      <div class="footer-logo">
-        <img src="https://static.wixstatic.com/media/2de2be_3f32007405f243d6b0dd807b656ea835~mv2.png/v1/fill/w_652,h_248,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/IMG_4131-B.png" alt="Yeshivat Torah Yosef Footer Logo">
-      </div>
-      <div class="footer-section school-info">
-        <h3>School Info</h3>
-        <p>&copy; 2025 by Yeshivat Torat Yosef.</p>
-        <p>8950 Stirling Rd</p>
-        <p>Hollywood, FL 33024</p>
-        <p><a href="tel:7325080530">732-508-0530</a></p>
-        <p><a href="mailto:office@toratyosef.org">office@toratyosef.org</a></p>
-      </div>
-      <div class="footer-section dev-info">
-        <p>Website made by Saul Setton</p>
-        <p>929-584-5753</p>
-        <p><a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a></p>
-      </div>
-    </div>
-  </footer>
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">
+                <img src="https://static.wixstatic.com/media/2de2be_3f32007405f243d6b0dd807b656ea835~mv2.png/v1/fill/w_652,h_248,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/IMG_4131-B.png" alt="Yeshivat Torah Yosef Footer Logo">
+            </div>
+            <div class="footer-section school-info">
+                <h3>School Info</h3>
+                <p>&copy; 2025 by Yeshivat Torat Yosef.</p>
+                <p>8950 Stirling Rd</p>
+                <p>Hollywood, FL 33024</p>
+                <p><a href="tel:7325080530">732-508-0530</a></p>
+                <p><a href="mailto:office@toratyosef.org">office@toratyosef.org</a></p>
+            </div>
+            <div class="footer-section dev-info">
+                <p>Website made by Saul Setton</p>
+                <p>929-584-5753</p>
+                <p><a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a></p>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
