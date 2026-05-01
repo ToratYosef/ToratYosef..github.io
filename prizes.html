@@ -517,7 +517,7 @@
     </nav>
     <div class="container">
         <h1>Raffle Prizes</h1>
-        <p class="intro">Buy a ticket for $126 to enter our raffle. Two lucky winners will be selected to win these amazing prizes!</p>
+        <p class="intro">Buy a ticket for $126 to enter our raffle. One lucky winner will take home this Rolex prize.</p>
         <span class="ticket-price-line">$126 per ticket</span>
         <div class="prize-row">
             <div class="prize">
@@ -525,12 +525,6 @@
                 <h2>Rolex Datejust 41</h2>
                 <p>Oystersteel with Jubilee bracelet, blue dial.</p>
                 <button class="view-button" onclick="openPopup('rolex')">View Prize</button>
-            </div>
-            <div class="prize">
-                <img src="https://t3.ftcdn.net/jpg/01/28/78/94/360_F_128789494_bR9ccEgCLKV13pyCG5bOzvIpuZKkO6mp.jpg" alt="Cash Prize" />
-                <h2>$1,000 Cash Prize</h2>
-                <p>$1,000 in cash. Presented to one raffle winner.</p>
-                <button class="view-button" onclick="openPopup('cash')">View Prize</button>
             </div>
         </div>
         <div class="buy-links">
@@ -561,23 +555,7 @@
         const prizesData = {
             rolex: {
                 images: [
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7/c_limit,w_3200/v1/catalogue/2025/upright-c/m126300-0018',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0020',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0004',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0006',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0016',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0014',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0008',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126300-0012',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0018',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0014',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0022',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0002',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0026',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0028',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0004',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0010',
-                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7/c_limit,w_3200/v1/catalogue/2025/upright-c/m126334-0024'
+                    'https://media.rolex.com/image/upload/q_auto:eco/f_auto/t_v7-majesty/c_limit,w_1600/v1/catalogue/2025/upright-c/m126334-0026'
                 ],
                 details: `
                     <strong>Rolex Datejust 41</strong><br><br>
@@ -588,15 +566,6 @@
                     Bracelet: <strong>Jubilee</strong><br>
                     Movement: <strong>Automatic</strong><br>
                     Water Resistance: <strong>100m</strong>
-                `
-            },
-            cash: {
-                images: [
-                    'https://t3.ftcdn.net/jpg/01/28/78/94/360_F_128789494_bR9ccEgCLKV13pyCG5bOzvIpuZKkO6mp.jpg'
-                ],
-                details: `
-                    <strong>$1,000 in Cash</strong><br><br>
-                    $1,000 Cash Prize. It doesn't get simpler than that!
                 `
             }
         };
