@@ -1,16 +1,10 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const fetch = require('node-fetch'); // Make sure node-fetch is installed: npm install --save node-fetch@2
 const cors = require('cors');
 
 admin.initializeApp();
 
-// IMPORTANT: Configure these using 'firebase functions:config:set paypal.client_id="YOUR_CLIENT_ID" paypal.secret="YOUR_SECRET"'
-const PAYPAL_CLIENT_ID = functions.config().paypal.client_id;
-const PAYPAL_SECRET = functions.config().paypal.secret;
-const PAYPAL_API_BASE = 'https://api-m.paypal.com'; // Live production URL
-
-// Define allowed origins for CORS for onRequest functions (like the webhook)
+// Define allowed origins for CORS for onRequest functions (like webhooks)
 const allowedOrigins = [
   'https://torat-yosef.web.app',
   'https://www.toratyosefsummerraffle.com'
@@ -26,103 +20,6 @@ const corsHandler = cors({
     } else {
       callback(new Error('Not allowed by CORS'));
     }
-  }
-});
-
-/**
- * Fetches an access token from PayPal.
- * @returns {Promise<string>} The PayPal access token.
- * @throws {Error} If failed to get access token.
- */
-async function getPayPalAccessToken() {
-  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64');
-
-  const response = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: 'grant_type=client_credentials'
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    console.error('PayPal access token error response:', data);
-    throw new Error('Failed to get PayPal access token: ' + JSON.stringify(data));
-  }
-
-  return data.access_token;
-}
-
-/**
- * Firebase Callable Function to create a PayPal order.
- * This is invoked directly from your frontend.
- */
-exports.createPayPalOrder = functions.https.onCall(async (data, context) => {
-  // Optional: Add authentication check here if users need to be logged in
-  // if (!context.auth) {
-  //   throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to create an order.');
-  // }
-
-  const { amount, name, email, phone, referral } = data;
-
-  if (!amount || !name || !email || !phone) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: amount, name, email, or phone.');
-  }
-
-  try {
-    const accessToken = await getPayPalAccessToken();
-
-    const orderResponse = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        intent: 'CAPTURE',
-        purchase_units: [{
-          amount: {
-            currency_code: 'USD',
-            value: amount.toFixed(2)
-          }
-          // No need to add custom_id here, as it's optional
-        }],
-        // ADDED: application_context to remove shipping address requirement
-        application_context: {
-            shipping_preference: 'NO_SHIPPING'
-        }
-      })
-    });
-
-    const orderData = await orderResponse.json();
-
-    if (!orderResponse.ok) {
-      console.error('Error creating PayPal order:', orderData);
-      throw new functions.https.HttpsError('internal', 'Failed to create PayPal order. Details:', orderData);
-    }
-
-    // Save initial order details to 'paypal_orders' collection, NOT 'raffle_entries'
-    await admin.firestore().collection('paypal_orders').doc(orderData.id).set({
-      name,
-      email,
-      phone,
-      referrerRefId: referral || null,
-      amount,
-      status: 'CREATED',
-      orderID: orderData.id,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return { orderID: orderData.id };
-  } catch (err) {
-    console.error('createPayPalOrder caught error:', err);
-    // Re-throw as an HttpsError for the client to handle
-    if (err instanceof functions.https.HttpsError) {
-      throw err;
-    }
-    throw new functions.https.HttpsError('internal', 'An unexpected error occurred during order creation.', err.message);
   }
 });
 
@@ -1155,8 +1052,480 @@ exports.clearRaffleEntryFlagsOnPayPalOrders = functions.https.onCall(async (data
     }
 });
 
+/**
+ * STRIPE INTEGRATION FOR RAFFLE TICKETS
+ * Set environment variable: STRIPE_SECRET_KEY
+ */
+
+/**
+ * Stripe Callable Function to create a Stripe Checkout Session for raffle ticket purchases.
+ * Tickets cost $126 and users enter a raffle for 2 prizes: Rolex Watch or $1,000 Cash
+ */
+exports.createStripeCheckoutSession = functions.https.onCall(async (data, context) => {
+  const { quantity, name, email, phone, referral } = data;
+
+  if (!quantity || quantity < 1 || !name || !email || !phone) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: quantity, name, email, or phone.');
+  }
+
+  try {
+    // Ticket price is fixed at $126
+    const ticketPrice = 12600; // $126.00 in cents
+    const totalAmount = ticketPrice * quantity;
+
+    // Save initial order details to 'stripe_orders' collection
+    const orderRef = admin.firestore().collection('stripe_orders').doc();
+    const orderId = orderRef.id;
+
+    await orderRef.set({
+      name,
+      email,
+      phone,
+      referrerRefId: referral || null,
+      quantity: quantity,
+      ticketPrice: ticketPrice,
+      amount: totalAmount,
+      status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Create Stripe checkout session
+    const stripeClient = getStripeClient();
+    const session = await stripeClient.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Raffle Tickets',
+              description: `${quantity} ticket(s) for $126 each. Enter to win the Rolex Watch or $1,000 Cash Prize!`
+            },
+            unit_amount: ticketPrice
+          },
+          quantity: quantity
+        }
+      ],
+      mode: 'payment',
+      success_url: `${process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com'}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com'}/checkout.html`,
+      customer_email: email,
+      metadata: {
+        orderId: orderId,
+        quantity: quantity,
+        name: name,
+        phone: phone,
+        referrerRefId: referral || ''
+      }
+    });
+
+    // Update the order with session ID
+    await orderRef.update({
+      sessionId: session.id,
+      sessionUrl: session.url
+    });
+
+    return { sessionId: session.id, url: session.url };
+  } catch (err) {
+    console.error('createStripeCheckoutSession error:', err);
+    if (err instanceof functions.https.HttpsError) {
+      throw err;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to create Stripe checkout session', err.message);
+  }
+});
+
+/**
+ * Stripe Webhook Handler (HTTP Request Function)
+ * This endpoint is called by Stripe's servers, not your frontend.
+ * Configure webhook URL in Stripe Dashboard: https://dashboard.stripe.com/webhooks
+ */
+exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    const stripeClient = getStripeClient();
+    event = stripeClient.webhooks.constructEvent(req.rawBody || JSON.stringify(req.body), sig, endpointSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    const db = admin.firestore();
+
+    // Handle payment_intent.succeeded event
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+
+      console.log('Received checkout.session.completed event for session ID:', session.id);
+
+      const orderId = session.metadata?.orderId;
+      if (!orderId) {
+        console.error('No orderId found in session metadata');
+        return res.status(400).send('No orderId in metadata');
+      }
+
+      const orderDocRef = db.collection('stripe_orders').doc(orderId);
+      const orderDoc = await orderDocRef.get();
+
+      if (!orderDoc.exists) {
+        console.error('Order not found in Firestore for order ID:', orderId);
+        return res.status(200).send('Order not found, but webhook acknowledged');
+      }
+
+      const orderData = orderDoc.data();
+
+      // Prevent duplicate entries if webhook is received multiple times
+      if (orderData.raffleEntryCreatedAt) {
+        console.log(`Raffle entry already processed for order ${orderId}`);
+        return res.status(200).send('Raffle entry already processed');
+      }
+
+      // Look up referrer UID if referrerRefId exists
+      let referrerUid = null;
+      if (orderData.referrerRefId) {
+        const referrerQuerySnapshot = await db.collection('referrers')
+          .where('refId', '==', orderData.referrerRefId)
+          .limit(1)
+          .get();
+
+        if (!referrerQuerySnapshot.empty) {
+          referrerUid = referrerQuerySnapshot.docs[0].id;
+          console.log(`Found referrer UID: ${referrerUid} for refId: ${orderData.referrerRefId}`);
+        } else {
+          console.warn(`Referrer with refId ${orderData.referrerRefId} not found`);
+        }
+      }
+
+      // Create raffle entries - one for each ticket purchased
+      const tickets = orderData.quantity || 1;
+      for (let i = 0; i < tickets; i++) {
+        await db.collection('raffle_entries').add({
+          name: orderData.name,
+          email: orderData.email,
+          phone: orderData.phone,
+          referrerRefId: orderData.referrerRefId || null,
+          referrerUid: referrerUid,
+          amount: orderData.amount,
+          ticketsBought: tickets,
+          paymentStatus: 'completed',
+          orderId: orderId,
+          stripeSessionId: session.id,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          entryType: 'stripe',
+          ticketNumber: i + 1  // Which ticket in the order
+        });
+      }
+
+      // Update the Stripe order as processed
+      await orderDocRef.update({
+        status: 'completed',
+        raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        webhookProcessed: true,
+        stripeSessionId: session.id
+      });
+
+      console.log(`Successfully created ${tickets} raffle entries for order ${orderId}`);
+    }
+
+    // Acknowledge receipt of the event
+    res.status(200).send('Webhook received');
+
+  } catch (err) {
+    console.error('Error processing webhook event:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 // Added this simple test function again just to be sure your environment is fully healthy
 exports.testLogFunction = functions.https.onCall(async (data, context) => {
     console.log("TEST LOG: testLogFunction was called successfully!");
     return { status: "success", message: "Test log generated." };
+});
+
+/**
+ * SQUARE INTEGRATION FUNCTIONS
+ */
+
+/**
+ * Lazy initialization for Stripe and Square clients
+ * These are initialized inside functions to handle environment variables at runtime
+ */
+let stripe = null;
+let squareClient = null;
+
+function getStripeClient() {
+  if (!stripe) {
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecret) {
+      throw new functions.https.HttpsError('internal', 'STRIPE_SECRET_KEY environment variable not configured');
+    }
+    stripe = require('stripe')(stripeSecret);
+  }
+  return stripe;
+}
+
+function getSquareClient() {
+  if (!squareClient) {
+    const accessToken = process.env.SQUARE_ACCESS_TOKEN;
+    if (!accessToken) {
+      throw new functions.https.HttpsError('internal', 'SQUARE_ACCESS_TOKEN environment variable not configured');
+    }
+    const { Client, Environment } = require('square');
+    squareClient = new Client({
+      accessToken: accessToken,
+      environment: Environment.Production
+    });
+  }
+  return squareClient;
+}
+
+/**
+ * Firebase Callable Function to create a Square Payment Link for prize purchases.
+ * This is invoked directly from your frontend.
+ */
+exports.createSquarePaymentLink = functions.https.onCall(async (data, context) => {
+  const { prizeId, name, email, phone, referral } = data;
+
+  if (!prizeId || !name || !email || !phone) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: prizeId, name, email, or phone.');
+  }
+
+  // Define prize details (in cents)
+  const prizeDetails = {
+    rolex: {
+      name: 'Rolex Datejust 41 Watch',
+      amount: 5000, // $50.00 in cents
+      description: 'Rolex Datejust 41, Oystersteel with Jubilee bracelet'
+    },
+    cash: {
+      name: '$1,000 Cash Prize',
+      amount: 100000, // $1,000.00 in cents
+      description: 'One time $1,000 cash prize'
+    }
+  };
+
+  const prize = prizeDetails[prizeId];
+  if (!prize) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid prize ID');
+  }
+
+  try {
+    // Save initial order details to 'square_orders' collection
+    const orderRef = admin.firestore().collection('square_orders').doc();
+    const orderId = orderRef.id;
+
+    await orderRef.set({
+      prizeId,
+      name,
+      email,
+      phone,
+      referrerRefId: referral || null,
+      amount: prize.amount,
+      status: 'pending',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const locationId = process.env.SQUARE_LOCATION_ID;
+    if (!locationId) {
+      throw new functions.https.HttpsError('internal', 'Square location ID not configured');
+    }
+
+    // Create Square payment link
+    const squareClientInstance = getSquareClient();
+    const paymentLink = await squareClientInstance.checkoutApi.createPaymentLink({
+      idempotencyKey: orderId,
+      quickPay: {
+        name: prize.name,
+        priceMoney: {
+          amount: prize.amount,
+          currency: 'USD'
+        },
+        locationId: locationId
+      },
+      redirectUrl: `${process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com'}/success.html?order_id=${orderId}&payment_method=square`,
+      note: `Prize Entry - ${prizeId} | Name: ${name} | Email: ${email} | Phone: ${phone}`
+    });
+
+    if (!paymentLink?.result?.paymentLink?.url) {
+      throw new functions.https.HttpsError('internal', 'Failed to generate payment link URL');
+    }
+
+    // Update the order with payment link info
+    await orderRef.update({
+      paymentLinkId: paymentLink.result.paymentLink.id,
+      paymentLinkUrl: paymentLink.result.paymentLink.url
+    });
+
+    return { 
+      paymentLinkUrl: paymentLink.result.paymentLink.url,
+      orderId: orderId
+    };
+  } catch (err) {
+    console.error('createSquarePaymentLink error:', err);
+    if (err instanceof functions.https.HttpsError) {
+      throw err;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to create Square payment link', err.message);
+  }
+});
+
+/**
+ * Firebase Callable Function to verify Square payment completion
+ * This checks if a Square payment was completed for an order
+ */
+exports.verifySquarePayment = functions.https.onCall(async (data, context) => {
+  const { orderId } = data;
+
+  if (!orderId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing orderId');
+  }
+
+  try {
+    const db = admin.firestore();
+    const orderDocRef = db.collection('square_orders').doc(orderId);
+    const orderDoc = await orderDocRef.get();
+
+    if (!orderDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Order not found');
+    }
+
+    const orderData = orderDoc.data();
+
+    // If prize entry was already created, payment is confirmed
+    if (orderData.prizeEntryCreatedAt) {
+      return { 
+        status: 'completed',
+        message: 'Payment verified and prize entry created'
+      };
+    }
+
+    // Otherwise, payment is still pending
+    return {
+      status: 'pending',
+      message: 'Payment is being processed'
+    };
+  } catch (err) {
+    console.error('verifySquarePayment error:', err);
+    if (err instanceof functions.https.HttpsError) {
+      throw err;
+    }
+    throw new functions.https.HttpsError('internal', 'Failed to verify payment', err.message);
+  }
+});
+
+/**
+ * Square Webhook Handler - Processes payment notifications from Square
+ * Configure webhook in Square Dashboard → Developers → Webhooks
+ */
+exports.squareWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method Not Allowed');
+  }
+
+  try {
+    const event = req.body;
+    console.log('Received Square webhook event type:', event.type);
+
+    const db = admin.firestore();
+
+    // Handle payment successful event
+    if (event.type === 'payment.created' || event.type === 'payment.updated') {
+      const payment = event.data?.object?.payment;
+      
+      if (!payment) {
+        console.log('No payment object in webhook');
+        return res.status(200).send('No payment data');
+      }
+
+      // Check if payment is actually completed
+      if (payment.status !== 'COMPLETED') {
+        console.log(`Payment status: ${payment.status}, not processing`);
+        return res.status(200).send('Payment not completed yet');
+      }
+
+      // Extract order ID from the payment note
+      const note = payment.note || '';
+      const Match = note.match(/Prize Entry - (\w+)/);
+      const prizeId = Match ? Match[1] : null;
+
+      if (!prizeId) {
+        console.log('No prize ID found in payment note');
+        return res.status(200).send('Payment processed but no prize ID found');
+      }
+
+      // Find the square order by payment ID or custom metadata
+      const ordersSnapshot = await db.collection('square_orders')
+        .where('paymentLinkId', '==', event.data?.object?.payment_link?.id || '')
+        .limit(1)
+        .get();
+
+      if (ordersSnapshot.empty) {
+        console.log('No matching order found for payment');
+        return res.status(200).send('Payment processed but no matching order');
+      }
+
+      const orderDoc = ordersSnapshot.docs[0];
+      const orderRef = orderDoc.ref;
+      const orderData = orderDoc.data();
+
+      // Prevent duplicate entries
+      if (orderData.prizeEntryCreatedAt) {
+        console.log(`Prize entry already created for order ${orderDoc.id}`);
+        return res.status(200).send('Prize entry already processed');
+      }
+
+      // Look up referrer UID
+      let referrerUid = null;
+      if (orderData.referrerRefId) {
+        const referrerQuerySnapshot = await db.collection('referrers')
+          .where('refId', '==', orderData.referrerRefId)
+          .limit(1)
+          .get();
+
+        if (!referrerQuerySnapshot.empty) {
+          referrerUid = referrerQuerySnapshot.docs[0].id;
+          console.log(`Found referrer UID: ${referrerUid}`);
+        }
+      }
+
+      // Create prize entry
+      await db.collection('prize_entries').add({
+        prizeId: orderData.prizeId,
+        name: orderData.name,
+        email: orderData.email,
+        phone: orderData.phone,
+        referrerRefId: orderData.referrerRefId || null,
+        referrerUid: referrerUid,
+        amount: orderData.amount,
+        paymentStatus: 'completed',
+        orderId: orderDoc.id,
+        squarePaymentId: payment.id,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        entryType: 'square'
+      });
+
+      // Update square order
+      await orderRef.update({
+        status: 'completed',
+        prizeEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        squarePaymentId: payment.id,
+        squarePaymentStatus: payment.status
+      });
+
+      console.log(`Successfully processed prize entry for order ${orderDoc.id}`);
+      return res.status(200).send('Webhook processed successfully');
+    }
+
+    // Other event types are acknowledged but not processed
+    res.status(200).send('Webhook received');
+
+  } catch (err) {
+    console.error('squareWebhook error:', err);
+    res.status(500).send('Internal Server Error');
+  }
 });

@@ -155,7 +155,7 @@
 
     <div class="container">
         <h1>Thank You For Your Purchase!</h1>
-        <p>Your support of Yeshivat Torat Yosef is greatly appreciated. A confirmation and your ticket details have been sent to your email.</p>
+        <p id="message">Your support of Yeshivat Torat Yosef is greatly appreciated. A confirmation and your details have been sent to your email.</p>
         
         <p id="referrer-display"></p> 
 
@@ -193,7 +193,25 @@
             }
 
             const referrerId = getUrlParameter('ref');
+            const sessionId = getUrlParameter('session_id');
             const referrerDisplay = document.getElementById('referrer-display');
+            const messageDisplay = document.getElementById('message');
+
+            // Handle Stripe checkout session success
+            if (sessionId) {
+                messageDisplay.textContent = `Your payment has been processed successfully! Session ID: ${sessionId}. A confirmation email with your prize entry details has been sent to you.`;
+                
+                // Log Stripe purchase event
+                logEvent(analytics, 'stripe_purchase_success', {
+                    session_id: sessionId,
+                    referrer: referrerId || 'none'
+                });
+            } else {
+                // Log regular PayPal purchase event or direct visit
+                logEvent(analytics, 'checkout_completed', {
+                    referrer: referrerId || 'none'
+                });
+            }
 
             if (referrerId) {
                 referrerDisplay.textContent = `You were referred by: ${referrerId}. Thank you for supporting their efforts!`;
