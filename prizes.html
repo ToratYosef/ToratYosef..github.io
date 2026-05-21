@@ -233,6 +233,20 @@
       let showPaymentForm = false;
       let isProcessing = false;
 
+      const hostname = String(window.location.hostname || '').toLowerCase();
+      const shouldUseFunctionsHost = hostname === 'toratyosefsummerraffle.com' || hostname === 'www.toratyosefsummerraffle.com';
+      const functionsBaseUrl = 'https://us-central1-torat-yose.cloudfunctions.net';
+
+      function resolveSquareApiUrl(functionName, hostingPath) {
+        if (shouldUseFunctionsHost) {
+          return `${functionsBaseUrl}/${functionName}`;
+        }
+        return hostingPath;
+      }
+
+      const squareCardConfigUrl = resolveSquareApiUrl('getSquareCardConfig', '/api/square/card-config');
+      const squareCardPaymentUrl = resolveSquareApiUrl('createSquareCardPayment', '/api/square/create-card-payment');
+
       function getSavedReferrer() {
         if (window.__referral && typeof window.__referral.getReferrer === 'function') {
           return window.__referral.getReferrer();
@@ -307,7 +321,7 @@
           return;
         }
         try {
-          const configResponse = await fetch('/api/square/card-config');
+          const configResponse = await fetch(squareCardConfigUrl);
           const configData = await configResponse.json();
 
           if (!configResponse.ok || !configData.appId || !configData.locationId) {
@@ -397,7 +411,7 @@
             throw new Error('Card details are invalid. Please check and try again.');
           }
 
-          const response = await fetch('/api/square/create-card-payment', {
+          const response = await fetch(squareCardPaymentUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
