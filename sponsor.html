@@ -23,7 +23,7 @@
     <section class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
       <p class="text-lg font-semibold text-slate-900">Interested in sponsoring?</p>
       <p class="mt-2 text-slate-600">Contact us and we will help you choose the right dedication opportunity.</p>
-      <a id="ticket-link" href="checkout.html" class="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
+      <a id="ticket-link" href="prizes.html#checkout-on-page" class="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
         Purchase Tickets
       </a>
     </section>
@@ -80,7 +80,7 @@
         referralInfo.innerHTML = '<strong>You were referred by:</strong> ' + ref;
 
         const ticketLink = document.getElementById('ticket-link');
-        ticketLink.href = 'checkout.html?ref=' + encodeURIComponent(ref);
+        ticketLink.href = 'prizes.html?ref=' + encodeURIComponent(ref) + '#checkout-on-page';
       }
     });
   </script>
