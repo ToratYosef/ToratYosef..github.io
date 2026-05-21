@@ -4,6 +4,65 @@ const { WebhooksHelper } = require('square');
 
 admin.initializeApp();
 
+function normalizeAliasKey(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function toRefCodeToken(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9]/g, '');
+}
+
+function generateRefIdFromName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    throw new functions.https.HttpsError('invalid-argument', 'Name is required to generate a referral ID.');
+  }
+
+  const first = toRefCodeToken(parts[0]);
+  const last = toRefCodeToken(parts[parts.length - 1]);
+  if (!first || !last) {
+    throw new functions.https.HttpsError('invalid-argument', 'Name must include valid letters/numbers.');
+  }
+
+  const firstNormalized = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+  const lastInitial = last.charAt(0).toUpperCase();
+  return `${firstNormalized}${lastInitial}`;
+}
+
+function buildAdminAliasKeys(name, refId, email) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const first = parts[0] || '';
+  const last = parts[parts.length - 1] || '';
+  const firstLastInitial = `${first}${last ? ' ' + last.charAt(0) : ''}`.trim();
+
+  const candidates = [
+    refId,
+    name,
+    firstLastInitial,
+    String(email || '').split('@')[0] || ''
+  ];
+
+  return Array.from(new Set(
+    candidates
+      .map(normalizeAliasKey)
+      .filter(Boolean)
+  ));
+}
+
+async function saveAdminAliases({ uid, email, name, refId }) {
+  const db = admin.firestore();
+  const aliases = buildAdminAliasKeys(name, refId, email);
+  const writes = aliases.map((aliasKey) => db.collection('adminLoginAliases').doc(aliasKey).set({
+    uid,
+    email,
+    name,
+    refId,
+    aliasKey,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true }));
+  await Promise.all(writes);
+}
+
 /**
  * Firebase Callable Function to get referrer dashboard data.
  * Requires authentication.
@@ -190,22 +249,23 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
     // This is a significant security risk for a production environment.
 
     // 2. Validate Input Data
-    const { email, password, name, refId, goal, isSuperAdminReferrer } = data;
+    const { email, password, name, goal, isSuperAdminReferrer } = data;
+    const generatedRefId = generateRefIdFromName(name);
 
-    if (!email || !password || !name || !refId || typeof goal !== 'number' || goal < 0) {
-        throw new functions.https.HttpsError('invalid-argument', 'Missing or invalid fields: email, password, name, refId, or goal.');
+    if (!email || !password || !name || typeof goal !== 'number' || goal < 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Missing or invalid fields: email, password, name, or goal.');
     }
     if (password.length < 6) {
         throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 6 characters long.');
     }
-    if (!refId.match(/^[a-zA-Z0-9]+$/)) {
-        throw new functions.https.HttpsError('invalid-argument', 'Referral ID must be alphanumeric (letters and numbers only).');
+    if (!generatedRefId.match(/^[a-zA-Z0-9]+$/)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Generated referral ID is invalid.');
     }
 
     try {
         // 3. Check if refId already exists to ensure uniqueness
         const existingRefId = await admin.firestore().collection('referrers')
-            .where('refId', '==', refId)
+          .where('refId', '==', generatedRefId)
             .limit(1)
             .get();
 
@@ -232,13 +292,20 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
         await admin.firestore().collection('referrers').doc(userRecord.uid).set({
             name: name,
             email: email,
-            refId: refId,
+            refId: generatedRefId,
             goal: goal,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log(`Successfully created new referrer: ${name} (${email}) with UID: ${userRecord.uid}. Is Super Admin: ${!!isSuperAdminReferrer}`);
-        return { success: true, uid: userRecord.uid, message: 'Referrer account created successfully.' };
+          await saveAdminAliases({
+            uid: userRecord.uid,
+            email,
+            name,
+            refId: generatedRefId
+          });
+
+          console.log(`Successfully created new referrer: ${name} (${email}) with UID: ${userRecord.uid}. RefId: ${generatedRefId}. Is Super Admin: ${!!isSuperAdminReferrer}`);
+          return { success: true, uid: userRecord.uid, refId: generatedRefId, message: 'Referrer account created successfully.' };
 
     } catch (error) {
         console.error('Error creating referrer account:', error);
@@ -525,10 +592,13 @@ function getSquareClient() {
     if (!accessToken) {
       throw new functions.https.HttpsError('internal', 'Square access token environment variable not configured for current mode');
     }
-    const { Client, Environment } = require('square');
-    const squareEnv = useSquareTestEnvironment() ? Environment.Sandbox : Environment.Production;
-    squareClient = new Client({
+    const squareSdk = require('square');
+    const ClientCtor = squareSdk.Client || squareSdk.SquareClient;
+    const EnvEnum = squareSdk.Environment || squareSdk.SquareEnvironment;
+    const squareEnv = useSquareTestEnvironment() ? EnvEnum.Sandbox : EnvEnum.Production;
+    squareClient = new ClientCtor({
       accessToken: accessToken,
+      token: accessToken,
       environment: squareEnv
     });
   }
@@ -666,6 +736,123 @@ exports.verifySquarePayment = functions.https.onCall(async (data, context) => {
       throw err;
     }
     throw new functions.https.HttpsError('internal', 'Failed to verify payment', err.message);
+  }
+});
+
+/**
+ * HTTP endpoint for web checkout pages.
+ * Supports hosting rewrite from /api/square/create-checkout-session.
+ */
+exports.createSquareCheckoutSession = functions.region('us-central1').https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { name, email, phone, referral, quantity } = body;
+    const parsedQuantity = Math.max(1, Math.min(99, parseInt(quantity, 10) || 1));
+    const ticketPrice = 126;
+    const totalAmount = parsedQuantity * ticketPrice;
+    const normalizedReferrer = (referral || 'direct').trim() || 'direct';
+
+    if (!name || !email || !phone) {
+      return res.status(400).json({ error: 'Missing required fields: name, email, phone.' });
+    }
+
+    const db = admin.firestore();
+    const orderRef = db.collection('square_orders').doc();
+    const orderId = orderRef.id;
+
+    const preferTest = useSquareTestEnvironment();
+    const testAccessToken = process.env.SQUARE_TEST_TEST_ACCESS_TOKEN || process.env.SQUARE_TEST_ACCESS_TOKEN;
+    const testLocationId = process.env.SQUARE_TEST_LOCATION_ID;
+    const liveAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+    const liveLocationId = process.env.SQUARE_LOCATION_ID;
+    const canUseTest = Boolean(preferTest && testAccessToken && testLocationId);
+    const isTest = canUseTest;
+    const squareAccessToken = isTest ? testAccessToken : liveAccessToken;
+    const squareLocationId = isTest ? testLocationId : liveLocationId;
+    const siteDomain = process.env.DOMAIN || 'https://toratyosefsummerraffle.com';
+
+    await orderRef.set({
+      name,
+      email,
+      phone,
+      referrerRefId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
+      quantity: parsedQuantity,
+      amount: totalAmount,
+      status: 'pending_redirect',
+      provider: 'square',
+      squareMode: isTest ? 'test' : 'live',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    if (!squareAccessToken || !squareLocationId) {
+      return res.status(500).json({ error: 'Square is not configured. Add SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID.' });
+    }
+
+    const squareApiBase = isTest ? 'https://connect.squareupsandbox.com' : 'https://connect.squareup.com';
+    const squareResponse = await fetch(`${squareApiBase}/v2/online-checkout/payment-links`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${squareAccessToken}`,
+        'Content-Type': 'application/json',
+        'Square-Version': '2025-01-23'
+      },
+      body: JSON.stringify({
+        idempotency_key: orderId,
+        quick_pay: {
+          name: `Yeshivat Torat Yosef Raffle (${parsedQuantity} ticket${parsedQuantity > 1 ? 's' : ''})`,
+          price_money: {
+            amount: Math.round(totalAmount * 100),
+            currency: 'USD'
+          },
+          location_id: squareLocationId
+        },
+        checkout_options: {
+          redirect_url: `${siteDomain}/success.html?orderId=${orderId}`
+        }
+      })
+    });
+
+    const squareData = await squareResponse.json();
+    const paymentLinkData = squareData?.payment_link || null;
+    const checkoutUrl = paymentLinkData?.url || null;
+
+    if (!checkoutUrl) {
+      const squareErrors = squareData?.errors || null;
+      console.error('Square create payment link failed: missing URL', {
+        status: squareResponse.status,
+        hasPaymentLinkData: Boolean(paymentLinkData),
+        squareErrors,
+        responseKeys: Object.keys(squareData || {})
+      });
+      return res.status(500).json({
+        error: 'Square payment link creation failed.',
+        details: squareErrors || null
+      });
+    }
+
+    await orderRef.update({
+      checkoutUrl,
+      paymentLinkId: paymentLinkData.id || null,
+      squareOrderId: paymentLinkData.orderId || paymentLinkData.order_id || null,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return res.status(200).json({ url: checkoutUrl });
+  } catch (error) {
+    const squareErrors = error?.result?.errors || error?.errors || null;
+    const squareMessage = error?.message || 'Failed to create Square checkout session.';
+    console.error('createSquareCheckoutSession error:', {
+      message: squareMessage,
+      squareErrors
+    });
+    return res.status(500).json({
+      error: 'Failed to create Square checkout session.',
+      details: squareErrors || squareMessage
+    });
   }
 });
 
