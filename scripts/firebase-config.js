@@ -1,10 +1,10 @@
 // /scripts/firebase-config.js
 export const firebaseConfig = {
-  apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+  apiKey: "AIzaSyAVSkxnzvt6jJOSgQcaRFX7tfnPPPeYQvY",
   authDomain: "torat-yose.firebaseapp.com",
   projectId: "torat-yose",
   storageBucket: "torat-yose.appspot.com",
-  messagingSenderId: "1033400220494",
-  appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
-  measurementId: "G-331D9RHZWH"
+  messagingSenderId: "1054733969512",
+  appId: "1:1054733969512:web:9703846085ab15d08c73dd",
+  measurementId: "G-9RYXQP6NFD"
 };

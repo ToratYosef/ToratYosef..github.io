@@ -151,10 +151,13 @@
 
     const headerMount = ensureMount('site-header-root', 'top');
     const footerMount = ensureMount('site-footer-root', 'bottom');
+    const isAdminPage = window.location.pathname.indexOf('/admin/') === 0;
+    const headerPath = isAdminPage ? '/admin/header.html' : '/header.html';
+    const footerPath = isAdminPage ? '/admin/footer.html' : '/footer.html';
 
     Promise.all([
-      loadPartial('/header.html', headerMount),
-      loadPartial('/footer.html', footerMount)
+      loadPartial(headerPath, headerMount),
+      loadPartial(footerPath, footerMount)
     ]).then(function () {
       setActiveLink(headerMount);
       setupScrollState(headerMount);

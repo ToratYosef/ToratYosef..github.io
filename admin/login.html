@@ -91,6 +91,7 @@
     }
 
     .username-input-wrap input[type="text"],
+    .username-input-wrap input[type="email"],
     .form-group input[type="password"] {
       width: 100%;
       padding: 12px;
@@ -195,10 +196,9 @@
 
     <form id="login-form"> 
       <div class="form-group">
-        <label for="username">Ref ID</label>
+        <label for="username">Email</label>
         <div class="username-input-wrap">
-          <input type="text" id="username" autocomplete="username" inputmode="text" autocapitalize="none" spellcheck="false" required placeholder="MorrisE" />
-          <span class="username-domain">@toratyosefsummerraffle.com</span>
+          <input type="email" id="username" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required placeholder="admin@example.com" />
         </div>
       </div>
 
@@ -225,13 +225,13 @@
   <script>
     // Initialize Firebase with your provided configuration
     const firebaseConfig = {
-      apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
+      apiKey: "AIzaSyAVSkxnzvt6jJOSgQcaRFX7tfnPPPeYQvY",
       authDomain: "torat-yose.firebaseapp.com",
       projectId: "torat-yose",
       storageBucket: "torat-yose.firebasestorage.app",
-      messagingSenderId: "1033400220494",
-      appId: "1:1033400220494:web:1437414bdad44399d6bc1f",
-      measurementId: "G-331D9RHZWH"
+      messagingSenderId: "1054733969512",
+      appId: "1:1054733969512:web:9703846085ab15d08c73dd",
+      measurementId: "G-9RYXQP6NFD"
     };
     firebase.initializeApp(firebaseConfig);
 
@@ -243,9 +243,6 @@
     const loginButton = document.getElementById('login-button');
     const errorMessageElement = document.getElementById('error-message');
     const loginForm = document.getElementById('login-form');
-
-    // Define your fixed domain
-    const FIXED_DOMAIN = '@toratyosefsummerraffle.com';
 
     // Function to display error messages
     function showError(message) {
@@ -259,27 +256,9 @@
       errorMessageElement.style.display = 'none';
     }
 
-    function sanitizeRefId(value) {
-      return String(value || '').replace(/[^a-zA-Z0-9]/g, '');
+    function normalizeEmail(value) {
+      return String(value || '').trim().toLowerCase();
     }
-
-    function resolveLoginEmail(enteredValue) {
-      const refId = sanitizeRefId(enteredValue);
-      return (refId + FIXED_DOMAIN).toLowerCase();
-    }
-
-    usernameInput.addEventListener('input', () => {
-      const cleaned = sanitizeRefId(usernameInput.value);
-      if (usernameInput.value !== cleaned) {
-        usernameInput.value = cleaned;
-      }
-    });
-
-    usernameInput.addEventListener('keydown', (event) => {
-      if (event.key === '@') {
-        event.preventDefault();
-      }
-    });
 
     // Handle login form submission
     loginForm.addEventListener('submit', async (event) => {
@@ -290,10 +269,10 @@
       let enteredValue = usernameInput.value.trim();
       const password = passwordInput.value.trim();
 
-      enteredValue = sanitizeRefId(enteredValue);
+      enteredValue = normalizeEmail(enteredValue);
 
       if (!enteredValue || !password) {
-        showError('Please enter both Ref ID and password.');
+        showError('Please enter both email and password.');
         return;
       }
 
@@ -301,18 +280,17 @@
       loginButton.textContent = 'Logging In...';
 
       try {
-        const emailToLogin = resolveLoginEmail(enteredValue);
-        await auth.signInWithEmailAndPassword(emailToLogin, password);
+        await auth.signInWithEmailAndPassword(enteredValue, password);
         window.location.href = './dashboard.html';
       } catch (error) {
         console.error('Login error:', error);
-        let userMessage = 'Login failed. Please check your Ref ID and password.';
+        let userMessage = 'Login failed. Please check your email and password.';
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-          userMessage = 'Invalid Ref ID or password.';
+          userMessage = 'Invalid email or password.';
         } else if (error.code === 'auth/invalid-email') {
-            userMessage = 'Ref ID format is invalid. Use letters and numbers only.';
+            userMessage = 'Email format is invalid.';
         } else if (error.code === 'auth/invalid-login-credentials') {
-          userMessage = 'Invalid Ref ID or password.';
+          userMessage = 'Invalid email or password.';
         }
         else if (error.code === 'auth/too-many-requests') {
           userMessage = 'Too many login attempts. Please try again later.';
