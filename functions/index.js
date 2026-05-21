@@ -751,6 +751,21 @@ function getSquareClient() {
   return squareClient;
 }
 
+function applyCors(req, res) {
+  const origin = req.get('origin') || '*';
+  res.set('Access-Control-Allow-Origin', origin);
+  res.set('Vary', 'Origin');
+  res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Firebase Callable Function to create a Square Payment Link for prize purchases.
  * This is invoked directly from your frontend.
@@ -890,6 +905,10 @@ exports.verifySquarePayment = functions.https.onCall(async (data, context) => {
  */
 exports.getSquareCardConfig = functions.region('us-central1').https.onRequest(async (req, res) => {
   try {
+    if (applyCors(req, res)) {
+      return;
+    }
+
     if (req.method !== 'GET') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -914,6 +933,10 @@ exports.getSquareCardConfig = functions.region('us-central1').https.onRequest(as
  * Processes Square card token from on-page checkout.
  */
 exports.createSquareCardPayment = functions.region('us-central1').https.onRequest(async (req, res) => {
+  if (applyCors(req, res)) {
+    return;
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
