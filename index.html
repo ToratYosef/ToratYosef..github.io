@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yeshivat Torat Yosef - Home</title>
+<meta name="theme-color" content="#ffffff" />
+<link rel="icon" type="image/png" href="assets/logo.png" />
+<link rel="shortcut icon" type="image/png" href="assets/logo.png" />
+<style>
+  :root {
+    --primary-bg: #f6f8fb;
+    --primary-text: #0f2f4d;
+    --secondary-bg: #002141;
+    --accent: #7f0031;
+    --hover: #590023;
+    --card-bg: #ffffff;
+    --muted: #5b7086;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(127, 0, 49, 0.07) 0%, rgba(127, 0, 49, 0) 40%),
+      radial-gradient(circle at 90% 20%, rgba(0, 33, 65, 0.08) 0%, rgba(0, 33, 65, 0) 38%),
+      var(--primary-bg);
+    color: var(--primary-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  main {
+    width: min(1120px, calc(100% - 2rem));
+    margin: 2rem auto 3rem;
+    display: grid;
+    gap: 1.3rem;
+  }
+
+  .hero {
+    background: linear-gradient(145deg, #0f3558 0%, #002141 62%, #1a2643 100%);
+    border-radius: 20px;
+    padding: clamp(1.3rem, 2.5vw, 2.4rem);
+    color: #fff;
+    box-shadow: 0 20px 45px rgba(0, 22, 43, 0.24);
+  }
+
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(1.7rem, 4vw, 2.8rem);
+    line-height: 1.12;
+  }
+
+  .hero p {
+    margin: 0.85rem 0 0;
+    max-width: 62ch;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 1.04rem;
+    line-height: 1.52;
+  }
+
+  .hero-actions {
+    margin-top: 1.2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+  }
+
+  .hero-btn {
+    text-decoration: none;
+    font-weight: 700;
+    padding: 0.72rem 1.05rem;
+    border-radius: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  }
+
+  .hero-btn.primary {
+    color: #fff;
+    background: linear-gradient(120deg, #a30040, #7f0031);
+    box-shadow: 0 10px 20px rgba(127, 0, 49, 0.3);
+  }
+
+  .hero-btn.secondary {
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .hero-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .facts {
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .fact {
+    background: var(--card-bg);
+    border: 1px solid #dde5ef;
+    border-radius: 14px;
+    padding: 0.95rem;
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(8, 35, 59, 0.08);
+  }
+
+  .fact-label {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.35rem;
+  }
+
+  .fact-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--accent);
+  }
+
+  .slideshow-card {
+    background: var(--card-bg);
+    border-radius: 20px;
+    border: 1px solid #e4eaf1;
+    box-shadow: 0 20px 36px rgba(8, 35, 59, 0.1);
+    padding: clamp(0.8rem, 2vw, 1rem);
+  }
+
+  .slideshow-shell {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    background: #021f39;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.65s ease;
+  }
+
+  .slide.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    filter: saturate(1.06) contrast(1.02);
+  }
+
+  .slide-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 1.1rem 1rem 1.05rem;
+    background: linear-gradient(to top, rgba(0, 22, 43, 0.78), rgba(0, 22, 43, 0));
+    color: #fff;
+  }
+
+  .slide-overlay h3 {
+    margin: 0;
+    font-size: clamp(1rem, 2vw, 1.35rem);
+    font-weight: 700;
+  }
+
+  .slide-overlay p {
+    margin: 0.3rem 0 0;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .slide-controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.45rem;
+    padding-top: 0.8rem;
+  }
+
+  .dot {
+    width: 11px;
+    height: 11px;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    background: #d3dce7;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+  }
+
+  .dot.active {
+    background: var(--accent);
+    transform: scale(1.1);
+  }
+
+  .prize-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .prize-card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 1rem;
+    box-shadow: 0 10px 26px rgba(8, 35, 59, 0.08);
+  }
+
+  .prize-card .label {
+    display: inline-block;
+    font-size: 0.73rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fff;
+    background: var(--secondary-bg);
+    border-radius: 999px;
+    padding: 0.25rem 0.55rem;
+  }
+
+  .prize-card h2 {
+    margin: 0.7rem 0 0.4rem;
+    color: var(--accent);
+    font-size: 1.32rem;
+  }
+
+  .prize-card p {
+    margin: 0;
+    line-height: 1.48;
+    color: var(--primary-text);
+  }
+
+  .footnote {
+    margin: 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  @media (max-width: 720px) {
+    main {
+      margin-top: 1.2rem;
+    }
+
+    .slideshow-shell {
+      aspect-ratio: 4 / 3;
+    }
+  }
+</style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>Support Torah, Win Big</h1>
+      <p>
+        Enter the Yeshivat Torat Yosef raffle and help strengthen Torah education for the next generation.
+        Every ticket directly supports the Yeshiva and our talmidim.
+      </p>
+      <div class="hero-actions">
+        <a class="hero-btn primary" id="hero-buy-btn" href="checkout.html">Get Tickets</a>
+        <a class="hero-btn secondary" id="hero-prizes-btn" href="prizes.html">View Full Prize Details</a>
+      </div>
+    </section>
+
+    <section class="facts" aria-label="Raffle highlights">
+      <article class="fact">
+        <span class="fact-label">Ticket Price</span>
+        <span class="fact-value">$126</span>
+      </article>
+      <article class="fact">
+        <span class="fact-label">Total Winners</span>
+        <span class="fact-value">1 Winner</span>
+      </article>
+      <article class="fact">
+        <span class="fact-label">Prize 1</span>
+        <span class="fact-value">Rolex Datejust 41</span>
+      </article>
+      <article class="fact">
+        <span class="fact-label">Prize 2</span>
+        <span class="fact-value">$10,000 Cash</span>
+      </article>
+    </section>
+
+    <section class="slideshow-card" aria-label="Yeshiva gallery">
+      <div class="slideshow-shell" id="slideshow-shell">
+        <article class="slide active">
+          <img src="assets/slide1.jpg" alt="Yeshiva community" />
+          <div class="slide-overlay">
+            <h3>Build the Future</h3>
+            <p>Help us raise young leaders in Torah and middot.</p>
+          </div>
+        </article>
+        <article class="slide">
+          <img src="assets/slide2.jpg" alt="Learning Torah" />
+          <div class="slide-overlay">
+            <h3>Strengthen Torah Learning</h3>
+            <p>Your support powers daily growth and inspiration.</p>
+          </div>
+        </article>
+        <article class="slide">
+          <img src="assets/slide3.jpg" alt="Students and mentors" />
+          <div class="slide-overlay">
+            <h3>Support Our Talmidim</h3>
+            <p>Each ticket helps sustain a thriving yeshiva environment.</p>
+          </div>
+        </article>
+        <article class="slide">
+          <img src="assets/slide4.jpeg" alt="Community event" />
+          <div class="slide-overlay">
+            <h3>Join the Mission</h3>
+            <p>One community, one purpose, one lasting impact.</p>
+          </div>
+        </article>
+        <article class="slide">
+          <img src="assets/slide5.jpeg" alt="Yeshiva life" />
+          <div class="slide-overlay">
+            <h3>Invest in the Next Generation</h3>
+            <p>Make a difference while entering for incredible prizes.</p>
+          </div>
+        </article>
+        <article class="slide">
+          <img src="assets/slide6.jpeg" alt="Yeshiva celebration" />
+          <div class="slide-overlay">
+            <h3>One Winner. Two Major Prizes.</h3>
+            <p>Rolex Datejust 41 and $10,000 cash for one winner.</p>
+          </div>
+        </article>
+      </div>
+      <div class="slide-controls" id="slide-controls" aria-label="Slide controls"></div>
+    </section>
+
+    <section class="prize-grid" aria-label="Featured prizes">
+      <article class="prize-card">
+        <span class="label">Prize 1</span>
+        <h2>Rolex Datejust 41</h2>
+        <p>Oyster, 41 mm, Oystersteel. A timeless watch with iconic Rolex elegance.</p>
+      </article>
+      <article class="prize-card">
+        <span class="label">Prize 2</span>
+        <h2>$10,000 Cash</h2>
+        <p>One winner takes both prizes. Tickets are $126 each.</p>
+      </article>
+    </section>
+
+    <p class="footnote">Payments are now processed with Square at checkout.</p>
+  </main>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const controls = document.getElementById('slide-controls');
+    let current = 0;
+    let timer;
+
+    function updateSlide(index) {
+      current = (index + slides.length) % slides.length;
+      slides.forEach(function (slide, i) {
+        slide.classList.toggle('active', i === current);
+      });
+
+      controls.querySelectorAll('.dot').forEach(function (dot, i) {
+        dot.classList.toggle('active', i === current);
+        dot.setAttribute('aria-selected', i === current ? 'true' : 'false');
+      });
+    }
+
+    function startRotation() {
+      clearInterval(timer);
+      timer = setInterval(function () {
+        updateSlide(current + 1);
+      }, 4300);
+    }
+
+    slides.forEach(function (_, i) {
+      const dot = document.createElement('button');
+      dot.className = 'dot' + (i === 0 ? ' active' : '');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+      dot.addEventListener('click', function () {
+        updateSlide(i);
+        startRotation();
+      });
+      controls.appendChild(dot);
+    });
+
+    function getUrlParameter(name) {
+      const escaped = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      const regex = new RegExp('[\\?&]' + escaped + '=([^&#]*)');
+      const results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+
+    const referrerId = getUrlParameter('ref');
+    if (referrerId) {
+      [document.getElementById('hero-buy-btn'), document.getElementById('hero-prizes-btn')].forEach(function (link) {
+        const originalHref = link.getAttribute('href');
+        link.href = originalHref.includes('?')
+          ? originalHref + '&ref=' + encodeURIComponent(referrerId)
+          : originalHref + '?ref=' + encodeURIComponent(referrerId);
+      });
+    }
+
+    updateSlide(0);
+    startRotation();
+  });
+</script>
+<script defer src="/scripts/layout.js"></script>
+</body>
+</html>

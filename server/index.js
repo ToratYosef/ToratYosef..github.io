@@ -4,7 +4,9 @@ const express = require('express');
 const paypal = require('@paypal/checkout-server-sdk');
 const admin = require('firebase-admin');
 const ExcelJS = require('exceljs');
-const Stripe = require('stripe');
+
+// Also load env values commonly stored for cloud functions in this repo.
+require('dotenv').config({ path: path.resolve(__dirname, '../functions/.env.local') });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -19,9 +21,6 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const ticketPrice = 126;
 const siteDomain = process.env.DOMAIN || 'https://toratyosefsummerraffle.com';
-
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
-const stripe = stripeSecret ? new Stripe(stripeSecret) : null;
 
 let paypalEnvironment;
 if (process.env.PAYPAL_ENVIRONMENT === 'live') {
@@ -238,67 +237,102 @@ app.post('/api/paypal/webhook', async (req, res) => {
 });
 
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
-    if (!stripe) {
-        return res.status(500).json({ error: 'Stripe is not configured on the server.' });
-    }
+    return res.status(410).json({ error: 'Stripe checkout is disabled. Please use Square checkout.' });
+});
 
-    const { name, email, phone, referral } = req.body;
+app.post('/api/square/create-checkout-session', async (req, res) => {
+    const { name, email, phone, referral, quantity } = req.body;
+    const parsedQuantity = Math.max(1, Math.min(99, parseInt(quantity, 10) || 1));
+    const totalAmount = parsedQuantity * ticketPrice;
+    const squareBaseUrl = process.env.SQUARE_CHECKOUT_URL;
+    const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+    const squareLocationId = process.env.SQUARE_LOCATION_ID;
+    const squareEnvironment = (process.env.SQUARE_ENVIRONMENT || 'sandbox').toLowerCase();
+    const squareApiBase = squareEnvironment === 'production'
+        ? 'https://connect.squareup.com'
+        : 'https://connect.squareupsandbox.com';
+
     if (!name || !email || !phone) {
         return res.status(400).json({ error: 'Missing required fields: name, email, phone.' });
     }
 
     try {
-        const orderRef = db.collection('stripe_orders').doc();
+        const orderRef = db.collection('square_orders').doc();
         const orderId = orderRef.id;
-        const priceCents = 12600;
 
         await orderRef.set({
             name,
             email,
             phone,
             referrerRefId: referral || null,
-            quantity: 1,
-            amount: priceCents,
-            status: 'pending',
+            quantity: parsedQuantity,
+            amount: totalAmount,
+            status: 'pending_redirect',
+            provider: 'square',
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [
-                {
-                    price_data: {
-                        currency: 'usd',
-                        product_data: {
-                            name: 'Rolex Raffle Entry',
-                            description: 'Raffle entry for the Rolex Datejust 41 prize.'
+        let checkoutUrl;
+        let paymentLinkId = null;
+
+        if (squareAccessToken && squareLocationId) {
+            const squareResponse = await fetch(`${squareApiBase}/v2/online-checkout/payment-links`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${squareAccessToken}`,
+                    'Content-Type': 'application/json',
+                    'Square-Version': '2025-01-23'
+                },
+                body: JSON.stringify({
+                    idempotency_key: orderId,
+                    quick_pay: {
+                        name: `Yeshivat Torat Yosef Raffle (${parsedQuantity} ticket${parsedQuantity > 1 ? 's' : ''})`,
+                        price_money: {
+                            amount: Math.round(totalAmount * 100),
+                            currency: 'USD'
                         },
-                        unit_amount: priceCents
+                        location_id: squareLocationId
                     },
-                    quantity: 1
-                }
-            ],
-            mode: 'payment',
-            success_url: `${siteDomain}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${siteDomain}/prizes.html`,
-            customer_email: email,
-            metadata: {
-                orderId,
-                name,
-                phone,
-                referrerRefId: referral || ''
+                    checkout_options: {
+                        redirect_url: `${siteDomain}/success.html?orderId=${orderId}`
+                    }
+                })
+            });
+
+            const squareData = await squareResponse.json();
+            if (!squareResponse.ok || !squareData.payment_link?.url) {
+                console.error('Square create payment link failed:', squareData);
+                return res.status(500).json({ error: 'Square payment link creation failed.' });
             }
-        });
+
+            checkoutUrl = squareData.payment_link.url;
+            paymentLinkId = squareData.payment_link.id || null;
+        } else if (squareBaseUrl) {
+            const fallbackCheckoutUrl = new URL(squareBaseUrl);
+            fallbackCheckoutUrl.searchParams.set('orderId', orderId);
+            fallbackCheckoutUrl.searchParams.set('quantity', String(parsedQuantity));
+            fallbackCheckoutUrl.searchParams.set('amount', totalAmount.toFixed(2));
+            fallbackCheckoutUrl.searchParams.set('name', name);
+            fallbackCheckoutUrl.searchParams.set('email', email);
+            fallbackCheckoutUrl.searchParams.set('phone', phone);
+            if (referral) {
+                fallbackCheckoutUrl.searchParams.set('ref', referral);
+            }
+            checkoutUrl = fallbackCheckoutUrl.toString();
+        } else {
+            return res.status(500).json({ error: 'Square is not configured. Add SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID.' });
+        }
 
         await orderRef.update({
-            sessionId: session.id,
-            sessionUrl: session.url
+            checkoutUrl,
+            paymentLinkId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        return res.status(200).json({ sessionId: session.id, url: session.url });
+        return res.status(200).json({ url: checkoutUrl });
     } catch (error) {
-        console.error('Stripe checkout error:', error.message);
-        return res.status(500).json({ error: 'Failed to create Stripe checkout session.' });
+        console.error('Square checkout error:', error.message);
+        return res.status(500).json({ error: 'Failed to create Square checkout session.' });
     }
 });
 

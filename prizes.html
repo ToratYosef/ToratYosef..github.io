@@ -517,7 +517,7 @@
     </nav>
     <div class="container">
         <h1>Raffle Prizes</h1>
-        <p class="intro">Buy a ticket for $126 to enter our raffle. One lucky winner will take home this Rolex prize.</p>
+        <p class="intro">Buy a ticket for $126. One winner takes both prizes: a Rolex Datejust 41 and $10,000 cash.</p>
         <span class="ticket-price-line">$126 per ticket</span>
         <div class="prize-row">
             <div class="prize">
@@ -525,6 +525,12 @@
                 <h2>Rolex Datejust 41</h2>
                 <p>Oystersteel with Jubilee bracelet, blue dial.</p>
                 <button class="view-button" onclick="openPopup('rolex')">View Prize</button>
+            </div>
+            <div class="prize">
+                <img src="https://images.unsplash.com/photo-1580048915913-4f8f5cb481c4?auto=format&fit=crop&w=1200&q=80" alt="$10,000 Cash Prize" />
+                <h2>$10,000 Cash</h2>
+                <p>Cash bonus prize included for the same winning ticket.</p>
+                <button class="view-button" onclick="openPopup('cash')">View Prize</button>
             </div>
         </div>
         <div class="buy-links">
@@ -566,6 +572,17 @@
                     Bracelet: <strong>Jubilee</strong><br>
                     Movement: <strong>Automatic</strong><br>
                     Water Resistance: <strong>100m</strong>
+                `
+            },
+            cash: {
+                images: [
+                    'https://images.unsplash.com/photo-1580048915913-4f8f5cb481c4?auto=format&fit=crop&w=1200&q=80'
+                ],
+                details: `
+                    <strong>$10,000 Cash Prize</strong><br><br>
+                    Winner receives an additional <strong>$10,000 cash</strong> together with the watch.<br>
+                    Ticket price remains <strong>$126</strong>.<br>
+                    <strong>One winner receives both prizes.</strong>
                 `
             }
         };
@@ -731,66 +748,22 @@
         // --- End New JavaScript ---
     </script>
     
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebase/firebase-analytics.js"; 
-        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-functions.js";
+    <script>
+        window.buyPrize = function(prizeId) {
+            const referrer = getUrlParameter('ref');
+            const base = 'checkout.html';
+            const query = [];
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
-            authDomain: "torat-yosef.firebaseapp.com",
-            projectId: "torat-yosef",
-            storageBucket: "torat-yosef.firebasestorage.app",
-            messagingSenderId: "1033400220494",
-            appId: "1:1033400220494:web:1437414bdad4439fd6bc1f",
-            measurementId: "G-331D9RHZWH"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const functions = getFunctions(app);
-        const createStripeCheckoutSession = httpsCallable(functions, 'createStripeCheckoutSession');
-
-        const referrerIdForFirebase = getUrlParameter('ref'); 
-
-        if (referrerIdForFirebase) {
-            logEvent(analytics, 'prizes_page_loaded_with_referrer', { referrer: referrerIdForFirebase });
-        } else {
-            logEvent(analytics, 'prizes_page_loaded_no_referrer');
-        }
-
-        // Handle Stripe checkout
-        window.buyPrize = async function(prizeId) {
-            // Prompt user for information
-            const name = prompt('Enter your full name:');
-            if (!name) return;
-
-            const email = prompt('Enter your email address:');
-            if (!email || !email.includes('@')) {
-                alert('Please enter a valid email');
-                return;
+            if (prizeId) {
+                query.push('prize=' + encodeURIComponent(prizeId));
             }
 
-            const phone = prompt('Enter your phone number:');
-            if (!phone) return;
-
-            try {
-                const result = await createStripeCheckoutSession({
-                    prizeId: prizeId,
-                    name: name,
-                    email: email,
-                    phone: phone,
-                    referral: referrerIdForFirebase || null
-                });
-
-                // Redirect to Stripe checkout
-                if (result.data.url) {
-                    window.location.href = result.data.url;
-                }
-            } catch (error) {
-                console.error('Error creating checkout session:', error);
-                alert('Error: ' + (error.message || 'Failed to create checkout session'));
+            if (referrer) {
+                query.push('ref=' + encodeURIComponent(referrer));
             }
+
+            const redirectUrl = query.length ? (base + '?' + query.join('&')) : base;
+            window.location.href = redirectUrl;
         };
     </script>
 
