@@ -195,14 +195,15 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
   <script>
     // Initialize Firebase with your provided configuration
     const firebaseConfig = {
       apiKey: "AIzaSyDfXnCZXN-URjdvFvVlWHLg4KOkSw7hvng",
-      authDomain: "torat-yosef.firebaseapp.com",
-      projectId: "torat-yosef",
-      storageBucket: "torat-yosef.firebasestorage.app",
+      authDomain: "torat-yose.firebaseapp.com",
+      projectId: "torat-yose",
+      storageBucket: "torat-yose.firebasestorage.app",
       messagingSenderId: "1033400220494",
       appId: "1:1033400220494:web:1437414bdad44399d6bc1f",
       measurementId: "G-331D9RHZWH"
@@ -210,6 +211,7 @@
     firebase.initializeApp(firebaseConfig);
 
     const auth = firebase.auth();
+    const db = firebase.firestore();
 
     // Get DOM elements
     const usernameInput = document.getElementById('username');
@@ -233,6 +235,33 @@
       errorMessageElement.style.display = 'none';
     }
 
+    function normalizeAliasKey(value) {
+      return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    async function resolveLoginEmail(enteredValue) {
+      const normalizedEnteredValue = enteredValue.toLowerCase();
+
+      if (normalizedEnteredValue.endsWith(FIXED_DOMAIN)) {
+        return normalizedEnteredValue;
+      }
+
+      if (normalizedEnteredValue.includes('@')) {
+        return normalizedEnteredValue;
+      }
+
+      const aliasKey = normalizeAliasKey(enteredValue);
+      if (aliasKey) {
+        const aliasDoc = await db.collection('adminLoginAliases').doc(aliasKey).get();
+        if (aliasDoc.exists && aliasDoc.data().email) {
+          return String(aliasDoc.data().email).toLowerCase();
+        }
+      }
+
+      const usernamePart = enteredValue.split(' ')[0].toLowerCase();
+      return usernamePart + FIXED_DOMAIN;
+    }
+
     // Handle login form submission
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -247,30 +276,11 @@
         return;
       }
 
-      let emailToLogin;
-
-      // Normalize the entered value for comparison
-      const normalizedEnteredValue = enteredValue.toLowerCase();
-
-      // Case 1: Already a full email with our domain
-      if (normalizedEnteredValue.endsWith(FIXED_DOMAIN)) {
-        emailToLogin = normalizedEnteredValue; // Use as is
-      } 
-      // Case 2: Contains '@' but not our domain (treat as full email, might be an external email)
-      else if (normalizedEnteredValue.includes('@')) {
-          emailToLogin = normalizedEnteredValue; // Let Firebase handle validity
-      }
-      // Case 3: Treat as username, potentially extract first name, then append domain
-      else {
-        // Remove spaces and take only the first "word" (e.g., "morris" from "morris eliyahou")
-        const usernamePart = enteredValue.split(' ')[0].toLowerCase();
-        emailToLogin = usernamePart + FIXED_DOMAIN;
-      }
-
       loginButton.disabled = true;
       loginButton.textContent = 'Logging In...';
 
       try {
+        const emailToLogin = await resolveLoginEmail(enteredValue);
         await auth.signInWithEmailAndPassword(emailToLogin, password);
         window.location.href = './dashboard.html';
       } catch (error) {

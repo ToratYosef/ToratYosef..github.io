@@ -8,12 +8,8 @@
     ],
     "rewrites": [
       {
-        "source": "/api/**",
-        "function": "paypalWebhook" 
-      },
-      {
-        "source": "**", 
-        "destination": "/checkout.html" 
+        "source": "/api/square/create-checkout-session",
+        "function": "createSquareCheckoutSession"
       }
     ]
   },
