@@ -213,11 +213,26 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
             if (!isSuperAdminReferrer) {
                  throw new functions.https.HttpsError('not-found', 'Referrer data not found for this user.');
             }
-            dashboardTitleName = "Master Admin";
-            // Create a dummy referrerData object for superadmins who might not have a direct referrer profile
-            referrerData = {
-                data: () => ({ name: "Master Admin", refId: "N/A", goal: 0 })
-            };
+        const adminProfileDoc = await admin.firestore().collection('admin').doc(loggedInUid).get();
+        if (adminProfileDoc.exists) {
+          const adminProfile = adminProfileDoc.data() || {};
+          const fallbackName = adminProfile.name || "Master Admin";
+          const fallbackRefId = adminProfile.refId || "N/A";
+          dashboardTitleName = fallbackName;
+          referrerData = {
+            data: () => ({
+              name: fallbackName,
+              refId: fallbackRefId,
+              goal: adminProfile.goal || 0
+            })
+          };
+        } else {
+          dashboardTitleName = "Master Admin";
+          // Create a dummy referrerData object for superadmins who might not have a direct referrer profile
+          referrerData = {
+            data: () => ({ name: "Master Admin", refId: "N/A", goal: 0 })
+          };
+        }
         }
     }
 

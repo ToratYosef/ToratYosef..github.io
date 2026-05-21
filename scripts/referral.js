@@ -7,7 +7,7 @@ const firebaseConfig = {
   projectId: 'torat-yose',
   storageBucket: 'torat-yose.firebasestorage.app',
   messagingSenderId: '1054733969512',
-  appId: '1:1054733969512:web:1437414bdad44399fd6bc1f',
+  appId: '1:1054733969512:web:9703846085ab15d08c73dd',
   measurementId: 'G-9RYXQP6NFD'
 };
 
@@ -44,12 +44,13 @@ async function trackReferralClick(db) {
     return;
   }
 
-  const alreadyCounted = sessionStorage.getItem('refClickCounted');
+  const clickKey = `refClickCounted:${refFromUrl}:${window.location.pathname}`;
+  const alreadyCounted = sessionStorage.getItem(clickKey);
   if (alreadyCounted === 'true') {
     return;
   }
 
-  sessionStorage.setItem('refClickCounted', 'true');
+  sessionStorage.setItem(clickKey, 'true');
 
   await addDoc(collection(db, 'referralClicks'), {
     referrer: refFromUrl,
