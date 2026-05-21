@@ -63,8 +63,8 @@ async function saveAdminAliases({ uid, email, name, refId }) {
   await Promise.all(writes);
 }
 
-function sanitizeEmailPrefix(value) {
-  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+function sanitizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 /**
@@ -77,19 +77,22 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
   }
 
   const name = String(data?.name || '').trim();
-  const emailPrefix = sanitizeEmailPrefix(data?.emailPrefix);
+  const email = sanitizeEmail(data?.email);
   const password = String(data?.password || '');
   const goal = Number.isFinite(Number(data?.goal)) ? Number(data.goal) : 300;
 
-  if (!name || !emailPrefix || !password) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: name, emailPrefix, password.');
+  if (!name || !email || !password) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: name, email, password.');
   }
 
   if (password.length < 6) {
     throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 6 characters long.');
   }
 
-  const email = `${emailPrefix}@toratyosefsummerraffle.com`;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email format is invalid.');
+  }
+
   const refId = generateRefIdFromName(name);
   const db = admin.firestore();
 
@@ -135,7 +138,6 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
     uid: userRecord.uid,
     name,
     email,
-    emailPrefix,
     refId,
     role: 'superAdminReferrer',
     isSuperAdminReferrer: true,

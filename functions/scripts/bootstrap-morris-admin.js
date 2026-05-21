@@ -16,8 +16,8 @@ function normalizeAliasKey(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function sanitizeEmailPrefix(value) {
-  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+function sanitizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 function generateRefIdFromName(name) {
@@ -72,17 +72,19 @@ async function run() {
 
   try {
     const name = String(await rl.question('Admin full name: ')).trim();
-    const emailPrefixInput = String(await rl.question('Email prefix (before @toratyosefsummerraffle.com): ')).trim();
+    const emailInput = String(await rl.question('Admin email: ')).trim();
     const password = String(await rl.question('Password (6+ chars): ')).trim();
     const goalInput = String(await rl.question('Goal (optional, default 300): ')).trim();
 
-    const emailPrefix = sanitizeEmailPrefix(emailPrefixInput);
-    const email = `${emailPrefix}@toratyosefsummerraffle.com`;
+    const email = sanitizeEmail(emailInput);
     const refId = generateRefIdFromName(name);
     const goal = goalInput ? Number(goalInput) : 300;
 
-    if (!name || !emailPrefix || !password) {
-      throw new Error('Name, email prefix, and password are required.');
+    if (!name || !email || !password) {
+      throw new Error('Name, email, and password are required.');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('Email format is invalid.');
     }
     if (password.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
@@ -149,7 +151,6 @@ async function run() {
           uid: userRecord.uid,
           name,
           email,
-          emailPrefix,
           refId,
           role: 'superAdminReferrer',
           isSuperAdminReferrer: true,
