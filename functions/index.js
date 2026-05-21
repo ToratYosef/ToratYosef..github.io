@@ -261,11 +261,16 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
         // For superadmins, their "own" sales are also filtered if they have a refId
         if (currentReferrerDetails.refId && currentReferrerDetails.refId !== "N/A") { // Added check for "N/A"
             const ownSalesSnapshot = await admin.firestore().collection('raffle_entries')
-                .where('referrerUid', '==', loggedInUid)
-                .orderBy('timestamp', 'desc')
-                .get();
+              .where('referrerUid', '==', loggedInUid)
+              .get();
 
-            ownSalesSnapshot.forEach(doc => {
+            const ownSalesDocs = ownSalesSnapshot.docs.slice().sort((a, b) => {
+              const aMs = a.data().timestamp && typeof a.data().timestamp.toMillis === 'function' ? a.data().timestamp.toMillis() : 0;
+              const bMs = b.data().timestamp && typeof b.data().timestamp.toMillis === 'function' ? b.data().timestamp.toMillis() : 0;
+              return bMs - aMs;
+            });
+
+            ownSalesDocs.forEach(doc => {
                 const entry = doc.data();
                 totalTicketsSold += (entry.ticketsBought || 0);
 
@@ -291,10 +296,15 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
     } else { // Not a SuperAdminReferrer
         const ticketsSoldSnapshot = await admin.firestore().collection('raffle_entries')
           .where('referrerUid', '==', targetReferrerUid)
-          .orderBy('timestamp', 'desc')
           .get();
 
-        ticketsSoldSnapshot.forEach(doc => {
+        const sortedTicketsSoldDocs = ticketsSoldSnapshot.docs.slice().sort((a, b) => {
+            const aMs = a.data().timestamp && typeof a.data().timestamp.toMillis === 'function' ? a.data().timestamp.toMillis() : 0;
+            const bMs = b.data().timestamp && typeof b.data().timestamp.toMillis === 'function' ? b.data().timestamp.toMillis() : 0;
+            return bMs - aMs;
+        });
+
+        sortedTicketsSoldDocs.forEach(doc => {
             const entry = doc.data();
             totalTicketsSold += (entry.ticketsBought || 0);
 
