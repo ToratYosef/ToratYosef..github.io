@@ -1,310 +1,8 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const cors = require('cors');
+const { WebhooksHelper } = require('square');
 
 admin.initializeApp();
-
-// Define allowed origins for CORS for onRequest functions (like webhooks)
-const allowedOrigins = [
-  'https://torat-yosef.web.app',
-  'https://www.toratyosefsummerraffle.com'
-  // Add any other domains where your frontend is hosted
-];
-
-const corsHandler = cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    // or requests from allowed origins.
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  }
-});
-
-/**
- * Firebase Callable Function to capture a PayPal order.
- * This is invoked from your frontend after PayPal approval.
- */
-exports.capturePayPalOrder = functions.https.onCall(async (data, context) => {
-  // Optional: Add authentication check here if users need to be logged in
-  // if (!context.auth) {
-  //   throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to capture an order.');
-  // }
-
-  const { orderID } = data;
-  if (!orderID) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing orderID for capture.');
-  }
-
-  try {
-    const accessToken = await getPayPalAccessToken();
-
-    const captureResponse = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderID}/capture`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const captureData = await captureResponse.json();
-
-    if (!captureResponse.ok) {
-      console.error('Error capturing PayPal order:', captureData);
-      throw new functions.https.HttpsError('internal', 'Failed to capture PayPal order. Details:', captureData);
-    }
-
-    // Update the order status in Firestore
-    await admin.firestore().collection('paypal_orders').doc(orderID).update({
-      status: 'COMPLETED',
-      captureData,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return { success: true, data: captureData };
-  } catch (err) {
-    console.error('capturePayPalOrder caught error:', err);
-    if (err instanceof functions.https.HttpsError) {
-      throw err;
-    }
-    throw new functions.https.HttpsError('internal', 'An unexpected error occurred during order capture.', err.message);
-  }
-});
-
-/**
- * PayPal Webhook Listener (HTTP Request Function).
- * This endpoint is called by PayPal's servers, not your frontend.
- */
-exports.paypalWebhook = functions.https.onRequest((req, res) => {
-  corsHandler(req, res, async () => {
-    // PayPal webhooks always send POST requests. Reject other methods.
-    if (req.method !== 'POST') {
-      console.warn(`Webhook received non-POST request: ${req.method}`);
-      return res.status(405).send('Method Not Allowed');
-    }
-
-    try {
-      const event = req.body;
-      console.log('Received PayPal webhook event type:', event.event_type);
-
-      // --- IMPORTANT: Implement webhook signature verification in production ---
-      // This step is critical for security to ensure the webhook is genuinely from PayPal.
-      // Example headers to check: PayPal-Transmission-Id, PayPal-Cert-Url, PayPal-Auth-Algo,
-      // PayPal-Transmission-Sig, PayPal-Transmission-Time.
-      // You would typically use PayPal's SDK or manually verify the signature.
-      // For development, you might skip it, but never in production.
-      // -------------------------------------------------------------------------
-
-      // Process only relevant events for raffle entries
-      if (event.event_type === 'CHECKOUT.ORDER.APPROVED' || event.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-        // Extract order ID, prioritizing the order ID from the event resource
-        const orderID = event.resource.id ||
-                        event.resource.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
-                        event.resource.billing_agreement_id;
-
-        if (!orderID) {
-          console.error('No orderID found in PayPal webhook event:', event);
-          return res.status(400).send('No orderID found in webhook event.');
-        }
-
-        const orderDocRef = admin.firestore().collection('paypal_orders').doc(orderID);
-        const orderDoc = await orderDocRef.get();
-
-        if (!orderDoc.exists) {
-          console.error('Order not found in Firestore for PayPal ID:', orderID);
-          // Acknowledge the webhook to prevent PayPal retries, even if local record is missing.
-          // You might log this as a critical alert or have a separate reconciliation process.
-          return res.status(200).send('Order not found in local DB, but webhook acknowledged.');
-        }
-
-        const orderData = orderDoc.data();
-
-        // Prevent duplicate raffle entries if webhook is received multiple times
-        if (orderData.raffleEntryCreatedAt) {
-          console.log(`Raffle entry already processed for order ${orderID}. Event type: ${event.event_type}`);
-          return res.status(200).send('Raffle entry already processed.');
-        }
-
-        // Calculate ticketsBought based on the amount for this order.
-        // Ensure $126.00 is the fixed price per ticket.
-        const ticketsBought = Math.floor(orderData.amount / 126.00);
-
-        let referrerUid = null;
-        if (orderData.referrerRefId) {
-            // Look up the referrer's UID from the 'referrers' collection using their refId
-            const referrerQuerySnapshot = await admin.firestore().collection('referrers')
-                .where('refId', '==', orderData.referrerRefId)
-                .limit(1)
-                .get();
-
-            if (!referrerQuerySnapshot.empty) {
-                referrerUid = referrerQuerySnapshot.docs[0].id;
-                console.log(`Found referrer UID: ${referrerUid} for refId: ${orderData.referrerRefId}`);
-            } else {
-                console.warn(`Referrer with refId ${orderData.referrerRefId} not found.`);
-            }
-        }
-
-        // Pull the timestamp from paypal_orders.createdAt
-        const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
-
-        // Add the raffle entry to a separate collection (raffle_entries)
-        await admin.firestore().collection('raffle_entries').add({
-          name: orderData.name,
-          email: orderData.email,
-          phone: orderData.phone,
-          referrerRefId: orderData.referrerRefId || null,
-          referrerUid: referrerUid,
-          amount: orderData.amount,
-          ticketsBought: ticketsBought,
-          paymentStatus: 'completed',
-          orderID: orderID,
-          timestamp: entryTimestamp, // Use the timestamp from paypal_orders.createdAt
-          webhookEventType: event.event_type,
-          paypalEventId: event.id
-        });
-
-        // Mark the original PayPal order as processed by the webhook
-        await orderDocRef.update({
-          raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          webhookProcessed: true,
-          lastWebhookEvent: event
-        });
-
-        return res.status(200).send('Webhook processed successfully.');
-      }
-
-      // If the webhook event type is not one we're interested in, just acknowledge it.
-      res.status(200).send('Webhook event ignored (uninteresting type).');
-
-    } catch (err) {
-      console.error('paypalWebhook error:', err);
-      // In case of an error during webhook processing, return 500 to signal PayPal to retry.
-      res.status(500).send('Internal Server Error during webhook processing.');
-    }
-  });
-});
-
-/**
- * ONE-TIME ADMIN FUNCTION to reprocess completed PayPal orders that failed
- * to generate a raffle entry. This function finds orders that are 'COMPLETED'
- * but are missing the 'raffleEntryCreatedAt' field and processes them.
- * * IMPORTANT: You must be authenticated as a Super Admin Referrer to run this.
- */
-exports.reprocessMissingRaffleEntries = functions.https.onCall(async (data, context) => {
-    // Security Check: Ensure the caller is an authenticated super admin.
-    if (!context.auth || !context.auth.token.superAdminReferrer) {
-        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to run this operation.');
-    }
-
-    console.log('Starting reprocessing of missing raffle entries...');
-    const db = admin.firestore();
-    let processedCount = 0;
-    const errors = [];
-
-    // 1. Find all PayPal orders that are completed but were not processed by the webhook.
-    // We are looking for paypal_orders documents where the raffleEntryCreatedAt field is missing.
-    const ordersToProcessSnapshot = await db.collection('paypal_orders')
-        .where('status', '==', 'COMPLETED')
-        // Using `where('raffleEntryCreatedAt', '==', null)` or `!doc.data().raffleEntryCreatedAt` check
-        // ensures we only target orders that haven't triggered a raffle entry yet.
-        .get();
-
-    if (ordersToProcessSnapshot.empty) {
-        return { success: true, message: 'No completed orders found to process that are missing a raffle entry.' };
-    }
-
-    const processingPromises = [];
-
-    ordersToProcessSnapshot.forEach(doc => {
-        const orderData = doc.data();
-        const orderID = doc.id;
-
-        // Skip if a raffle entry has already been created for this order (redundant check, but safe).
-        if (orderData.raffleEntryCreatedAt) {
-            return;
-        }
-
-        console.log(`Processing order ID: ${orderID}`);
-
-        // This creates a separate asynchronous task for each order.
-        const processPromise = (async () => {
-            try {
-                const ticketsBought = Math.floor(orderData.amount / 126.00);
-                let referrerUid = null;
-
-                if (orderData.referrerRefId) {
-                    const referrerQuerySnapshot = await db.collection('referrers')
-                        .where('refId', '==', orderData.referrerRefId)
-                        .limit(1)
-                        .get();
-
-                    if (!referrerQuerySnapshot.empty) {
-                        referrerUid = referrerQuerySnapshot.docs[0].id;
-                    } else {
-                        console.warn(`Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}.`);
-                    }
-                }
-
-                // Get the timestamp from the paypal_orders document's 'createdAt' field
-                const entryTimestamp = orderData.createdAt || admin.firestore.FieldValue.serverTimestamp();
-
-                // 3. Create the missing raffle_entries document.
-                await db.collection('raffle_entries').add({
-                    name: orderData.name,
-                    email: orderData.email,
-                    phone: orderData.phone,
-                    referrerRefId: orderData.referrerRefId || null,
-                    referrerUid: referrerUid,
-                    amount: orderData.amount,
-                    ticketsBought: ticketsBought,
-                    paymentStatus: 'completed', // Status from PayPal webhook context
-                    orderID: orderID,
-                    timestamp: entryTimestamp,
-                    // Add a note that this was created via a manual reprocessing script.
-                    reprocessingNote: 'Entry created via reprocessMissingRaffleEntries function.',
-                    reprocessedBy: context.auth.uid // Record who ran the reprocessing
-                });
-
-                // 4. Update the original order to mark it as processed by this function.
-                await db.collection('paypal_orders').doc(orderID).update({
-                    raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(), // Mark the PayPal order as having had its raffle entry created
-                    webhookProcessed: true, // You can use this flag, or a new one specific to reprocessing
-                    reprocessingComplete: true
-                });
-
-                processedCount++;
-                console.log(`Successfully created raffle entry for order ID: ${orderID}`);
-
-            } catch (error) {
-                console.error(`Failed to process order ID ${orderID}:`, error);
-                errors.push(`Order ${orderID}: ${error.message}`);
-            }
-        })();
-
-        processingPromises.push(processPromise);
-    });
-
-    // Wait for all the individual order processing tasks to complete.
-    await Promise.all(processingPromises);
-
-    console.log(`Reprocessing complete. Processed: ${processedCount}. Errors: ${errors.length}`);
-
-    if (errors.length > 0) {
-        return {
-            success: false,
-            message: `Completed with errors. Processed ${processedCount} entries successfully.`,
-            errors: errors
-        };
-    }
-
-    return {
-        success: true,
-        message: `Successfully processed ${processedCount} missing raffle entries.`
-    };
-});
 
 /**
  * Firebase Callable Function to get referrer dashboard data.
@@ -794,453 +492,6 @@ exports.getAllTicketsSold = functions.https.onCall(async (data, context) => {
     }
 });
 
-/**
- * DANGER ZONE: Deletes ALL PayPal-originated raffle_entries.
- * This is a destructive, one-time use function for data cleanup.
- * ONLY use after backing up your data.
- * Only callable by superadmins.
- */
-exports.deleteAllPaypalRaffleEntries = functions.https.onCall(async (data, context) => {
-    // SECURITY CHECK: ESSENTIAL
-    if (!context.auth || !context.auth.token.superAdminReferrer) {
-        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to delete all PayPal raffle entries.');
-    }
-
-    console.log('--- STARTING DELETION OF ALL PAYPAL-ORIGINATED RAFFLE ENTRIES ---');
-    const db = admin.firestore();
-    let deletedCount = 0;
-    const errors = [];
-    let batch = db.batch();
-    let batchOperations = 0;
-
-    try {
-        const raffleEntriesSnapshot = await db.collection('raffle_entries')
-            .where('entryType', '==', 'paypal') // Target entries specifically marked as 'paypal'
-            .get();
-
-        if (raffleEntriesSnapshot.empty) {
-            console.log('No PayPal-originated raffle entries found to delete.');
-            return { success: true, message: 'No PayPal-originated raffle entries found to delete.', deleted: 0, errors: [] };
-        }
-
-        console.log(`Found ${raffleEntriesSnapshot.size} PayPal-originated raffle entries to delete.`);
-
-        raffleEntriesSnapshot.forEach(doc => {
-            batch.delete(doc.ref);
-            deletedCount++;
-            batchOperations++;
-
-            if (batchOperations >= 400) { // Commit in batches of 400
-                batch.commit();
-                console.log(`Batch committed. Deleted: ${deletedCount}`);
-                batch = db.batch();
-                batchOperations = 0;
-            }
-        });
-
-        // Commit any remaining operations
-        if (batchOperations > 0) {
-            await batch.commit();
-            console.log(`Final batch committed. Deleted: ${deletedCount}`);
-        }
-
-        console.log('--- DELETION OF ALL PAYPAL-ORIGINATED RAFFLE ENTRIES COMPLETE ---');
-        return { success: true, message: `Successfully deleted ${deletedCount} PayPal-originated raffle entries.`, deleted: deletedCount, errors: errors };
-
-    } catch (error) {
-        console.error('Error deleting PayPal-originated raffle entries:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to delete PayPal-originated raffle entries.', error.message);
-    }
-});
-
-/**
- * Repopulates raffle_entries from COMPLETED paypal_orders.
- * It will create a new raffle_entry for each COMPLETED paypal_order.
- * This is to be used AFTER existing raffle_entries have been cleared or if
- * you need to re-generate them from paypal_orders.
- * Only callable by superadmins.
- */
-exports.repopulateRaffleEntriesFromPaypalOrders = functions.https.onCall(async (data, context) => {
-    // SECURITY CHECK: ESSENTIAL
-    if (!context.auth || !context.auth.token.superAdminReferrer) {
-        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to repopulate raffle entries.');
-    }
-
-    console.log('--- STARTING REPOPULATION OF RAFFLE ENTRIES FROM PAYPAL ORDERS ---');
-    const db = admin.firestore();
-    let createdCount = 0;
-    const errors = [];
-    let batch = db.batch();
-    let batchOperations = 0;
-
-    try {
-        // Pre-fetch referrers for efficiency
-        const referrersMap = new Map();
-        const referrersSnapshot = await db.collection('referrers').get();
-        referrersSnapshot.forEach(doc => {
-            referrersMap.set(doc.id, { name: doc.data().name, refId: doc.data().refId });
-        });
-
-        const paypalOrdersSnapshot = await db.collection('paypal_orders')
-            .where('status', '==', 'COMPLETED')
-            .get();
-
-        if (paypalOrdersSnapshot.empty) {
-            console.log('No COMPLETED PayPal orders found to repopulate from.');
-            return { success: true, message: 'No COMPLETED PayPal orders found to repopulate from.', created: 0, errors: [] };
-        }
-
-        console.log(`Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to process for repopulation.`);
-
-        for (const orderDoc of paypalOrdersSnapshot.docs) {
-            const orderData = orderDoc.data();
-            const orderID = orderDoc.id;
-
-            try {
-                const entryTimestamp = orderData.createdAt;
-                if (!entryTimestamp || typeof entryTimestamp.toDate !== 'function') {
-                    throw new Error(`PayPal order ${orderID} missing valid 'createdAt' timestamp.`);
-                }
-
-                // Resolve referrer UID for the new entry
-                let referrerUidForNewEntry = null;
-                if (orderData.referrerRefId) {
-                    for (const [uid, rData] of referrersMap.entries()) {
-                        if (rData.refId === orderData.referrerRefId) {
-                            referrerUidForNewEntry = uid;
-                            break;
-                        }
-                    }
-                    if (!referrerUidForNewEntry) {
-                        const referrerQuerySnapshot = await db.collection('referrers')
-                            .where('refId', '==', orderData.referrerRefId)
-                            .limit(1)
-                            .get();
-                        if (!referrerQuerySnapshot.empty) {
-                            referrerUidForNewEntry = referrerQuerySnapshot.docs[0].id;
-                        } else {
-                            console.warn(`Repopulate: Referrer with refId ${orderData.referrerRefId} not found for order ${orderID}. New entry will not be linked to UID.`);
-                        }
-                    }
-                }
-
-                const ticketsBought = Math.floor(orderData.amount / 126.00);
-
-                const newRaffleEntryData = {
-                    name: orderData.name,
-                    email: orderData.email,
-                    phone: orderData.phone,
-                    referrerRefId: orderData.referrerRefId || null,
-                    referrerUid: referrerUidForNewEntry,
-                    amount: orderData.amount,
-                    ticketsBought: ticketsBought,
-                    paymentStatus: 'completed',
-                    orderID: orderID,
-                    timestamp: entryTimestamp,
-                    entryType: 'paypal', // Mark as PayPal originated
-                    reprocessingNote: `Repopulated from PayPal order on ${entryTimestamp.toDate().toLocaleString('en-US', { timeZone: 'America/New_York' })}`,
-                    reprocessedBy: context.auth.uid
-                };
-
-                batch.set(db.collection('raffle_entries').doc(), newRaffleEntryData); // Let Firestore generate new ID
-                batchOperations++;
-                createdCount++;
-
-                if (batchOperations >= 400) {
-                    await batch.commit();
-                    console.log(`Batch committed. Created: ${createdCount}`);
-                    batch = db.batch();
-                    batchOperations = 0;
-                }
-
-            } catch (error) {
-                console.error(`Error repopulating from PayPal order ${orderID}:`, error);
-                errors.push(`Order ${orderID}: ${error.message}`);
-            }
-        }
-
-        if (batchOperations > 0) {
-            await batch.commit();
-            console.log(`Final batch committed. Created: ${createdCount}`);
-        }
-
-        console.log('--- REPOPULATION OF RAFFLE ENTRIES COMPLETE ---');
-        return { success: true, message: `Successfully created ${createdCount} raffle entries from PayPal orders.`, created: createdCount, errors: errors };
-
-    } catch (error) {
-        console.error('Top-level error in repopulateRaffleEntriesFromPaypalOrders:', error);
-        throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during repopulation.', error.message);
-    }
-});
-
-/**
- * ONE-TIME ADMIN FUNCTION: Clears the 'raffleEntryCreatedAt' flag on all COMPLETED paypal_orders.
- * This is used to allow 'reprocessMissingRaffleEntries' to re-create entries from scratch.
- * ONLY use after backing up your data and understanding its purpose.
- * Only callable by superadmins.
- */
-exports.clearRaffleEntryFlagsOnPayPalOrders = functions.https.onCall(async (data, context) => {
-    // SECURITY CHECK: ESSENTIAL
-    if (!context.auth || !context.auth.token.superAdminReferrer) {
-        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to clear raffle entry flags.');
-    }
-
-    console.log('--- STARTING CLEARING OF RAFFLE ENTRY FLAGS ON PAYPAL ORDERS ---');
-    const db = admin.firestore();
-    let updatedCount = 0;
-    const errors = [];
-    let batch = db.batch();
-    let batchOperations = 0;
-
-    try {
-        // Query all COMPLETED paypal_orders that have the flag set
-        const paypalOrdersSnapshot = await db.collection('paypal_orders')
-            .where('status', '==', 'COMPLETED')
-            .get(); // We will filter for 'raffleEntryCreatedAt' in memory
-
-        if (paypalOrdersSnapshot.empty) {
-            console.log('No COMPLETED PayPal orders found to clear flags on.');
-            return { success: true, message: 'No COMPLETED PayPal orders found to clear flags on.', updated: 0, errors: [] };
-        }
-
-        console.log(`Found ${paypalOrdersSnapshot.size} COMPLETED PayPal orders to check flags on.`);
-
-        for (const doc of paypalOrdersSnapshot.docs) {
-            const orderData = doc.data();
-            const orderID = doc.id;
-
-            // Only update if the flag is actually set
-            if (orderData.raffleEntryCreatedAt) { // Check if the flag exists
-                try {
-                    batch.update(doc.ref, {
-                        raffleEntryCreatedAt: admin.firestore.FieldValue.delete(), // Delete the field
-                        reprocessingComplete: admin.firestore.FieldValue.delete(), // Also delete this flag if present
-                        webhookProcessed: admin.firestore.FieldValue.delete(), // Also delete this flag if present
-                        lastWebhookEvent: admin.firestore.FieldValue.delete(), // Also delete this flag if present
-                        flagClearedAt: admin.firestore.FieldValue.serverTimestamp(), // Mark when it was cleared
-                        flagClearedBy: context.auth.uid
-                    });
-                    batchOperations++;
-                    updatedCount++;
-                    console.log(`Batching flag clear for PayPal order: ${orderID}`);
-
-                    if (batchOperations >= 400) { // Commit in batches of 400
-                        await batch.commit();
-                        console.log(`Batch committed. Cleared flags on: ${updatedCount}`);
-                        batch = db.batch();
-                        batchOperations = 0;
-                    }
-                } catch (error) {
-                    console.error(`Error clearing flag for PayPal order ${orderID}:`, error);
-                    errors.push(`Order ${orderID}: ${error.message}`);
-                }
-            }
-        }
-
-        // Commit any remaining operations
-        if (batchOperations > 0) {
-            await batch.commit();
-            console.log(`Final batch committed. Cleared flags on: ${updatedCount}`);
-        }
-
-        console.log('--- CLEARING OF RAFFLE ENTRY FLAGS COMPLETE ---');
-        return { success: true, message: `Successfully cleared flags on ${updatedCount} PayPal orders.`, updated: updatedCount, errors: errors };
-
-    } catch (error) {
-        console.error('Top-level error in clearRaffleEntryFlagsOnPayPalOrders:', error);
-        throw new functions.https.HttpsError('internal', 'An unexpected top-level error occurred during flag clearing.', error.message);
-    }
-});
-
-/**
- * STRIPE INTEGRATION FOR RAFFLE TICKETS
- * Set environment variable: STRIPE_SECRET_KEY
- */
-
-/**
- * Stripe Callable Function to create a Stripe Checkout Session for raffle ticket purchases.
- * Tickets cost $126 and users enter a raffle for 2 prizes: Rolex Watch or $1,000 Cash
- */
-exports.createStripeCheckoutSession = functions.https.onCall(async (data, context) => {
-  const { quantity, name, email, phone, referral } = data;
-
-  if (!quantity || quantity < 1 || !name || !email || !phone) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: quantity, name, email, or phone.');
-  }
-
-  try {
-    // Ticket price is fixed at $126
-    const ticketPrice = 12600; // $126.00 in cents
-    const totalAmount = ticketPrice * quantity;
-
-    // Save initial order details to 'stripe_orders' collection
-    const orderRef = admin.firestore().collection('stripe_orders').doc();
-    const orderId = orderRef.id;
-
-    await orderRef.set({
-      name,
-      email,
-      phone,
-      referrerRefId: referral || null,
-      quantity: quantity,
-      ticketPrice: ticketPrice,
-      amount: totalAmount,
-      status: 'pending',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    // Create Stripe checkout session
-    const stripeClient = getStripeClient();
-    const session = await stripeClient.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Raffle Tickets',
-              description: `${quantity} ticket(s) for $126 each. Enter to win the Rolex Watch or $1,000 Cash Prize!`
-            },
-            unit_amount: ticketPrice
-          },
-          quantity: quantity
-        }
-      ],
-      mode: 'payment',
-      success_url: `${process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com'}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com'}/checkout.html`,
-      customer_email: email,
-      metadata: {
-        orderId: orderId,
-        quantity: quantity,
-        name: name,
-        phone: phone,
-        referrerRefId: referral || ''
-      }
-    });
-
-    // Update the order with session ID
-    await orderRef.update({
-      sessionId: session.id,
-      sessionUrl: session.url
-    });
-
-    return { sessionId: session.id, url: session.url };
-  } catch (err) {
-    console.error('createStripeCheckoutSession error:', err);
-    if (err instanceof functions.https.HttpsError) {
-      throw err;
-    }
-    throw new functions.https.HttpsError('internal', 'Failed to create Stripe checkout session', err.message);
-  }
-});
-
-/**
- * Stripe Webhook Handler (HTTP Request Function)
- * This endpoint is called by Stripe's servers, not your frontend.
- * Configure webhook URL in Stripe Dashboard: https://dashboard.stripe.com/webhooks
- */
-exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  let event;
-
-  try {
-    const stripeClient = getStripeClient();
-    event = stripeClient.webhooks.constructEvent(req.rawBody || JSON.stringify(req.body), sig, endpointSecret);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  try {
-    const db = admin.firestore();
-
-    // Handle payment_intent.succeeded event
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-
-      console.log('Received checkout.session.completed event for session ID:', session.id);
-
-      const orderId = session.metadata?.orderId;
-      if (!orderId) {
-        console.error('No orderId found in session metadata');
-        return res.status(400).send('No orderId in metadata');
-      }
-
-      const orderDocRef = db.collection('stripe_orders').doc(orderId);
-      const orderDoc = await orderDocRef.get();
-
-      if (!orderDoc.exists) {
-        console.error('Order not found in Firestore for order ID:', orderId);
-        return res.status(200).send('Order not found, but webhook acknowledged');
-      }
-
-      const orderData = orderDoc.data();
-
-      // Prevent duplicate entries if webhook is received multiple times
-      if (orderData.raffleEntryCreatedAt) {
-        console.log(`Raffle entry already processed for order ${orderId}`);
-        return res.status(200).send('Raffle entry already processed');
-      }
-
-      // Look up referrer UID if referrerRefId exists
-      let referrerUid = null;
-      if (orderData.referrerRefId) {
-        const referrerQuerySnapshot = await db.collection('referrers')
-          .where('refId', '==', orderData.referrerRefId)
-          .limit(1)
-          .get();
-
-        if (!referrerQuerySnapshot.empty) {
-          referrerUid = referrerQuerySnapshot.docs[0].id;
-          console.log(`Found referrer UID: ${referrerUid} for refId: ${orderData.referrerRefId}`);
-        } else {
-          console.warn(`Referrer with refId ${orderData.referrerRefId} not found`);
-        }
-      }
-
-      // Create raffle entries - one for each ticket purchased
-      const tickets = orderData.quantity || 1;
-      for (let i = 0; i < tickets; i++) {
-        await db.collection('raffle_entries').add({
-          name: orderData.name,
-          email: orderData.email,
-          phone: orderData.phone,
-          referrerRefId: orderData.referrerRefId || null,
-          referrerUid: referrerUid,
-          amount: orderData.amount,
-          ticketsBought: tickets,
-          paymentStatus: 'completed',
-          orderId: orderId,
-          stripeSessionId: session.id,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          entryType: 'stripe',
-          ticketNumber: i + 1  // Which ticket in the order
-        });
-      }
-
-      // Update the Stripe order as processed
-      await orderDocRef.update({
-        status: 'completed',
-        raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        webhookProcessed: true,
-        stripeSessionId: session.id
-      });
-
-      console.log(`Successfully created ${tickets} raffle entries for order ${orderId}`);
-    }
-
-    // Acknowledge receipt of the event
-    res.status(200).send('Webhook received');
-
-  } catch (err) {
-    console.error('Error processing webhook event:', err);
-    res.status(500).send('Internal Server Error');
-  }
-});
-
 // Added this simple test function again just to be sure your environment is fully healthy
 exports.testLogFunction = functions.https.onCall(async (data, context) => {
     console.log("TEST LOG: testLogFunction was called successfully!");
@@ -1252,33 +503,33 @@ exports.testLogFunction = functions.https.onCall(async (data, context) => {
  */
 
 /**
- * Lazy initialization for Stripe and Square clients
- * These are initialized inside functions to handle environment variables at runtime
+ * Lazy initialization for the Square client.
+ * Initialized inside functions to handle environment variables at runtime.
  */
-let stripe = null;
 let squareClient = null;
 
-function getStripeClient() {
-  if (!stripe) {
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecret) {
-      throw new functions.https.HttpsError('internal', 'STRIPE_SECRET_KEY environment variable not configured');
-    }
-    stripe = require('stripe')(stripeSecret);
+function useSquareTestEnvironment() {
+  return String(process.env.SQUARE_TEST_ENVIRONMENT || '').toLowerCase() === 'true';
+}
+
+function getSquareAccessToken() {
+  if (useSquareTestEnvironment()) {
+    return process.env.SQUARE_TEST_TEST_ACCESS_TOKEN || process.env.SQUARE_TEST_ACCESS_TOKEN;
   }
-  return stripe;
+  return process.env.SQUARE_ACCESS_TOKEN;
 }
 
 function getSquareClient() {
   if (!squareClient) {
-    const accessToken = process.env.SQUARE_ACCESS_TOKEN;
+    const accessToken = getSquareAccessToken();
     if (!accessToken) {
-      throw new functions.https.HttpsError('internal', 'SQUARE_ACCESS_TOKEN environment variable not configured');
+      throw new functions.https.HttpsError('internal', 'Square access token environment variable not configured for current mode');
     }
     const { Client, Environment } = require('square');
+    const squareEnv = useSquareTestEnvironment() ? Environment.Sandbox : Environment.Production;
     squareClient = new Client({
       accessToken: accessToken,
-      environment: Environment.Production
+      environment: squareEnv
     });
   }
   return squareClient;
@@ -1418,114 +669,290 @@ exports.verifySquarePayment = functions.https.onCall(async (data, context) => {
   }
 });
 
-/**
- * Square Webhook Handler - Processes payment notifications from Square
- * Configure webhook in Square Dashboard → Developers → Webhooks
- */
-exports.squareWebhook = functions.https.onRequest(async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method Not Allowed');
+function getSquareWebhookConfig(mode) {
+  const isTest = mode === 'test';
+
+  return {
+    environment: isTest ? 'test' : 'live',
+    subscriptionId: isTest
+      ? process.env.SQUARE_WEBHOOK_TEST_SUBSCRIPTION_ID
+      : process.env.SQUARE_WEBHOOK_SUBSCRIPTION_ID,
+    signatureKey: isTest
+      ? process.env.SQUARE_WEBHOOK_TEST_SIGNATURE_KEY
+      : process.env.SQUARE_WEBHOOK_SIGNATURE_KEY,
+    notificationUrl: isTest
+      ? process.env.SQUARE_WEBHOOK_TEST_NOTIFICATION_URL
+      : process.env.SQUARE_WEBHOOK_NOTIFICATION_URL
+  };
+}
+
+async function verifySquareWebhookSignature(rawBody, signature, signatureKey, notificationUrl) {
+  try {
+    return await WebhooksHelper.verifySignature({
+      requestBody: rawBody,
+      signatureHeader: signature,
+      signatureKey,
+      notificationUrl
+    });
+  } catch (error) {
+    return await WebhooksHelper.verifySignature(rawBody, signature, signatureKey, notificationUrl);
+  }
+}
+
+function getReferrerFromMetadata(metadata = {}) {
+  return metadata.referrer || metadata.ref || metadata.referral || null;
+}
+
+async function getReferrerFromSquareOrderRecord(squareOrderId) {
+  if (!squareOrderId) {
+    return null;
   }
 
+  const orderSnapshot = await admin.firestore().collection('square_orders')
+    .where('squareOrderId', '==', squareOrderId)
+    .limit(1)
+    .get();
+
+  if (orderSnapshot.empty) {
+    return null;
+  }
+
+  const orderData = orderSnapshot.docs[0].data();
+  return orderData.referrerRefId || orderData.referral || null;
+}
+
+async function saveSquarePayment(payment, event, environment) {
+  const paymentId = payment.id;
+
+  if (!paymentId) {
+    console.warn('Square payment missing payment id', {
+      environment,
+      eventType: event.type
+    });
+    return;
+  }
+
+  const status = payment.status || null;
+  const orderId = payment.order_id || null;
+  const customerId = payment.customer_id || null;
+  const amountMoney = payment.amount_money || {};
+  const amountCents = amountMoney.amount || 0;
+  const amount = amountCents / 100;
+  const currency = amountMoney.currency || 'USD';
+
+  const metadataReferrer = getReferrerFromMetadata(payment.metadata || {});
+  const orderReferrer = await getReferrerFromSquareOrderRecord(orderId);
+  const referrer = metadataReferrer || orderReferrer || 'direct';
+
+  const saleDocId = `${environment}_square_payment_${paymentId}`;
+  const saleRef = admin.firestore().collection('sales').doc(saleDocId);
+
+  await saleRef.set({
+    source: 'square',
+    environment,
+    type: 'payment',
+    squarePaymentId: paymentId,
+    squareOrderId: orderId,
+    squareCustomerId: customerId,
+    status,
+    amount,
+    amountCents,
+    currency,
+    referrer,
+    eventType: event.type,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    rawPayment: payment
+  }, { merge: true });
+
+  console.log('Saved Square payment sale', {
+    environment,
+    paymentId,
+    referrer,
+    amount,
+    status
+  });
+}
+
+async function saveSquareOrder(order, event, environment) {
+  const orderId = order.id;
+
+  if (!orderId) {
+    console.warn('Square order missing order id', {
+      environment,
+      eventType: event.type
+    });
+    return;
+  }
+
+  const state = order.state || null;
+  const totalMoney = order.total_money || {};
+  const amountCents = totalMoney.amount || 0;
+  const amount = amountCents / 100;
+  const currency = totalMoney.currency || 'USD';
+  const referrer = getReferrerFromMetadata(order.metadata || {}) || 'direct';
+
+  const saleDocId = `${environment}_square_order_${orderId}`;
+  const saleRef = admin.firestore().collection('sales').doc(saleDocId);
+
+  await saleRef.set({
+    source: 'square',
+    environment,
+    type: 'order',
+    squareOrderId: orderId,
+    status: state,
+    amount,
+    amountCents,
+    currency,
+    referrer,
+    eventType: event.type,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    rawOrder: order
+  }, { merge: true });
+
+  console.log('Saved Square order sale', {
+    environment,
+    orderId,
+    referrer,
+    amount,
+    status: state
+  });
+}
+
+async function handleSquareWebhook(event, environment) {
+  const eventId = event.event_id;
+  const eventType = event.type;
+
+  if (!eventId) {
+    console.warn('Square webhook missing event_id', {
+      environment,
+      eventType
+    });
+    return;
+  }
+
+  const eventDocId = `${environment}_${eventId}`;
+  const eventRef = admin.firestore().collection('squareWebhookEvents').doc(eventDocId);
+  const eventSnap = await eventRef.get();
+
+  if (eventSnap.exists) {
+    console.log('Duplicate Square webhook ignored', {
+      environment,
+      eventId,
+      eventType
+    });
+    return;
+  }
+
+  await eventRef.set({
+    eventId,
+    eventType,
+    environment,
+    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+    raw: event
+  });
+
+  const allowedEvents = [
+    'payment.created',
+    'payment.updated',
+    'order.created',
+    'order.updated'
+  ];
+
+  if (!allowedEvents.includes(eventType)) {
+    console.log('Ignoring Square event type', {
+      environment,
+      eventType
+    });
+    return;
+  }
+
+  const object = event?.data?.object || {};
+
+  if (object.payment) {
+    await saveSquarePayment(object.payment, event, environment);
+  }
+
+  if (object.order) {
+    await saveSquareOrder(object.order, event, environment);
+  }
+}
+
+async function handleSquareWebhookRequest(req, res, mode) {
   try {
-    const event = req.body;
-    console.log('Received Square webhook event type:', event.type);
-
-    const db = admin.firestore();
-
-    // Handle payment successful event
-    if (event.type === 'payment.created' || event.type === 'payment.updated') {
-      const payment = event.data?.object?.payment;
-      
-      if (!payment) {
-        console.log('No payment object in webhook');
-        return res.status(200).send('No payment data');
-      }
-
-      // Check if payment is actually completed
-      if (payment.status !== 'COMPLETED') {
-        console.log(`Payment status: ${payment.status}, not processing`);
-        return res.status(200).send('Payment not completed yet');
-      }
-
-      // Extract order ID from the payment note
-      const note = payment.note || '';
-      const Match = note.match(/Prize Entry - (\w+)/);
-      const prizeId = Match ? Match[1] : null;
-
-      if (!prizeId) {
-        console.log('No prize ID found in payment note');
-        return res.status(200).send('Payment processed but no prize ID found');
-      }
-
-      // Find the square order by payment ID or custom metadata
-      const ordersSnapshot = await db.collection('square_orders')
-        .where('paymentLinkId', '==', event.data?.object?.payment_link?.id || '')
-        .limit(1)
-        .get();
-
-      if (ordersSnapshot.empty) {
-        console.log('No matching order found for payment');
-        return res.status(200).send('Payment processed but no matching order');
-      }
-
-      const orderDoc = ordersSnapshot.docs[0];
-      const orderRef = orderDoc.ref;
-      const orderData = orderDoc.data();
-
-      // Prevent duplicate entries
-      if (orderData.prizeEntryCreatedAt) {
-        console.log(`Prize entry already created for order ${orderDoc.id}`);
-        return res.status(200).send('Prize entry already processed');
-      }
-
-      // Look up referrer UID
-      let referrerUid = null;
-      if (orderData.referrerRefId) {
-        const referrerQuerySnapshot = await db.collection('referrers')
-          .where('refId', '==', orderData.referrerRefId)
-          .limit(1)
-          .get();
-
-        if (!referrerQuerySnapshot.empty) {
-          referrerUid = referrerQuerySnapshot.docs[0].id;
-          console.log(`Found referrer UID: ${referrerUid}`);
-        }
-      }
-
-      // Create prize entry
-      await db.collection('prize_entries').add({
-        prizeId: orderData.prizeId,
-        name: orderData.name,
-        email: orderData.email,
-        phone: orderData.phone,
-        referrerRefId: orderData.referrerRefId || null,
-        referrerUid: referrerUid,
-        amount: orderData.amount,
-        paymentStatus: 'completed',
-        orderId: orderDoc.id,
-        squarePaymentId: payment.id,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        entryType: 'square'
-      });
-
-      // Update square order
-      await orderRef.update({
-        status: 'completed',
-        prizeEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        squarePaymentId: payment.id,
-        squarePaymentStatus: payment.status
-      });
-
-      console.log(`Successfully processed prize entry for order ${orderDoc.id}`);
-      return res.status(200).send('Webhook processed successfully');
+    if (req.method !== 'POST') {
+      return res.status(405).send('Method not allowed');
     }
 
-    // Other event types are acknowledged but not processed
-    res.status(200).send('Webhook received');
+    const squareConfig = getSquareWebhookConfig(mode);
+    if (!squareConfig.signatureKey || !squareConfig.notificationUrl) {
+      console.error('Missing Square webhook config', {
+        mode: squareConfig.environment,
+        hasSignatureKey: Boolean(squareConfig.signatureKey),
+        notificationUrl: squareConfig.notificationUrl
+      });
+      return res.status(500).send('Missing webhook config');
+    }
 
-  } catch (err) {
-    console.error('squareWebhook error:', err);
-    res.status(500).send('Internal Server Error');
+    const signature = req.get('x-square-hmacsha256-signature');
+    if (!signature) {
+      console.error('Missing Square signature header', {
+        mode: squareConfig.environment
+      });
+      return res.status(403).send('Missing signature');
+    }
+
+    const rawBody = req.rawBody && req.rawBody.length
+      ? req.rawBody.toString('utf8')
+      : null;
+    if (!rawBody) {
+      console.error('Missing raw body', {
+        mode: squareConfig.environment
+      });
+      return res.status(400).send('Missing raw body');
+    }
+
+    const isValid = await verifySquareWebhookSignature(
+      rawBody,
+      signature,
+      squareConfig.signatureKey,
+      squareConfig.notificationUrl
+    );
+
+    if (!isValid) {
+      console.error('Invalid Square webhook signature', {
+        mode: squareConfig.environment,
+        notificationUrl: squareConfig.notificationUrl
+      });
+      return res.status(403).send('Invalid signature');
+    }
+
+    const event = JSON.parse(rawBody);
+    console.log('Square webhook verified', {
+      mode: squareConfig.environment,
+      eventType: event.type,
+      eventId: event.event_id
+    });
+
+    await handleSquareWebhook(event, squareConfig.environment);
+    return res.status(200).send('OK');
+  } catch (error) {
+    console.error('Square webhook error:', error);
+    return res.status(500).send('Webhook error');
   }
+}
+
+/**
+ * Sandbox/test Square webhook
+ * URL: https://us-central1-torat-yose.cloudfunctions.net/squareWebhook
+ */
+exports.squareWebhook = functions.region('us-central1').https.onRequest(async (req, res) => {
+  return handleSquareWebhookRequest(req, res, 'test');
+});
+
+/**
+ * Live/production Square webhook
+ * URL: https://us-central1-torat-yose.cloudfunctions.net/LiveSquareWebhook
+ */
+exports.LiveSquareWebhook = functions.region('us-central1').https.onRequest(async (req, res) => {
+  return handleSquareWebhookRequest(req, res, 'live');
 });

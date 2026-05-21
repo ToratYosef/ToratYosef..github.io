@@ -1,7 +1,6 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const paypal = require('@paypal/checkout-server-sdk');
 const admin = require('firebase-admin');
 const ExcelJS = require('exceljs');
 
@@ -22,19 +21,24 @@ const db = admin.firestore();
 const ticketPrice = 126;
 const siteDomain = process.env.DOMAIN || 'https://toratyosefsummerraffle.com';
 
-let paypalEnvironment;
-if (process.env.PAYPAL_ENVIRONMENT === 'live') {
-    paypalEnvironment = new paypal.core.LiveEnvironment(
-        process.env.PAYPAL_CLIENT_ID,
-        process.env.PAYPAL_CLIENT_SECRET
-    );
-} else {
-    paypalEnvironment = new paypal.core.SandboxEnvironment(
-        process.env.PAYPAL_CLIENT_ID,
-        process.env.PAYPAL_CLIENT_SECRET
-    );
+function useSquareTestEnvironment() {
+    return String(process.env.SQUARE_TEST_ENVIRONMENT || '').toLowerCase() === 'true';
 }
-const paypalClient = new paypal.core.PayPalHttpClient(paypalEnvironment);
+
+function getSquareServerConfig() {
+    const isTest = useSquareTestEnvironment();
+    return {
+        isTest,
+        appId: isTest ? process.env.SQUARE_TEST_APP_ID : process.env.SQUARE_APP_ID,
+        accessToken: isTest
+            ? (process.env.SQUARE_TEST_TEST_ACCESS_TOKEN || process.env.SQUARE_TEST_ACCESS_TOKEN)
+            : process.env.SQUARE_ACCESS_TOKEN,
+        locationId: isTest
+            ? (process.env.SQUARE_TEST_LOCATION_ID || process.env.SQUARE_LOCATION_ID)
+            : process.env.SQUARE_LOCATION_ID,
+        apiBase: isTest ? 'https://connect.squareupsandbox.com' : 'https://connect.squareup.com'
+    };
+}
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(webRoot));
@@ -98,159 +102,20 @@ app.get('/api/health', (req, res) => {
     res.status(200).json({ ok: true });
 });
 
-app.post('/api/paypal/create-order', async (req, res) => {
-    const { amount, quantity, name, email, phone, referral } = req.body;
-    const parsedAmount = parseFloat(amount);
-
-    if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0 || !name || !email || !phone) {
-        return res.status(400).json({ error: 'Invalid or missing data provided.' });
-    }
-
-    const request = new paypal.orders.OrdersCreateRequest();
-    request.prefer('return=representation');
-    request.requestBody({
-        intent: 'CAPTURE',
-        purchase_units: [
-            {
-                amount: {
-                    currency_code: 'USD',
-                    value: parsedAmount.toFixed(2)
-                }
-            }
-        ]
-    });
-
-    try {
-        const order = await paypalClient.execute(request);
-        const orderID = order.result.id;
-
-        await db.collection('paypal_orders').doc(orderID).set({
-            name,
-            email,
-            phone,
-            referrerRefId: referral || null,
-            amount: parsedAmount,
-            quantity: quantity || Math.max(1, Math.round(parsedAmount / ticketPrice)),
-            status: 'PENDING',
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        return res.status(200).json({ orderID });
-    } catch (error) {
-        console.error('Error creating PayPal order:', error.message);
-        return res.status(500).json({ error: 'Could not create PayPal order.' });
-    }
-});
-
-app.post('/api/paypal/capture-order', async (req, res) => {
-    const { orderID } = req.body;
-    if (!orderID) {
-        return res.status(400).json({ error: 'Missing PayPal order ID.' });
-    }
-
-    const request = new paypal.orders.OrdersCaptureRequest(orderID);
-    request.prefer('return=representation');
-
-    try {
-        const capture = await paypalClient.execute(request);
-        const paymentStatus = capture.result.status;
-
-        if (paymentStatus !== 'COMPLETED') {
-            return res.status(400).json({ success: false, message: 'Payment not completed by PayPal.' });
-        }
-
-        await db.collection('paypal_orders').doc(orderID).set({
-            status: 'COMPLETED',
-            captureData: capture.result,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        return res.status(200).json({ success: true, message: 'Payment captured successfully.' });
-    } catch (error) {
-        console.error('Error capturing PayPal order:', error.message);
-        return res.status(500).json({ success: false, message: 'Could not capture PayPal order.' });
-    }
-});
-
-app.post('/api/paypal/webhook', async (req, res) => {
-    if (req.method !== 'POST') {
-        return res.status(405).send('Method Not Allowed');
-    }
-
-    try {
-        const event = req.body;
-        if (!event || !event.event_type) {
-            return res.status(400).send('Invalid webhook payload.');
-        }
-
-        if (event.event_type !== 'CHECKOUT.ORDER.APPROVED' && event.event_type !== 'PAYMENT.CAPTURE.COMPLETED') {
-            return res.status(200).send('Webhook event ignored.');
-        }
-
-        const orderID = event.resource?.id || event.resource?.supplementary_data?.related_ids?.order_id;
-        if (!orderID) {
-            return res.status(400).send('No order ID found in webhook event.');
-        }
-
-        const orderRef = db.collection('paypal_orders').doc(orderID);
-        const orderDoc = await orderRef.get();
-
-        if (!orderDoc.exists) {
-            return res.status(200).send('Order not found locally, webhook acknowledged.');
-        }
-
-        const orderData = orderDoc.data();
-        if (orderData.raffleEntryCreatedAt) {
-            return res.status(200).send('Already processed.');
-        }
-
-        const resolvedReferrerUid = await resolveReferrerUidByRefId(orderData.referrerRefId);
-        const ticketsBought = Math.max(1, Math.floor((orderData.amount || 0) / ticketPrice));
-
-        await db.collection('raffle_entries').add({
-            name: orderData.name,
-            email: orderData.email,
-            phone: orderData.phone,
-            referrerRefId: orderData.referrerRefId || null,
-            referrerUid: resolvedReferrerUid,
-            amount: orderData.amount,
-            ticketsBought,
-            paymentStatus: 'completed',
-            orderID,
-            timestamp: orderData.createdAt || admin.firestore.FieldValue.serverTimestamp(),
-            entryType: 'paypal',
-            paypalEventId: event.id,
-            webhookEventType: event.event_type
-        });
-
-        await orderRef.update({
-            raffleEntryCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            webhookProcessed: true,
-            lastWebhookEvent: event
-        });
-
-        return res.status(200).send('Webhook processed successfully.');
-    } catch (error) {
-        console.error('PayPal webhook error:', error.message);
-        return res.status(500).send('Internal Server Error during webhook processing.');
-    }
-});
-
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
     return res.status(410).json({ error: 'Stripe checkout is disabled. Please use Square checkout.' });
 });
 
 app.post('/api/square/create-checkout-session', async (req, res) => {
     const { name, email, phone, referral, quantity } = req.body;
+    const normalizedReferrer = (referral || 'direct').trim() || 'direct';
     const parsedQuantity = Math.max(1, Math.min(99, parseInt(quantity, 10) || 1));
     const totalAmount = parsedQuantity * ticketPrice;
     const squareBaseUrl = process.env.SQUARE_CHECKOUT_URL;
-    const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
-    const squareLocationId = process.env.SQUARE_LOCATION_ID;
-    const squareEnvironment = (process.env.SQUARE_ENVIRONMENT || 'sandbox').toLowerCase();
-    const squareApiBase = squareEnvironment === 'production'
-        ? 'https://connect.squareup.com'
-        : 'https://connect.squareupsandbox.com';
+    const squareConfig = getSquareServerConfig();
+    const squareAccessToken = squareConfig.accessToken;
+    const squareLocationId = squareConfig.locationId;
+    const squareApiBase = squareConfig.apiBase;
 
     if (!name || !email || !phone) {
         return res.status(400).json({ error: 'Missing required fields: name, email, phone.' });
@@ -264,11 +129,13 @@ app.post('/api/square/create-checkout-session', async (req, res) => {
             name,
             email,
             phone,
-            referrerRefId: referral || null,
+            referrerRefId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
             quantity: parsedQuantity,
             amount: totalAmount,
             status: 'pending_redirect',
             provider: 'square',
+            squareMode: squareConfig.isTest ? 'test' : 'live',
+            squareAppId: squareConfig.appId || null,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -285,13 +152,22 @@ app.post('/api/square/create-checkout-session', async (req, res) => {
                 },
                 body: JSON.stringify({
                     idempotency_key: orderId,
-                    quick_pay: {
-                        name: `Yeshivat Torat Yosef Raffle (${parsedQuantity} ticket${parsedQuantity > 1 ? 's' : ''})`,
-                        price_money: {
-                            amount: Math.round(totalAmount * 100),
-                            currency: 'USD'
-                        },
-                        location_id: squareLocationId
+                    order: {
+                        location_id: squareLocationId,
+                        line_items: [
+                            {
+                                name: 'Yeshivat Torat Yosef Raffle Ticket',
+                                quantity: String(parsedQuantity),
+                                base_price_money: {
+                                    amount: Math.round(ticketPrice * 100),
+                                    currency: 'USD'
+                                }
+                            }
+                        ],
+                        metadata: {
+                            referrer: normalizedReferrer,
+                            referral: normalizedReferrer
+                        }
                     },
                     checkout_options: {
                         redirect_url: `${siteDomain}/success.html?orderId=${orderId}`
@@ -307,6 +183,10 @@ app.post('/api/square/create-checkout-session', async (req, res) => {
 
             checkoutUrl = squareData.payment_link.url;
             paymentLinkId = squareData.payment_link.id || null;
+
+            if (squareData.payment_link.order_id) {
+                await orderRef.update({ squareOrderId: squareData.payment_link.order_id });
+            }
         } else if (squareBaseUrl) {
             const fallbackCheckoutUrl = new URL(squareBaseUrl);
             fallbackCheckoutUrl.searchParams.set('orderId', orderId);
@@ -315,8 +195,8 @@ app.post('/api/square/create-checkout-session', async (req, res) => {
             fallbackCheckoutUrl.searchParams.set('name', name);
             fallbackCheckoutUrl.searchParams.set('email', email);
             fallbackCheckoutUrl.searchParams.set('phone', phone);
-            if (referral) {
-                fallbackCheckoutUrl.searchParams.set('ref', referral);
+            if (normalizedReferrer && normalizedReferrer !== 'direct') {
+                fallbackCheckoutUrl.searchParams.set('ref', normalizedReferrer);
             }
             checkoutUrl = fallbackCheckoutUrl.toString();
         } else {

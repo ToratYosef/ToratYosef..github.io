@@ -1,497 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="favicon-32x32" href="favicon/favicon.ico">
-<meta name="theme-color" content="#ffffff">
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>About - Yeshivat Torat Yosef Raffle</title>
-  <style>
-    :root {
-      --primary-bg: #ffffff;
-      --primary-text: rgb(0, 33, 65);
-      --secondary-bg: rgb(0, 33, 65);
-      --accent: #7F0031;
-      --hover: #590023;
-      --button-gradient-start: #a30040; /* Added for consistency */
-      --button-gradient-end: #7F0031;    /* Added for consistency */
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: var(--primary-bg);
-      color: var(--primary-text);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh; /* Ensure it takes full viewport height */
-    }
-
-    .logo-container {
-        text-align: center;
-        padding: 0.8rem 0 0.4rem;
-        flex-shrink: 0;
-    }
-
-    .logo {
-        max-width: 250px;
-        width: 80vw;
-        height: auto;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        border-radius: 8px;
-        box-sizing: border-box;
-    }
-
-    nav {
-      display: flex;
-      justify-content: center;
-      gap: 1rem;
-      padding: 0.8rem 0;
-      background-color: var(--secondary-bg);
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      flex-shrink: 0;
-      width: 100%;
-      flex-wrap: wrap;
-    }
-
-    nav a {
-      color: white;
-      text-decoration: none;
-      padding: 0.4rem 0.8rem;
-      font-weight: bold;
-      font-size: 1rem;
-      white-space: nowrap;
-      user-select: none;
-    }
-
-    nav a.active {
-      border-bottom: 3px solid var(--accent);
-      color: var(--accent);
-    }
-
-    nav a:hover {
-      color: var(--accent);
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 2rem auto;
-      padding: 0 1rem; /* Adjust padding to avoid cutting off general content */
-      text-align: center;
-      flex-grow: 1;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    h1 {
-      color: var(--accent);
-      font-size: 1.6rem;
-      margin: 0.5rem 0;
-    }
-
-    .info-section {
-      margin-top: 2rem;
-      text-align: left;
-      font-size: 1.1rem;
-      line-height: 1.6;
-      max-width: 100%; /* Allow info section to use full container width */
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .info-section p {
-      margin: 1rem 0;
-    }
-
-    .family-boxes-wrapper { /* New wrapper to handle full width and horizontal scrolling */
-      width: 100%; /* Take full width of its parent */
-      overflow-x: auto; /* Enable horizontal scrolling */
-      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-      scroll-snap-type: x mandatory; /* Optional: Snap to items on scroll */
-      padding: 0 1rem; /* Padding to show half of the first/last card */
-      margin-top: 2rem; /* Add margin here instead of .family-boxes */
-      box-sizing: border-box; /* Include padding in width */
-    }
-
-    .family-boxes {
-      display: flex;
-      flex-wrap: nowrap; /* Keep all items on one line */
-      gap: 1rem; /* Spacing between cards */
-      justify-content: flex-start; /* Start from the beginning to show peek */
-      align-items: flex-start; /* Align items to the top if heights differ */
-      min-width: fit-content; /* Ensure container is wide enough for all cards */
-    }
-
-    /* Webkit scrollbar for Chrome, Safari */
-    .family-boxes-wrapper::-webkit-scrollbar {
-      height: 8px;
-    }
-
-    .family-boxes-wrapper::-webkit-scrollbar-track {
-      background: #f0f0f0;
-      border-radius: 10px;
-    }
-
-    .family-boxes-wrapper::-webkit-scrollbar-thumb {
-      background-color: var(--accent);
-      border-radius: 10px;
-      border: 2px solid #f0f0f0;
-    }
-
-    .family-card {
-      background-color: #f8f8f8;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 1rem;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      flex-shrink: 0; /* Prevent cards from shrinking */
-      width: 220px; /* Adjust width slightly for better fit with peek */
-      scroll-snap-align: start; /* Optional: Snap to start of card */
-    }
-
-    .family-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-
-    .family-avatar {
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-      object-fit: cover;
-      margin-bottom: 0.8rem;
-      border: 2px solid var(--accent);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    }
-
-    .family-name {
-      color: var(--secondary-bg);
-      font-size: 1.2rem;
-      font-weight: bold;
-      margin-bottom: 0.3rem;
-    }
-
-    .family-description {
-      color: #666;
-      font-size: 0.85rem;
-      line-height: 1.3;
-    }
-
-    .cta {
-      margin-top: 2rem;
-      font-weight: bold;
-      font-size: 1.2rem;
-      color: var(--secondary-bg);
-    }
-
-    .buy-links {
-        margin-top: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        width: 100%;
-        max-width: 350px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .buy-links a {
-        display: block;
-        padding: 0.9rem 1.8rem;
-        background-image: linear-gradient(to right, var(--button-gradient-start), var(--button-gradient-end));
-        color: white;
-        text-decoration: none;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 1.1rem;
-        text-transform: uppercase;
-        transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
-        text-align: center;
-        box-shadow: 0 6px 12px rgba(127, 0, 49, 0.4);
-        border: 1px solid var(--hover);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .buy-links a:hover {
-        background-image: linear-gradient(to right, var(--hover), var(--accent));
-        transform: translateY(-3px);
-        box-shadow: 0 8px 16px rgba(127, 0, 49, 0.6);
-    }
-
-    /* Footer Styles */
-    footer {
-        background-color: var(--secondary-bg);
-        color: white;
-        padding: 1.5rem 1rem;
-        width: 100%;
-        box-sizing: border-box;
-        text-align: center;
-        margin-top: auto;
-    }
-
-    .footer-content {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1.2rem;
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-
-    .footer-logo img {
-        max-width: 150px;
-        height: auto;
-        display: block;
-        margin: 0 auto 0.8rem;
-    }
-
-    .footer-section {
-        padding: 0 1rem;
-    }
-
-    .footer-section h3 {
-        color: var(--accent);
-        margin-top: 0;
-        margin-bottom: 0.6rem;
-        font-size: 1.1rem;
-    }
-
-    .footer-section p {
-        margin: 0.2rem 0;
-        font-size: 0.85rem;
-        line-height: 1.4;
-    }
-
-    .footer-section a {
-        color: white;
-        text-decoration: none;
-    }
-
-    .footer-section a:hover {
-        color: var(--accent);
-        text-decoration: underline;
-    }
-
-    @media (min-width: 768px) {
-      .family-boxes-wrapper {
-        padding: 0; /* No padding needed if container is wide enough on desktop */
-        overflow-x: hidden; /* Hide scrollbar if content fits */
-      }
-      .family-boxes {
-        justify-content: center; /* Center cards on wider screens */
-        flex-wrap: wrap; /* Allow wrapping on larger screens to avoid excessive single-line scroll */
-      }
-      .family-card {
-        width: 200px; /* Adjust width slightly for better wrapping if needed */
-      }
-      .family-name {
-        font-size: 1.1rem;
-      }
-      .family-description {
-        font-size: 0.8rem;
-      }
-      nav a {
-        font-size: 0.9rem;
-        padding: 0.4rem 0.6rem;
-      }
-      .logo {
-        max-width: 200px;
-      }
-      .buy-links {
-        flex-direction: row;
-        justify-content: center;
-        max-width: none;
-        gap: 1.5rem;
-      }
-      .buy-links a {
-        width: auto;
-      }
-      /* Responsive footer layout for larger screens */
-      .footer-content {
-          flex-direction: row;
-          justify-content: space-around;
-          align-items: flex-start;
-          text-align: left;
-      }
-
-      .footer-logo {
-          flex-basis: 180px;
-          text-align: center;
-      }
-      .footer-logo img {
-          margin-bottom: 0;
-      }
-
-      .school-info {
-          flex-basis: 280px;
-      }
-
-      .dev-info {
-          flex-basis: 220px;
-      }
-    }
-
-    @media (max-width: 400px) {
-      h1 {
-        font-size: 1.4rem;
-      }
-      nav a {
-        font-size: 0.85rem;
-        padding: 0.3rem 0.5rem;
-      }
-      .buy-links {
-        max-width: 250px;
-      }
-      .buy-links a {
-        font-size: 0.9rem;
-        padding: 0.6rem;
-      }
-      /* Ensure padding for wrapper on small screens */
-      .family-boxes-wrapper {
-        padding: 0 0.5rem; /* Slightly less padding on very small screens */
-      }
-      .family-card {
-        width: 180px; /* Smaller card width on very small screens */
-      }
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About - Yeshivat Torat Yosef</title>
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="favicon/favicon.ico" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="logo-container">
-    <img src="assets/logo.png" alt="Yeshivat Torat Yosef Logo" class="logo" />
-  </div>
+<body class="bg-slate-50 text-slate-900">
+  <main class="mx-auto w-full max-w-6xl px-4 pb-16 pt-8 md:px-6">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <h1 class="text-3xl font-bold tracking-tight md:text-4xl">About Yeshivat Torat Yosef</h1>
+      <p class="mt-3 max-w-3xl text-slate-600">
+        Building the next generation of passionate, learned, and proud Sephardic Jewish leaders.
+      </p>
+      <div id="referral-info" class="mt-4 hidden rounded-lg border-l-4 border-slate-800 bg-slate-100 p-3 text-sm text-slate-700"></div>
+    </section>
 
-  <nav>
-    <a href="index.html" class="nav-link">Home</a>
-    <a href="prizes.html" class="nav-link">Prizes</a>
-    <a href="about.html" class="active">About</a>
-    
-  </nav>
+    <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <div class="space-y-4 text-slate-700 leading-7">
+        <p>
+          Yeshivat Torat Yosef is an all-Sephardic yeshiva dedicated to helping students grow in Torah,
+          character, and confidence.
+        </p>
+        <p>
+          Founded in 2022 and now thriving in Hollywood, Florida, the Yeshiva serves families from Brooklyn,
+          Deal, South Florida, and beyond.
+        </p>
+        <p>
+          Every contribution supports exceptional Torah learning, strong educational standards, and a warm,
+          community-first environment where each student is known and uplifted.
+        </p>
+      </div>
+    </section>
 
-  <div class="container">
-    <h1>About Yeshivat Torat Yosef</h1>
+    <section class="mt-6">
+      <h2 class="text-2xl font-bold text-slate-900">Our Valued Supporters</h2>
+      <p class="mt-2 text-slate-600">We are deeply grateful to the families and individuals who help this mission grow.</p>
 
-    <div class="info-section">
-      <p>Yeshivat Torat Yosef is an all-Sephardic yeshiva dedicated to building the next generation of passionate, learned, and proud Jews from the heart of the Brooklyn and Deal communities — now thriving in South Florida.</p>
-      <p>The Yeshiva was **created in 2022** and is located in **Hollywood, FL, on the Joe and Trina Cayre campus**.</p>
-      <p>Your support directly funds Torah learning, excellent education, and a warm, community-first environment where every student is seen and uplifted.</p>
-      <p>Whether you're alumni, family, or part of the broader Sephardic world, your contribution helps build character, strengthen emunah, and grow true Bnei Torah.</p>
-    </div>
+      <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-3 flex items-center gap-3">
+            <img src="https://placehold.co/80x80/7F0031/ffffff?text=ADJMI" alt="Harry and Alice Adjmi" class="h-16 w-16 rounded-full border-2 border-rose-700 object-cover" />
+            <h3 class="text-lg font-bold text-slate-900">Harry and Alice Adjmi</h3>
+          </div>
+          <p class="text-sm leading-6 text-slate-600">Pillars of our community whose generosity continues to open doors for students.</p>
+        </article>
 
-    <h2 style="color: var(--secondary-bg); margin-top: 3rem;">Our Valued Supporters</h2>
-    <p style="margin-bottom: 1.5rem; font-size: 1rem; color: var(--primary-text);">We extend our heartfelt gratitude to these individuals and families for their immense generosity.</p>
+        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-3 flex items-center gap-3">
+            <img src="https://placehold.co/80x80/002141/ffffff?text=CAYRE" alt="Joe and Trina Cayre" class="h-16 w-16 rounded-full border-2 border-slate-800 object-cover" />
+            <h3 class="text-lg font-bold text-slate-900">Joe and Trina Cayre</h3>
+          </div>
+          <p class="text-sm leading-6 text-slate-600">Their commitment to Torah education has made a lasting impact on our campus and students.</p>
+        </article>
 
-  </div> <div class="family-boxes-wrapper">
-        <div class="family-boxes">
-            <div class="family-card">
-              <img src="https://placehold.co/70x70/7F0031/ffffff?text=ADJMI" alt="Harry and Alice Adjmi" class="family-avatar" />
-              <h3 class="family-name">Harry and Alice Adjmi</h3>
-              <p class="family-description">Pillars of our community, whose generosity illuminates countless paths for our students and programs.</p>
-            </div>
+        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-3 flex items-center gap-3">
+            <img src="https://placehold.co/80x80/7F0031/ffffff?text=COMM" alt="Community supporters" class="h-16 w-16 rounded-full border-2 border-rose-700 object-cover" />
+            <h3 class="text-lg font-bold text-slate-900">Our Broader Community</h3>
+          </div>
+          <p class="text-sm leading-6 text-slate-600">Families and supporters across communities who help sustain Torah for the next generation.</p>
+        </article>
+      </div>
+    </section>
 
-            <div class="family-card">
-              <img src="https://placehold.co/70x70/002141/ffffff?text=Cayre" alt="Joe and Trina Cayre" class="family-avatar" />
-              <h3 class="family-name">Joe and Trina Cayre</h3>
-              <p class="family-description">Their dedication is honored through our campus, a testament to their unwavering commitment to Torah education.</p>
-            </div>
-
-            <div class="family-card">
-              <img src="https://placehold.co/70x70/7F0031/ffffff?text=MIZRAHI" alt="Irwin and Jill Mizrahi" class="family-avatar" />
-              <h3 class="family-name">Irwin and Jill Mizrahi</h3>
-              <p class="family-description">Immense supporters whose contributions are foundational to the continued growth and success of the Yeshivah.</p>
-            </div>
-
-            <div class="family-card">
-              <img src="https://placehold.co/70x70/002141/ffffff?text=OVAKNIN" alt="Avi & Gili Ovaknin" class="family-avatar" />
-              <h3 class="family-name">Avi & Gili Ovaknin</h3>
-              <p class="family-description">Their commitment helps us provide a nurturing and enriching environment for all our students.</p>
-            </div>
-
-            <div class="family-card">
-              <img src="https://placehold.co/70x70/7F0031/ffffff?text=SASSOUNES" alt="Adam Sassounes" class="family-avatar" />
-              <h3 class="family-name">Adam Sassounes</h3>
-              <p class="family-description">A valued supporter whose vision helps us build the next generation of proud Jewish leaders.</p>
-            </div>
-        </div>
-    </div> <div class="container"> <div class="cta">
-            Be a part of something eternal. Buy your ticket today.
-        </div>
-        <div class="buy-links">
-            <a href="checkout.html" rel="noopener" class="buy-link-main">Buy Ticket Now</a>
-        </div>
-    </div>
+    <section class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+      <p class="text-lg font-semibold text-slate-900">Be part of something eternal.</p>
+      <p class="mt-2 text-slate-600">Buy your ticket today and help strengthen Torah education.</p>
+      <a id="buy-link" href="checkout.html" class="mt-4 inline-flex rounded-lg bg-rose-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">
+        Buy Ticket Now
+      </a>
+    </section>
+  </main>
 
   <script>
-    // Function to parse URL parameters
     function getUrlParameter(name) {
-        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-        var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-        var results = regex.exec(location.search);
-        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-    };
+      const escaped = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      const regex = new RegExp('[\\?&]' + escaped + '=([^&#]*)');
+      const results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const navLinks = document.querySelectorAll('nav a'); // Select all nav links
-      const buyLinkMain = document.querySelector('.buy-link-main'); // Select the main buy button
-
-      const referrerId = getUrlParameter('ref'); // Get referrer from current URL
-
-      if (referrerId) {
-        // Update all navigation links
-        navLinks.forEach(link => {
-          const originalHref = link.getAttribute('href');
-          // Only modify if it's an internal link and not already pointing to current page's active state
-          if (originalHref && !originalHref.startsWith('http') && !link.classList.contains('active')) {
-            const newHref = originalHref.includes('?')
-                               ? `${originalHref}&ref=${referrerId}`
-                               : `${originalHref}?ref=${referrerId}`;
-            link.href = newHref;
-          }
-        });
-
-        // Update the main "Buy Ticket Now" button
-        if (buyLinkMain) {
-            const originalHref = buyLinkMain.getAttribute('href');
-            if (originalHref && !originalHref.startsWith('http')) {
-                const newHref = originalHref.includes('?')
-                                     ? `${originalHref}&ref=${referrerId}`
-                                     : `${originalHref}?ref=${referrerId}`;
-                buyLinkMain.href = newHref;
-            }
-        }
+    document.addEventListener('DOMContentLoaded', function () {
+      const ref = getUrlParameter('ref');
+      if (!ref) {
+        return;
       }
+
+      const referralInfo = document.getElementById('referral-info');
+      referralInfo.classList.remove('hidden');
+      referralInfo.innerHTML = '<strong>You were referred by:</strong> ' + ref;
+
+      const buyLink = document.getElementById('buy-link');
+      buyLink.href = 'checkout.html?ref=' + encodeURIComponent(ref);
     });
   </script>
-
-  <footer>
-      <div class="footer-content">
-          <div class="footer-logo">
-              <img src="https://static.wixstatic.com/media/2de2be_3f32007405f243d6b0dd807b656ea835~mv2.png/v1/fill/w_652,h_248,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/IMG_4131-B.png" alt="Yeshivat Torah Yosef Footer Logo">
-          </div>
-          <div class="footer-section school-info">
-              <h3>School Info</h3>
-              <p>&copy; 2025 by Yeshivat Torat Yosef.</p>
-              <p>8950 Stirling Rd</p>
-              <p>Hollywood, FL 33024</p>
-              <p><a href="tel:7325080530">732-508-0530</a></p>
-              <p><a href="mailto:office@toratyosef.org">office@toratyosef.org</a></p>
-          </div>
-          <div class="footer-section dev-info">
-              <p>Website made by Saul Setton</p>
-              <p>929-584-5753</p>
-              <p><a href="mailto:saulsetton16@gmail.com">saulsetton16@gmail.com</a></p>
-          </div>
-      </div>
-  </footer>
-
   <script defer src="/scripts/layout.js"></script>
 </body>
 </html>

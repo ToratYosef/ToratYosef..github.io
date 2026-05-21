@@ -15,7 +15,7 @@
       <p class="mt-3 max-w-3xl text-slate-600">
         One winning ticket takes both prizes. Ticket price is <span class="font-semibold text-rose-700">$126</span>.
       </p>
-      <a id="buy-top-link" href="checkout.html" class="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Buy Tickets</a>
+      <a href="#checkout-on-page" class="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Buy Tickets</a>
     </section>
 
     <section class="mt-6 grid gap-6 md:grid-cols-2">
@@ -32,7 +32,7 @@
 
       <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="aspect-[4/3] w-full bg-slate-200">
-          <img src="https://images.unsplash.com/photo-1580048915913-4f8f5cb481c4?auto=format&fit=crop&w=1200&q=80" alt="$10,000 cash" class="h-full w-full object-cover" />
+          <img src="https://static4.depositphotos.com/1007959/315/i/950/depositphotos_3159212-stock-photo-stacks-of-ten-thousand-dollars.jpg" alt="$10,000 cash" class="h-full w-full object-cover" />
         </div>
         <div class="p-5">
           <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Prize 2</p>
@@ -42,21 +42,130 @@
       </article>
     </section>
 
-    <div class="mt-8 text-center">
-      <a id="buy-bottom-link" href="checkout.html" class="inline-flex rounded-lg bg-rose-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">Enter Now - $126 Per Ticket</a>
-    </div>
+    <section id="checkout-on-page" class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <h2 class="text-2xl font-bold tracking-tight text-slate-900">Enter The Raffle</h2>
+      <p class="mt-2 text-sm text-slate-600">Complete your details below to continue to secure checkout.</p>
+
+      <form id="prizes-checkout-form" class="mt-5" novalidate>
+        <div class="grid gap-3 md:grid-cols-2">
+          <label class="text-sm font-semibold text-slate-700 md:col-span-2">
+            Full Name
+            <input id="prize-name" type="text" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-rose-400" required />
+          </label>
+
+          <label class="text-sm font-semibold text-slate-700">
+            Email Address
+            <input id="prize-email" type="email" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-rose-400" required />
+          </label>
+
+          <label class="text-sm font-semibold text-slate-700">
+            Phone Number
+            <input id="prize-phone" type="tel" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-rose-400" required />
+          </label>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+          <div class="inline-flex items-center gap-2">
+            <button id="prize-dec" type="button" class="h-8 w-8 rounded bg-slate-900 text-white">-</button>
+            <input id="prize-quantity" type="number" min="1" max="99" value="1" class="w-16 rounded border border-slate-300 px-2 py-1 text-center font-semibold" />
+            <button id="prize-inc" type="button" class="h-8 w-8 rounded bg-slate-900 text-white">+</button>
+          </div>
+          <p class="text-sm font-bold text-rose-700">Total: $<span id="prize-total">126.00</span></p>
+        </div>
+
+        <button id="prize-submit" type="submit" class="mt-4 inline-flex rounded-lg bg-rose-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">Continue To Checkout</button>
+        <p id="prize-status" class="mt-2 text-sm font-semibold text-emerald-700" aria-live="polite"></p>
+      </form>
+    </section>
   </main>
 
   <script>
     (function () {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get('ref');
-      if (ref) {
-        const top = document.getElementById('buy-top-link');
-        const bottom = document.getElementById('buy-bottom-link');
-        top.href += '?ref=' + encodeURIComponent(ref);
-        bottom.href += '?ref=' + encodeURIComponent(ref);
+      const TICKET_PRICE = 126;
+      const form = document.getElementById('prizes-checkout-form');
+      const quantityInput = document.getElementById('prize-quantity');
+      const totalEl = document.getElementById('prize-total');
+      const statusEl = document.getElementById('prize-status');
+      const submitBtn = document.getElementById('prize-submit');
+
+      function getSavedReferrer() {
+        if (window.__referral && typeof window.__referral.getReferrer === 'function') {
+          return window.__referral.getReferrer();
+        }
+        return sessionStorage.getItem('referrer') || localStorage.getItem('referrer') || 'direct';
       }
+
+      function sanitizeQuantity(rawValue) {
+        let quantity = parseInt(rawValue, 10);
+        if (Number.isNaN(quantity)) quantity = 1;
+        if (quantity < 1) quantity = 1;
+        if (quantity > 99) quantity = 99;
+        return quantity;
+      }
+
+      function setStatus(message, isError) {
+        statusEl.textContent = message;
+        statusEl.className = 'mt-2 text-sm font-semibold ' + (isError ? 'text-rose-700' : 'text-emerald-700');
+      }
+
+      function updateTotal() {
+        const quantity = sanitizeQuantity(quantityInput.value);
+        quantityInput.value = String(quantity);
+        totalEl.textContent = (quantity * TICKET_PRICE).toFixed(2);
+      }
+
+      document.getElementById('prize-dec').addEventListener('click', function () {
+        quantityInput.value = String(sanitizeQuantity(quantityInput.value) - 1);
+        updateTotal();
+      });
+
+      document.getElementById('prize-inc').addEventListener('click', function () {
+        quantityInput.value = String(sanitizeQuantity(quantityInput.value) + 1);
+        updateTotal();
+      });
+
+      quantityInput.addEventListener('input', updateTotal);
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        setStatus('', false);
+
+        const payload = {
+          name: document.getElementById('prize-name').value.trim(),
+          email: document.getElementById('prize-email').value.trim(),
+          phone: document.getElementById('prize-phone').value.trim(),
+          quantity: sanitizeQuantity(quantityInput.value),
+          referral: getSavedReferrer()
+        };
+
+        if (!payload.name || !payload.email || !payload.phone) {
+          setStatus('Please fill in name, email, and phone before checkout.', true);
+          return;
+        }
+
+        submitBtn.disabled = true;
+        setStatus('Preparing your checkout...', false);
+
+        try {
+          const response = await fetch('/api/square/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+
+          if (!response.ok || !data.url) {
+            throw new Error(data.error || 'Could not start checkout.');
+          }
+
+          window.location.href = data.url;
+        } catch (error) {
+          setStatus(error.message || 'Checkout failed. Please try again.', true);
+          submitBtn.disabled = false;
+        }
+      });
+
+      updateTotal();
     })();
   </script>
   <script defer src="/scripts/layout.js"></script>

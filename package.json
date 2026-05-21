@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@paypal/checkout-server-sdk": "^1.0.3",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
