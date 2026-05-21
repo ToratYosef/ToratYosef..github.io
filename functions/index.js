@@ -339,12 +339,12 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
 
 /**
  * Firebase Callable Function to create a new referrer account.
- * IMPORTANT: This function has NO authentication check, allowing anyone to call it.
+ * Locked to authenticated super admins.
  */
 exports.createReferrerAccount = functions.https.onCall(async (data, context) => {
-    // Removed: if (!context.auth) { ... } as per user request to allow unauthenticated calls.
-    // WARNING: This means ANYONE can call this function if they know its endpoint.
-    // This is a significant security risk for a production environment.
+    if (!context.auth || !context.auth.token.superAdminReferrer) {
+      throw new functions.https.HttpsError('permission-denied', 'Only super admins can create referrer accounts.');
+    }
 
     // 2. Validate Input Data
     const { email, password, name, goal, isSuperAdminReferrer } = data;
@@ -423,13 +423,12 @@ exports.createReferrerAccount = functions.https.onCall(async (data, context) => 
 
 /**
  * Firebase Callable Function to create a new viewer account.
- * IMPORTANT: This function should only be called by an authorized administrator
- * if you value security. Currently, it has no authentication check.
+ * Locked to authenticated super admins.
  */
 exports.createViewerAccount = functions.https.onCall(async (data, context) => {
-    // WARNING: This function currently has NO authentication check.
-    // In a production scenario, you would typically add context.auth checks here
-    // e.g., if (!context.auth || !context.auth.token.admin) { throw ... }
+  if (!context.auth || !context.auth.token.superAdminReferrer) {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can create viewer accounts.');
+  }
 
     const { email, password, viewerName, assignedReferrerUid } = data;
 
