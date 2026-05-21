@@ -586,6 +586,28 @@ function getSquareAccessToken() {
   return process.env.SQUARE_ACCESS_TOKEN;
 }
 
+function getSquareRuntimeConfig() {
+  const preferTest = useSquareTestEnvironment();
+  const testAccessToken = process.env.SQUARE_TEST_TEST_ACCESS_TOKEN || process.env.SQUARE_TEST_ACCESS_TOKEN;
+  const testLocationId = process.env.SQUARE_TEST_LOCATION_ID;
+  const testAppId = process.env.SQUARE_TEST_APP_ID;
+
+  const liveAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+  const liveLocationId = process.env.SQUARE_LOCATION_ID;
+  const liveAppId = process.env.SQUARE_APP_ID;
+
+  const canUseTest = Boolean(preferTest && testAccessToken && testLocationId && testAppId);
+  const isTest = canUseTest;
+
+  return {
+    isTest,
+    accessToken: isTest ? testAccessToken : liveAccessToken,
+    locationId: isTest ? testLocationId : liveLocationId,
+    appId: isTest ? testAppId : liveAppId,
+    apiBase: isTest ? 'https://connect.squareupsandbox.com' : 'https://connect.squareup.com'
+  };
+}
+
 function getSquareClient() {
   if (!squareClient) {
     const accessToken = getSquareAccessToken();
@@ -736,6 +758,156 @@ exports.verifySquarePayment = functions.https.onCall(async (data, context) => {
       throw err;
     }
     throw new functions.https.HttpsError('internal', 'Failed to verify payment', err.message);
+  }
+});
+
+/**
+ * Returns public Square card configuration for on-page checkout.
+ */
+exports.getSquareCardConfig = functions.region('us-central1').https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== 'GET') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    const squareConfig = getSquareRuntimeConfig();
+    if (!squareConfig.appId || !squareConfig.locationId) {
+      return res.status(500).json({ error: 'Square card config is missing.' });
+    }
+
+    return res.status(200).json({
+      appId: squareConfig.appId,
+      locationId: squareConfig.locationId,
+      mode: squareConfig.isTest ? 'test' : 'live'
+    });
+  } catch (error) {
+    console.error('getSquareCardConfig error:', error);
+    return res.status(500).json({ error: 'Failed to load card config.' });
+  }
+});
+
+/**
+ * Processes Square card token from on-page checkout.
+ */
+exports.createSquareCardPayment = functions.region('us-central1').https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { sourceId, name, email, phone, referral, quantity } = body;
+
+    if (!sourceId || !name || !email || !phone) {
+      return res.status(400).json({ error: 'Missing required fields: sourceId, name, email, phone.' });
+    }
+
+    const parsedQuantity = Math.max(1, Math.min(99, parseInt(quantity, 10) || 1));
+    const ticketPrice = 126;
+    const totalAmount = parsedQuantity * ticketPrice;
+    const amountCents = Math.round(totalAmount * 100);
+    const normalizedReferrer = (referral || 'direct').trim() || 'direct';
+
+    const squareConfig = getSquareRuntimeConfig();
+    if (!squareConfig.accessToken || !squareConfig.locationId) {
+      return res.status(500).json({ error: 'Square is not configured.' });
+    }
+
+    const db = admin.firestore();
+    const orderRef = db.collection('square_orders').doc();
+    const orderId = orderRef.id;
+
+    await orderRef.set({
+      name,
+      email,
+      phone,
+      referrerRefId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
+      quantity: parsedQuantity,
+      amount: totalAmount,
+      status: 'pending_card_payment',
+      provider: 'square',
+      squareMode: squareConfig.isTest ? 'test' : 'live',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const squareResponse = await fetch(`${squareConfig.apiBase}/v2/payments`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${squareConfig.accessToken}`,
+        'Content-Type': 'application/json',
+        'Square-Version': '2025-01-23'
+      },
+      body: JSON.stringify({
+        idempotency_key: orderId,
+        source_id: sourceId,
+        autocomplete: true,
+        location_id: squareConfig.locationId,
+        amount_money: {
+          amount: amountCents,
+          currency: 'USD'
+        },
+        note: `Raffle order ${orderId} | Referrer: ${normalizedReferrer}`
+      })
+    });
+
+    const squareData = await squareResponse.json();
+    const payment = squareData?.payment || null;
+
+    if (!squareResponse.ok || !payment?.id) {
+      console.error('Square create payment failed', {
+        status: squareResponse.status,
+        errors: squareData?.errors || null
+      });
+      return res.status(500).json({
+        error: 'Square payment failed.',
+        details: squareData?.errors || null
+      });
+    }
+
+    let referrerUid = null;
+    if (normalizedReferrer !== 'direct') {
+      const refSnap = await db.collection('referrers')
+        .where('refId', '==', normalizedReferrer)
+        .limit(1)
+        .get();
+      if (!refSnap.empty) {
+        referrerUid = refSnap.docs[0].id;
+      }
+    }
+
+    await db.collection('raffle_entries').add({
+      name,
+      email,
+      phone,
+      referrerRefId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
+      referrerUid,
+      amount: totalAmount,
+      ticketsBought: parsedQuantity,
+      paymentStatus: payment.status || 'COMPLETED',
+      orderID: orderId,
+      squarePaymentId: payment.id,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      entryType: 'square_card'
+    });
+
+    await orderRef.update({
+      status: 'paid',
+      paymentStatus: payment.status || 'COMPLETED',
+      squarePaymentId: payment.id,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return res.status(200).json({
+      success: true,
+      orderId,
+      paymentId: payment.id
+    });
+  } catch (error) {
+    console.error('createSquareCardPayment error:', error);
+    return res.status(500).json({
+      error: 'Failed to process card payment.',
+      details: error?.message || null
+    });
   }
 });
 
