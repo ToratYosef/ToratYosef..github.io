@@ -1,4 +1,6 @@
 const path = require('path');
+const readline = require('readline/promises');
+const { stdin: input, stdout: output } = require('process');
 const admin = require('firebase-admin');
 
 const serviceAccountPath = path.join(__dirname, '..', 'ServiceAccountKey.json');
@@ -12,6 +14,10 @@ if (!admin.apps.length) {
 
 function normalizeAliasKey(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function sanitizeEmailPrefix(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
 }
 
 function generateRefIdFromName(name) {
@@ -62,53 +68,107 @@ async function upsertAliases({ uid, email, name, refId }) {
 }
 
 async function run() {
-  const name = 'Morris Eliyahou';
-  const email = 'MorrisE@toratyosefsummerraffle.com';
-  const password = 'ToratYosef12!';
-  const refId = generateRefIdFromName(name); // MorrisE
+  const rl = readline.createInterface({ input, output });
 
-  let userRecord;
   try {
-    userRecord = await admin.auth().getUserByEmail(email);
-    console.log(`User already exists: ${email} (${userRecord.uid})`);
-  } catch (error) {
-    if (error.code !== 'auth/user-not-found') {
-      throw error;
+    const name = String(await rl.question('Admin full name: ')).trim();
+    const emailPrefixInput = String(await rl.question('Email prefix (before @toratyosefsummerraffle.com): ')).trim();
+    const password = String(await rl.question('Password (6+ chars): ')).trim();
+    const goalInput = String(await rl.question('Goal (optional, default 300): ')).trim();
+
+    const emailPrefix = sanitizeEmailPrefix(emailPrefixInput);
+    const email = `${emailPrefix}@toratyosefsummerraffle.com`;
+    const refId = generateRefIdFromName(name);
+    const goal = goalInput ? Number(goalInput) : 300;
+
+    if (!name || !emailPrefix || !password) {
+      throw new Error('Name, email prefix, and password are required.');
     }
-    userRecord = await admin.auth().createUser({
-      email,
-      password,
-      displayName: name,
-      emailVerified: true
-    });
-    console.log(`Created user: ${email} (${userRecord.uid})`);
-  }
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+    if (!Number.isFinite(goal) || goal < 0) {
+      throw new Error('Goal must be a non-negative number.');
+    }
 
-  await admin.auth().setCustomUserClaims(userRecord.uid, {
-    referrer: true,
-    superAdminReferrer: true
-  });
+    let userRecord;
+    let operation = 'updated';
+    try {
+      userRecord = await admin.auth().getUserByEmail(email);
+      console.log(`User already exists: ${email} (${userRecord.uid})`);
 
-  await admin
-    .firestore()
-    .collection('referrers')
-    .doc(userRecord.uid)
-    .set(
-      {
-        name,
+      userRecord = await admin.auth().updateUser(userRecord.uid, {
         email,
-        refId,
-        goal: 300,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
+        password,
+        displayName: name,
+        emailVerified: true,
+        disabled: false
+      });
+      console.log(`Updated credentials/profile for existing user: ${email}`);
+    } catch (error) {
+      if (error.code !== 'auth/user-not-found') {
+        throw error;
+      }
+      operation = 'created';
+      userRecord = await admin.auth().createUser({
+        email,
+        password,
+        displayName: name,
+        emailVerified: true
+      });
+      console.log(`Created user: ${email} (${userRecord.uid})`);
+    }
 
-  await upsertAliases({ uid: userRecord.uid, email, name, refId });
+    await admin.auth().setCustomUserClaims(userRecord.uid, {
+      referrer: true,
+      superAdminReferrer: true
+    });
 
-  console.log('Bootstrap complete.');
-  console.log(`Login aliases include: ${refId}, ${name}, Morris E (case-insensitive)`);
+    await admin
+      .firestore()
+      .collection('referrers')
+      .doc(userRecord.uid)
+      .set(
+        {
+          name,
+          email,
+          refId,
+          goal,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+
+    await admin
+      .firestore()
+      .collection('admin')
+      .doc(userRecord.uid)
+      .set(
+        {
+          uid: userRecord.uid,
+          name,
+          email,
+          emailPrefix,
+          refId,
+          role: 'superAdminReferrer',
+          isSuperAdminReferrer: true,
+          createdByUid: 'service-account-script',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+
+    await upsertAliases({ uid: userRecord.uid, email, name, refId });
+
+    console.log(`Admin ${operation} successfully.`);
+    console.log(`UID: ${userRecord.uid}`);
+    console.log(`Email: ${email}`);
+    console.log(`Ref ID: ${refId}`);
+  } finally {
+    rl.close();
+  }
 }
 
 run()

@@ -63,6 +63,104 @@ async function saveAdminAliases({ uid, email, name, refId }) {
   await Promise.all(writes);
 }
 
+function sanitizeEmailPrefix(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+}
+
+/**
+ * Creates or updates a super admin referrer account.
+ * This callable is locked to signed-in users with superAdminReferrer claim.
+ */
+exports.createAdminAccount = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.token.superAdminReferrer) {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can create admin accounts.');
+  }
+
+  const name = String(data?.name || '').trim();
+  const emailPrefix = sanitizeEmailPrefix(data?.emailPrefix);
+  const password = String(data?.password || '');
+  const goal = Number.isFinite(Number(data?.goal)) ? Number(data.goal) : 300;
+
+  if (!name || !emailPrefix || !password) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: name, emailPrefix, password.');
+  }
+
+  if (password.length < 6) {
+    throw new functions.https.HttpsError('invalid-argument', 'Password must be at least 6 characters long.');
+  }
+
+  const email = `${emailPrefix}@toratyosefsummerraffle.com`;
+  const refId = generateRefIdFromName(name);
+  const db = admin.firestore();
+
+  let userRecord;
+  let operation = 'updated';
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+    userRecord = await admin.auth().updateUser(userRecord.uid, {
+      email,
+      password,
+      displayName: name,
+      emailVerified: true,
+      disabled: false
+    });
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') {
+      throw error;
+    }
+    operation = 'created';
+    userRecord = await admin.auth().createUser({
+      email,
+      password,
+      displayName: name,
+      emailVerified: true
+    });
+  }
+
+  await admin.auth().setCustomUserClaims(userRecord.uid, {
+    referrer: true,
+    superAdminReferrer: true
+  });
+
+  await db.collection('referrers').doc(userRecord.uid).set({
+    name,
+    email,
+    refId,
+    goal,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  await db.collection('admin').doc(userRecord.uid).set({
+    uid: userRecord.uid,
+    name,
+    email,
+    emailPrefix,
+    refId,
+    role: 'superAdminReferrer',
+    isSuperAdminReferrer: true,
+    createdByUid: context.auth.uid,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  await saveAdminAliases({
+    uid: userRecord.uid,
+    email,
+    name,
+    refId
+  });
+
+  return {
+    success: true,
+    operation,
+    uid: userRecord.uid,
+    email,
+    refId,
+    message: `Admin account ${operation} successfully.`
+  };
+});
+
 /**
  * Firebase Callable Function to get referrer dashboard data.
  * Requires authentication.
