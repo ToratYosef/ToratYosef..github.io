@@ -19,7 +19,7 @@
             Every ticket supports Torah learning and gives you a chance to win both featured prizes.
           </p>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a id="buy-link" href="prizes.html#checkout-on-page" class="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Get Tickets</a>
+            <a id="buy-link" href="prizes.html" class="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Get Tickets</a>
             <a id="prizes-link" href="prizes.html" class="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100">View Prizes</a>
           </div>
         </div>
@@ -112,7 +112,7 @@
       if (ref) {
         const buyLink = document.getElementById('buy-link');
         const prizesLink = document.getElementById('prizes-link');
-        buyLink.href = 'prizes.html?ref=' + encodeURIComponent(ref) + '#checkout-on-page';
+        buyLink.href = 'prizes.html?ref=' + encodeURIComponent(ref) + '';
         prizesLink.href += '?ref=' + encodeURIComponent(ref);
       }
     })();

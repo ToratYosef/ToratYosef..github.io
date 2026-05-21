@@ -7,6 +7,135 @@
   <meta name="theme-color" content="#ffffff" />
   <link rel="icon" href="favicon/favicon.ico" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .ticket-total-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px;
+      border: 1px solid #d9e2ef;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .quantity-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .total-price {
+      font-size: 20px;
+      font-weight: 800;
+      color: #c8103e;
+    }
+
+    .payment-section {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      gap: 18px;
+      opacity: 0;
+      transform: translateY(10px);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: opacity 220ms ease, transform 220ms ease, max-height 260ms ease;
+    }
+
+    .payment-section.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 1200px;
+      pointer-events: auto;
+    }
+
+    .square-card-wrapper {
+      width: 100%;
+      max-width: 760px;
+      padding: 22px;
+      border: 1px solid #d9e2ef;
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 240ms ease, transform 240ms ease;
+    }
+
+    .payment-section.is-visible .square-card-wrapper {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #square-card {
+      min-height: 56px;
+      padding: 0;
+    }
+
+    .square-card-wrapper iframe,
+    .square-card-wrapper .sq-card-wrapper {
+      width: 100%;
+    }
+
+    .purchase-button {
+      margin-top: 4px;
+      min-width: 220px;
+      height: 56px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      background: #c8103e;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 0 26px;
+    }
+
+    .purchase-button:hover {
+      background: #a90d35;
+    }
+
+    .purchase-button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .payment-error,
+    .payment-success,
+    .payment-info {
+      margin-top: 14px;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .payment-error {
+      color: #c8103e;
+    }
+
+    .payment-success {
+      color: #047857;
+    }
+
+    .payment-info {
+      color: #334155;
+    }
+
+    @media (max-width: 700px) {
+      .ticket-total-row {
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .quantity-controls {
+        justify-content: center;
+      }
+    }
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <main class="mx-auto w-full max-w-6xl px-4 pb-16 pt-8 md:px-6">
@@ -15,7 +144,7 @@
       <p class="mt-3 max-w-3xl text-slate-600">
         One winning ticket takes both prizes. Ticket price is <span class="font-semibold text-rose-700">$126</span>.
       </p>
-      <a href="#checkout-on-page" class="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Buy Tickets</a>
+      <button id="scroll-to-checkout" type="button" class="mt-5 inline-flex rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">Buy Tickets</button>
     </section>
 
     <section class="mt-6 grid gap-6 md:grid-cols-2">
@@ -42,9 +171,9 @@
       </article>
     </section>
 
-    <section id="checkout-on-page" class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section id="checkout" class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
       <h2 class="text-2xl font-bold tracking-tight text-slate-900">Enter The Raffle</h2>
-      <p class="mt-2 text-sm text-slate-600">Complete your details below to continue to secure checkout.</p>
+      <p class="mt-2 text-sm text-slate-600">Complete your details and pay directly on this page.</p>
 
       <form id="prizes-checkout-form" class="mt-5" novalidate>
         <div class="grid gap-3 md:grid-cols-2">
@@ -64,17 +193,25 @@
           </label>
         </div>
 
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-          <div class="inline-flex items-center gap-2">
+        <div class="ticket-total-row mt-4">
+          <div class="quantity-controls">
             <button id="prize-dec" type="button" class="h-8 w-8 rounded bg-slate-900 text-white">-</button>
             <input id="prize-quantity" type="number" min="1" max="99" value="1" class="w-16 rounded border border-slate-300 px-2 py-1 text-center font-semibold" />
             <button id="prize-inc" type="button" class="h-8 w-8 rounded bg-slate-900 text-white">+</button>
           </div>
-          <p class="text-sm font-bold text-rose-700">Total: $<span id="prize-total">126.00</span></p>
+          <p class="total-price">Total: $<span id="prize-total">126.00</span></p>
         </div>
 
-        <button id="prize-submit" type="submit" class="mt-4 inline-flex rounded-lg bg-rose-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">Continue To Checkout</button>
-        <p id="prize-status" class="mt-2 text-sm font-semibold text-emerald-700" aria-live="polite"></p>
+        <button id="prize-open-pay" type="button" class="mt-4 inline-flex rounded-lg bg-rose-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">Pay</button>
+
+        <div id="payment-section" class="payment-section">
+          <div id="square-card-wrap" class="square-card-wrapper">
+            <div id="square-card"></div>
+          </div>
+          <button id="prize-submit" type="submit" class="purchase-button" disabled>Purchase Tickets</button>
+        </div>
+
+        <p id="prize-status" class="payment-info" aria-live="polite"></p>
       </form>
     </section>
   </main>
@@ -87,6 +224,14 @@
       const totalEl = document.getElementById('prize-total');
       const statusEl = document.getElementById('prize-status');
       const submitBtn = document.getElementById('prize-submit');
+      const openPayBtn = document.getElementById('prize-open-pay');
+      const paymentSection = document.getElementById('payment-section');
+      const squareCardWrap = document.getElementById('square-card-wrap');
+      const scrollToCheckoutBtn = document.getElementById('scroll-to-checkout');
+      let squareCard = null;
+      let loadedSquareSdkMode = null;
+      let showPaymentForm = false;
+      let isProcessing = false;
 
       function getSavedReferrer() {
         if (window.__referral && typeof window.__referral.getReferrer === 'function') {
@@ -103,9 +248,14 @@
         return quantity;
       }
 
-      function setStatus(message, isError) {
+      function setStatus(message, type) {
         statusEl.textContent = message;
-        statusEl.className = 'mt-2 text-sm font-semibold ' + (isError ? 'text-rose-700' : 'text-emerald-700');
+        const variants = {
+          error: 'payment-error',
+          success: 'payment-success',
+          info: 'payment-info'
+        };
+        statusEl.className = variants[type] || 'payment-info';
       }
 
       function updateTotal() {
@@ -113,6 +263,95 @@
         quantityInput.value = String(quantity);
         totalEl.textContent = (quantity * TICKET_PRICE).toFixed(2);
       }
+
+      function renderPaymentState() {
+        openPayBtn.classList.toggle('hidden', showPaymentForm);
+        paymentSection.classList.toggle('is-visible', showPaymentForm);
+        submitBtn.disabled = !showPaymentForm || !squareCard || isProcessing;
+        submitBtn.textContent = isProcessing ? 'Processing...' : 'Purchase Tickets';
+      }
+
+      async function ensureSquareSdk(mode) {
+        const desiredMode = mode === 'test' ? 'test' : 'live';
+        if (window.Square && loadedSquareSdkMode === desiredMode) {
+          return;
+        }
+
+        const existing = document.getElementById('square-sdk-script');
+        if (existing) {
+          existing.remove();
+          window.Square = undefined;
+        }
+
+        const sdkUrl = desiredMode === 'test'
+          ? 'https://sandbox.web.squarecdn.com/v1/square.js'
+          : 'https://web.squarecdn.com/v1/square.js';
+
+        await new Promise(function (resolve, reject) {
+          const script = document.createElement('script');
+          script.id = 'square-sdk-script';
+          script.src = sdkUrl;
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = function () {
+            reject(new Error('Square payment SDK failed to load.'));
+          };
+          document.head.appendChild(script);
+        });
+
+        loadedSquareSdkMode = desiredMode;
+      }
+
+      async function initializeSquareCard() {
+        if (squareCard) {
+          return;
+        }
+        try {
+          const configResponse = await fetch('/api/square/card-config');
+          const configData = await configResponse.json();
+
+          if (!configResponse.ok || !configData.appId || !configData.locationId) {
+            throw new Error(configData.error || 'Could not load payment configuration.');
+          }
+
+          await ensureSquareSdk(configData.mode);
+
+          if (!window.Square) {
+            throw new Error('Square payment SDK failed to load.');
+          }
+
+          const payments = window.Square.payments(configData.appId, configData.locationId);
+          squareCard = await payments.card();
+          await squareCard.attach('#square-card');
+
+          setStatus('', 'info');
+          renderPaymentState();
+        } catch (error) {
+          showPaymentForm = false;
+          setStatus(error.message || 'Payment form failed to load.', 'error');
+          openPayBtn.disabled = false;
+          openPayBtn.textContent = 'Pay';
+          renderPaymentState();
+        }
+      }
+
+      scrollToCheckoutBtn.addEventListener('click', function () {
+        const checkoutSection = document.getElementById('checkout');
+        if (checkoutSection) {
+          checkoutSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+
+      openPayBtn.addEventListener('click', async function () {
+        showPaymentForm = true;
+        openPayBtn.disabled = true;
+        openPayBtn.textContent = 'Loading Card Form...';
+        renderPaymentState();
+        await initializeSquareCard();
+        if (squareCard) {
+          openPayBtn.disabled = true;
+        }
+      });
 
       document.getElementById('prize-dec').addEventListener('click', function () {
         quantityInput.value = String(sanitizeQuantity(quantityInput.value) - 1);
@@ -128,7 +367,7 @@
 
       form.addEventListener('submit', async function (event) {
         event.preventDefault();
-        setStatus('', false);
+        setStatus('', 'info');
 
         const payload = {
           name: document.getElementById('prize-name').value.trim(),
@@ -139,33 +378,53 @@
         };
 
         if (!payload.name || !payload.email || !payload.phone) {
-          setStatus('Please fill in name, email, and phone before checkout.', true);
+          setStatus('Please fill in name, email, and phone before checkout.', 'error');
           return;
         }
 
-        submitBtn.disabled = true;
-        setStatus('Preparing your checkout...', false);
+        if (!squareCard) {
+          setStatus('Payment form is still loading. Please wait a moment and try again.', 'error');
+          return;
+        }
+
+        isProcessing = true;
+        renderPaymentState();
+        setStatus('Processing your payment...', 'info');
 
         try {
-          const response = await fetch('/api/square/create-checkout-session', {
+          const tokenResult = await squareCard.tokenize();
+          if (tokenResult.status !== 'OK' || !tokenResult.token) {
+            throw new Error('Card details are invalid. Please check and try again.');
+          }
+
+          const response = await fetch('/api/square/create-card-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+              ...payload,
+              sourceId: tokenResult.token
+            })
           });
           const data = await response.json();
 
-          if (!response.ok || !data.url) {
-            throw new Error(data.error || 'Could not start checkout.');
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Payment failed.');
           }
 
-          window.location.href = data.url;
+          setStatus('Payment completed successfully. Your raffle entry was recorded.', 'success');
+          form.reset();
+          quantityInput.value = '1';
+          updateTotal();
         } catch (error) {
-          setStatus(error.message || 'Checkout failed. Please try again.', true);
-          submitBtn.disabled = false;
+          setStatus(error.message || 'Checkout failed. Please try again.', 'error');
+        } finally {
+          isProcessing = false;
+          renderPaymentState();
         }
       });
 
       updateTotal();
+      renderPaymentState();
     })();
   </script>
   <script defer src="/scripts/layout.js"></script>

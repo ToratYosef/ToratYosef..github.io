@@ -854,13 +854,33 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
     const payment = squareData?.payment || null;
 
     if (!squareResponse.ok || !payment?.id) {
+      const squareErrors = squareData?.errors || [];
+      const primaryError = squareErrors[0] || null;
+      const errorCode = primaryError?.code || 'PAYMENT_FAILED';
+      const isPaymentMethodError =
+        primaryError?.category === 'PAYMENT_METHOD_ERROR' ||
+        errorCode === 'PAN_FAILURE' ||
+        errorCode === 'CARD_DECLINED' ||
+        errorCode === 'CVV_FAILURE' ||
+        errorCode === 'ADDRESS_VERIFICATION_FAILURE';
+
       console.error('Square create payment failed', {
         status: squareResponse.status,
-        errors: squareData?.errors || null
+        errors: squareErrors
       });
-      return res.status(500).json({
-        error: 'Square payment failed.',
-        details: squareData?.errors || null
+
+      if (isPaymentMethodError) {
+        return res.status(402).json({
+          error: 'Card was declined. Please use a different card or verify your card details.',
+          code: errorCode,
+          details: squareErrors
+        });
+      }
+
+      return res.status(400).json({
+        error: primaryError?.detail || 'Square payment failed.',
+        code: errorCode,
+        details: squareErrors
       });
     }
 
