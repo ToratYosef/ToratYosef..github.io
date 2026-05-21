@@ -411,10 +411,31 @@
             throw new Error(data.error || 'Payment failed.');
           }
 
-          setStatus('Payment completed successfully. Your raffle entry was recorded.', 'success');
-          form.reset();
-          quantityInput.value = '1';
-          updateTotal();
+          const checkoutDetails = {
+            name: payload.name,
+            email: payload.email,
+            phone: payload.phone,
+            quantity: payload.quantity,
+            amount: payload.quantity * TICKET_PRICE,
+            referral: payload.referral,
+            orderId: data.orderId || null,
+            paymentId: data.paymentId || null,
+            paymentStatus: data.checkout && data.checkout.paymentStatus ? data.checkout.paymentStatus : null,
+            cardBrand: data.checkout && data.checkout.cardBrand ? data.checkout.cardBrand : null,
+            last4: data.checkout && data.checkout.last4 ? data.checkout.last4 : null,
+            receiptUrl: data.checkout && data.checkout.receiptUrl ? data.checkout.receiptUrl : null
+          };
+
+          try {
+            sessionStorage.setItem('checkoutSuccessDetails', JSON.stringify(checkoutDetails));
+          } catch (_storageError) {
+            // If storage is unavailable, still continue to success page.
+          }
+
+          const successUrl = checkoutDetails.referral && checkoutDetails.referral !== 'direct'
+            ? `success.html?ref=${encodeURIComponent(checkoutDetails.referral)}`
+            : 'success.html';
+          window.location.href = successUrl;
         } catch (error) {
           setStatus(error.message || 'Checkout failed. Please try again.', 'error');
         } finally {

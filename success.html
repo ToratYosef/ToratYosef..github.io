@@ -101,6 +101,38 @@
             color: #333;
         }
 
+        .summary {
+            margin-top: 24px;
+            text-align: left;
+            border: 1px solid #d9e2ef;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 14px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-label {
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .summary-value {
+            color: #0f172a;
+            text-align: right;
+            word-break: break-word;
+        }
+
         .button-link {
             display: inline-block;
             margin-top: 30px;
@@ -157,6 +189,17 @@
     <div class="container">
         <h1>Thank You For Your Purchase!</h1>
         <p id="message">Your support of Yeshivat Torat Yosef is greatly appreciated. A confirmation and your details have been sent to your email.</p>
+
+        <div id="checkout-summary" class="summary" style="display: none;">
+            <div class="summary-row"><span class="summary-label">Tickets Bought</span><span id="summary-tickets" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Amount Spent</span><span id="summary-amount" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Card</span><span id="summary-card" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Full Name</span><span id="summary-name" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Email</span><span id="summary-email" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Phone</span><span id="summary-phone" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Order ID</span><span id="summary-order" class="summary-value">-</span></div>
+            <div class="summary-row"><span class="summary-label">Payment ID</span><span id="summary-payment" class="summary-value">-</span></div>
+        </div>
         
         <p id="referrer-display"></p> 
 
@@ -197,6 +240,49 @@
             const sessionId = getUrlParameter('session_id');
             const referrerDisplay = document.getElementById('referrer-display');
             const messageDisplay = document.getElementById('message');
+            const summaryWrap = document.getElementById('checkout-summary');
+
+            function formatAmount(amount) {
+                const value = Number(amount);
+                if (Number.isNaN(value)) {
+                    return '$0.00';
+                }
+                return `$${value.toFixed(2)}`;
+            }
+
+            function renderCheckoutSummary(details) {
+                if (!details || typeof details !== 'object') {
+                    return;
+                }
+                const tickets = details.quantity || '-';
+                const amount = formatAmount(details.amount);
+                const card = details.cardBrand && details.last4
+                    ? `${details.cardBrand} •••• ${details.last4}`
+                    : 'Card details unavailable';
+
+                document.getElementById('summary-tickets').textContent = String(tickets);
+                document.getElementById('summary-amount').textContent = amount;
+                document.getElementById('summary-card').textContent = card;
+                document.getElementById('summary-name').textContent = details.name || '-';
+                document.getElementById('summary-email').textContent = details.email || '-';
+                document.getElementById('summary-phone').textContent = details.phone || '-';
+                document.getElementById('summary-order').textContent = details.orderId || '-';
+                document.getElementById('summary-payment').textContent = details.paymentId || '-';
+                summaryWrap.style.display = 'block';
+            }
+
+            let checkoutDetails = null;
+            try {
+                const raw = sessionStorage.getItem('checkoutSuccessDetails');
+                if (raw) {
+                    checkoutDetails = JSON.parse(raw);
+                    sessionStorage.removeItem('checkoutSuccessDetails');
+                }
+            } catch (_error) {
+                checkoutDetails = null;
+            }
+
+            renderCheckoutSummary(checkoutDetails);
 
             // Handle Stripe checkout session success
             if (sessionId) {
@@ -216,6 +302,8 @@
 
             if (referrerId) {
                 referrerDisplay.textContent = `You were referred by: ${referrerId}. Thank you for supporting their efforts!`;
+            } else if (checkoutDetails && checkoutDetails.referral && checkoutDetails.referral !== 'direct') {
+                referrerDisplay.textContent = `You were referred by: ${checkoutDetails.referral}. Thank you for supporting their efforts!`;
             } else {
                 // If no referrer, clear the element's content
                 referrerDisplay.textContent = ``; 

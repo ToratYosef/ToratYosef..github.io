@@ -917,10 +917,28 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    const cardDetails = payment.card_details || payment.cardDetails || {};
+    const card = cardDetails.card || {};
+    const cardBrand = card.card_brand || card.brand || null;
+    const last4 = card.last_4 || card.last4 || null;
+
     return res.status(200).json({
       success: true,
       orderId,
-      paymentId: payment.id
+      paymentId: payment.id,
+      checkout: {
+        name,
+        email,
+        phone,
+        quantity: parsedQuantity,
+        amount: totalAmount,
+        currency: 'USD',
+        paymentStatus: payment.status || 'COMPLETED',
+        cardBrand,
+        last4,
+        referral: normalizedReferrer,
+        receiptUrl: payment.receipt_url || payment.receiptUrl || null
+      }
     });
   } catch (error) {
     console.error('createSquareCardPayment error:', error);
