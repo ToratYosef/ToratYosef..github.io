@@ -159,7 +159,7 @@ async function resolveEmailFromAlias(alias) {
 
 function redirectToLogin() {
   const next = `${window.location.pathname}${window.location.search || ''}`;
-  window.location.href = `/admin-login.html?next=${encodeURIComponent(next)}`;
+  window.location.href = `/admin?next=${encodeURIComponent(next)}`;
 }
 
 function updateCommonActions(referralLink) {

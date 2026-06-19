@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Login - Yeshivat Torat Yosef</title>
+  <meta name="theme-color" content="#f8fafc" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900" data-page="login">
+  <main class="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-4 py-10 md:px-6">
+    <section class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">Admin Access</span>
+      <h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">Admin Login</h1>
+      <p class="mt-2 text-sm text-slate-600">Use a referral ID or email address plus your password.</p>
+
+      <form id="login-form" class="mt-6 grid gap-4" novalidate>
+        <label class="grid gap-1.5 text-sm font-semibold text-slate-700">
+          Referral ID or Email
+          <input id="login-identifier" class="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-rose-400" type="text" autocomplete="username" placeholder="moshe123 or moshe123@toratyosef.com" required />
+        </label>
+        <label class="grid gap-1.5 text-sm font-semibold text-slate-700">
+          Password
+          <input id="login-password" class="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-rose-400" type="password" autocomplete="current-password" placeholder="Password" required />
+        </label>
+        <button class="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-800" type="submit">Log In</button>
+        <div id="login-status" class="text-sm text-slate-600"></div>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/scripts/admin-app.js"></script>
+</body>
+</html>

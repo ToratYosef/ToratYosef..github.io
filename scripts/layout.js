@@ -152,8 +152,9 @@
     const headerMount = ensureMount('site-header-root', 'top');
     const footerMount = ensureMount('site-footer-root', 'bottom');
     const isAdminPage = window.location.pathname.indexOf('/admin/') === 0;
-    const headerPath = isAdminPage ? '/admin/header.html' : '/header.html';
-    const footerPath = isAdminPage ? '/admin/footer.html' : '/footer.html';
+    const forceSiteLayout = document.body && document.body.dataset && document.body.dataset.layoutVariant === 'site';
+    const headerPath = (isAdminPage && !forceSiteLayout) ? '/admin/header.html' : '/header.html';
+    const footerPath = (isAdminPage && !forceSiteLayout) ? '/admin/footer.html' : '/footer.html';
 
     Promise.all([
       loadPartial(headerPath, headerMount),
