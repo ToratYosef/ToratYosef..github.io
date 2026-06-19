@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Super Dashboard - Yeshivat Torat Yosef</title>
+  <meta name="theme-color" content="#08111f" />
+  <link rel="stylesheet" href="/assets/admin.css" />
+</head>
+<body class="admin-page" data-page="super">
+  <script defer src="/scripts/layout.js"></script>
+  <main class="admin-content">
+    <section class="hero-card">
+      <div>
+        <span class="eyebrow">Super Admin Dashboard</span>
+        <h1 id="page-title">Loading super admin stats...</h1>
+        <p id="page-subtitle">Monitor every admin, every click, and every sale in one place.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="/admin/super/admins" class="pill-button">Manage Admins</a>
+        <a href="/admin/super/sales" class="ghost-button">Sales</a>
+        <a href="/admin/super/clicks" class="ghost-button">Clicks</a>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <article class="stats-card"><div class="label">Total Revenue</div><div id="stat-total-revenue" class="value">$0.00</div></article>
+      <article class="stats-card"><div class="label">Total Sales</div><div id="stat-total-sales" class="value">0</div></article>
+      <article class="stats-card"><div class="label">Total Buyers</div><div id="stat-total-buyers" class="value">0</div></article>
+      <article class="stats-card"><div class="label">Total Clicks</div><div id="stat-total-clicks" class="value">0</div></article>
+      <article class="stats-card"><div class="label">Admins</div><div id="stat-total-admins" class="value">0</div></article>
+    </section>
+
+    <section class="stats-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+      <article class="stats-card"><div class="label">Top Revenue</div><div id="top-revenue" class="value">-</div></article>
+      <article class="stats-card"><div class="label">Top Sales</div><div id="top-sales" class="value">-</div></article>
+      <article class="stats-card"><div class="label">Top Clicks</div><div id="top-clicks" class="value">-</div></article>
+    </section>
+
+    <section class="table-card">
+      <div class="panel-header">
+        <div>
+          <span class="eyebrow">All Admins</span>
+          <h2>Admin performance</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th><th>Ref ID</th><th>Email</th><th>Link</th><th>Clicks</th><th>Sales</th><th>Revenue</th><th>Conv.</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admins-body"></tbody>
+        </table>
+      </div>
+      <div id="admins-empty" class="empty-state">No admins yet.</div>
+    </section>
+  </main>
+  <script type="module" src="/scripts/admin-app.js"></script>
+</body>
+</html>

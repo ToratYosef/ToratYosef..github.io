@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Login - Yeshivat Torat Yosef</title>
+  <meta name="theme-color" content="#08111f" />
+  <link rel="stylesheet" href="/assets/admin.css" />
+</head>
+<body class="admin-login-page" data-page="login">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <span class="eyebrow">Admin Access</span>
+      <h1>Admin Login</h1>
+      <p class="muted">Use a referral ID or email address plus your password.</p>
+
+      <form id="login-form" class="stack" novalidate>
+        <label>
+          Referral ID or Email
+          <input id="login-identifier" class="input" type="text" autocomplete="username" placeholder="moshe123 or moshe123@toratyosef.com" required />
+        </label>
+        <label>
+          Password
+          <input id="login-password" class="input" type="password" autocomplete="current-password" placeholder="Password" required />
+        </label>
+        <button class="primary-button full-width" type="submit">Log In</button>
+        <div id="login-status" class="help-text"></div>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/scripts/admin-app.js"></script>
+</body>
+</html>

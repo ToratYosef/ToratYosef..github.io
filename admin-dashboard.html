@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard - Yeshivat Torat Yosef</title>
+  <meta name="theme-color" content="#08111f" />
+  <link rel="stylesheet" href="/assets/admin.css" />
+</head>
+<body class="admin-page" data-page="dashboard">
+  <script defer src="/scripts/layout.js"></script>
+  <main class="admin-content">
+    <section class="hero-card">
+      <div>
+        <span class="eyebrow">Regular Admin Dashboard</span>
+        <h1 id="page-title">Loading your dashboard...</h1>
+        <p id="page-subtitle">Your referral link, sales, clicks, and buyers appear here.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="dashboard-copy-link" class="pill-button" type="button">Copy Link</button>
+        <button id="dashboard-open-link" class="ghost-button" type="button">Open Link</button>
+        <button id="dashboard-share-link" class="ghost-button" type="button">Share Link</button>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <article class="stats-card"><div class="label">Clicks</div><div id="stat-clicks" class="value">0</div></article>
+      <article class="stats-card"><div class="label">Sales</div><div id="stat-sales" class="value">0</div></article>
+      <article class="stats-card"><div class="label">Revenue</div><div id="stat-revenue" class="value">$0.00</div></article>
+      <article class="stats-card"><div class="label">Buyers</div><div id="stat-buyers" class="value">0</div></article>
+      <article class="stats-card"><div class="label">Conversion</div><div id="stat-conversion" class="value">0%</div></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <span class="eyebrow">Your Referral Link</span>
+          <h2>Copy and share this link</h2>
+        </div>
+      </div>
+      <div class="link-row">
+        <input id="referral-link" class="input" type="text" readonly />
+        <button id="copy-referral-link" class="primary-button" type="button">Copy</button>
+        <button id="open-referral-link" class="ghost-button" type="button">Open</button>
+        <button id="share-referral-link" class="ghost-button" type="button">Share</button>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <section class="table-card">
+        <div class="panel-header"><h2>Recent Sales</h2></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Buyer</th><th>Amount</th><th>Items</th><th>Timestamp</th><th>Status</th></tr>
+            </thead>
+            <tbody id="recent-sales-body"></tbody>
+          </table>
+        </div>
+        <div id="recent-sales-empty" class="empty-state">No sales yet.</div>
+      </section>
+
+      <section class="table-card">
+        <div class="panel-header"><h2>Recent Clicks</h2></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Page</th><th>Item</th><th>Timestamp</th></tr>
+            </thead>
+            <tbody id="recent-clicks-body"></tbody>
+          </table>
+        </div>
+        <div id="recent-clicks-empty" class="empty-state">No clicks yet.</div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/scripts/admin-app.js"></script>
+</body>
+</html>

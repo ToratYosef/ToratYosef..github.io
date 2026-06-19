@@ -67,6 +67,90 @@ function sanitizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function splitNameParts(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return { firstName: '', lastName: '' };
+  }
+  return {
+    firstName: parts[0],
+    lastName: parts.length > 1 ? parts.slice(1).join(' ') : ''
+  };
+}
+
+function toPositiveInt(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+async function applyAdminTicketProgressUpdate({
+  db,
+  adminUid,
+  refId,
+  ticketsBought,
+  amount,
+  orderId,
+  paymentId,
+  buyerName,
+  buyerEmail,
+  buyerPhone
+}) {
+  if (!adminUid) {
+    return;
+  }
+
+  const tickets = toPositiveInt(ticketsBought, 0);
+  if (tickets <= 0) {
+    return;
+  }
+
+  const adminRef = db.collection('admin').doc(adminUid);
+  const saleRef = adminRef.collection('ticketSales').doc(orderId || db.collection('_').doc().id);
+
+  await db.runTransaction(async (transaction) => {
+    const adminSnap = await transaction.get(adminRef);
+    if (!adminSnap.exists) {
+      return;
+    }
+
+    const data = adminSnap.data() || {};
+    const goal = toPositiveInt(data.goal, 0);
+    const soldSoFar = toPositiveInt(
+      data.totalTicketsSold !== undefined ? data.totalTicketsSold : data.ticketsSold,
+      0
+    );
+
+    const nextSold = soldSoFar + tickets;
+    const nextRemaining = goal > 0 ? Math.max(goal - nextSold, 0) : Math.max(toPositiveInt(data.ticketsRemaining, 0) - tickets, 0);
+
+    transaction.set(adminRef, {
+      ref: data.ref || data.refId || refId || null,
+      refId: data.refId || data.ref || refId || null,
+      totalTicketsSold: nextSold,
+      ticketsSold: nextSold,
+      ticketsRemaining: nextRemaining,
+      goalRemaining: nextRemaining,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSaleAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    transaction.set(saleRef, {
+      orderId: orderId || null,
+      paymentId: paymentId || null,
+      refId: refId || null,
+      ticketsBought: tickets,
+      amount: Number(amount) || 0,
+      buyerName: String(buyerName || ''),
+      buyerEmail: sanitizeEmail(buyerEmail),
+      buyerPhone: String(buyerPhone || ''),
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  });
+}
+
 /**
  * Creates or updates a super admin referrer account.
  * This callable is locked to signed-in users with superAdminReferrer claim.
@@ -79,7 +163,9 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
   const name = String(data?.name || '').trim();
   const email = sanitizeEmail(data?.email);
   const password = String(data?.password || '');
-  const goal = Number.isFinite(Number(data?.goal)) ? Number(data.goal) : 300;
+  const goal = toPositiveInt(data?.goal, 300);
+  const { firstName, lastName } = splitNameParts(name);
+
 
   if (!name || !email || !password) {
     throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: name, email, password.');
@@ -137,8 +223,15 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
   await db.collection('admin').doc(userRecord.uid).set({
     uid: userRecord.uid,
     name,
+    firstName,
+    lastName,
     email,
+    ref: refId,
     refId,
+    goal,
+    ticketsRemaining: goal,
+    totalTicketsSold: 0,
+    ticketsSold: 0,
     role: 'superAdminReferrer',
     isSuperAdminReferrer: true,
     createdByUid: context.auth.uid,
@@ -591,6 +684,19 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
             entryType: 'manual', // Explicitly mark as manual
             processedBy: context.auth.uid // Record who added it
         });
+
+          await applyAdminTicketProgressUpdate({
+            db,
+            adminUid: referrerUid,
+            refId: referrerRefId || null,
+            ticketsBought,
+            amount: ticketsBought * 126.00,
+            orderId: `MANUAL_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+            paymentId: null,
+            buyerName: name,
+            buyerEmail: email,
+            buyerPhone: phone
+          });
 
         console.log(`Successfully added manual raffle entry for ${name}. Tickets: ${ticketsBought}`);
         return { success: true, message: `Manual entry for ${ticketsBought} tickets added successfully for ${name}.` };
@@ -1057,6 +1163,19 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       entryType: 'square_card'
     });
 
+    await applyAdminTicketProgressUpdate({
+      db,
+      adminUid: referrerUid,
+      refId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
+      ticketsBought: parsedQuantity,
+      amount: totalAmount,
+      orderId,
+      paymentId: payment.id,
+      buyerName: name,
+      buyerEmail: email,
+      buyerPhone: phone
+    });
+
     await orderRef.update({
       status: 'paid',
       paymentStatus: payment.status || 'COMPLETED',
@@ -1212,6 +1331,8 @@ exports.createSquareCheckoutSession = functions.region('us-central1').https.onRe
     });
   }
 });
+
+Object.assign(exports, require('./admin-system'));
 
 function getSquareWebhookConfig(mode) {
   const isTest = mode === 'test';

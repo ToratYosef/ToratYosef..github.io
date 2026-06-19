@@ -1,21 +1,27 @@
-<header class="site-header-shell">
-  <div class="site-header-inner">
-    <a class="site-brand" href="/admin/index.html" aria-label="Go to admin home">
-      <img class="site-brand-logo" src="/logo.png" alt="Yeshivat Torat Yosef logo" />
-    </a>
+<header class="admin-topbar">
+  <div class="admin-brand">
+    <div class="admin-brand-mark">TY</div>
+    <div class="admin-brand-title">
+      <strong>Yeshivat Torat Yosef</strong>
+      <span>Admin referral tracking</span>
+    </div>
+  </div>
 
-    <button class="site-nav-toggle" type="button" aria-expanded="false" aria-controls="site-main-nav" aria-label="Open navigation menu">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
+  <nav class="admin-nav" aria-label="Admin navigation">
+    <a href="/admin/dashboard">My Dashboard</a>
+    <a href="/admin/super">Super Dashboard</a>
+    <a href="/admin/super/admins">Admins</a>
+    <a href="/admin/super/sales">Sales</a>
+    <a href="/admin/super/clicks">Clicks</a>
+    <a href="/admin/super/export">Export</a>
+    <a href="/admin/super/settings">Settings</a>
+  </nav>
 
-    <nav id="site-main-nav" class="site-nav" aria-label="Admin">
-      <a href="/admin/index.html">Admin Home</a>
-      <a href="/admin/login.html">Login</a>
-      <a href="/admin/dashboard.html">Dashboard</a>
-      <a href="/admin/superadmin-admins.html">Create Admins</a>
-      <a href="/index.html">Main Site</a>
-    </nav>
+  <div class="admin-user">
+    <div class="admin-user-name">
+      <div id="admin-header-name">Loading...</div>
+      <div id="admin-header-role" class="muted">Please wait</div>
+    </div>
+    <button id="admin-logout-button" class="ghost-button" type="button">Log Out</button>
   </div>
 </header>
