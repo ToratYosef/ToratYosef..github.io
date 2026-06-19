@@ -58,7 +58,7 @@ function requireSuperAdmin(context) {
 }
 
 function refLinkFor(refId) {
-  const host = process.env.PUBLIC_SITE_URL || process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com';
+  const host = process.env.PUBLIC_SITE_URL || process.env.DOMAIN || 'https://toratyosefsummerraffle.com';
   return `${host}/?ref=${encodeURIComponent(refId)}`;
 }
 

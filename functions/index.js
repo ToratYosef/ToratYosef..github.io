@@ -455,7 +455,7 @@ exports.getReferrerDashboardData = functions.https.onCall(async (data, context) 
         });
     }
 
-    const referralLink = currentReferrerDetails.refId && currentReferrerDetails.refId !== "N/A" ? `https://www.toratyosefsummerraffle.com/?ref=${currentReferrerDetails.refId}` : null;
+    const referralLink = currentReferrerDetails.refId && currentReferrerDetails.refId !== "N/A" ? `https://toratyosefsummerraffle.com/?ref=${currentReferrerDetails.refId}` : null;
 
     return {
       name: currentReferrerDetails.name,
@@ -958,7 +958,7 @@ exports.createSquarePaymentLink = functions.https.onCall(async (data, context) =
         },
         locationId: locationId
       },
-      redirectUrl: `${process.env.DOMAIN || 'https://www.toratyosefsummerraffle.com'}/success.html?order_id=${orderId}&payment_method=square`,
+      redirectUrl: `${process.env.DOMAIN || 'https://toratyosefsummerraffle.com'}/success.html?order_id=${orderId}&payment_method=square`,
       note: `Prize Entry - ${prizeId} | Name: ${name} | Email: ${email} | Phone: ${phone}`
     });
 

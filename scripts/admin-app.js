@@ -570,6 +570,81 @@ function renderSalesRows(tbody, sales) {
   });
 }
 
+function csvEscape(value) {
+  const text = String(value ?? '');
+  if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadCsv(filename, rows) {
+  const csvContent = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportSalesPerTicketCsv(sales) {
+  const headers = [
+    'Ticket #',
+    'Buyer Name',
+    'Buyer Email',
+    'Buyer Phone',
+    'Referrer Name',
+    'Referrer ID',
+    'Sale Amount',
+    'Ticket Amount',
+    'Order ID',
+    'Payment ID',
+    'Sale Time'
+  ];
+
+  const rows = [headers];
+  let ticketCounter = 0;
+
+  sales.forEach((sale) => {
+    const ticketCount = Math.max(Number(sale.ticketsBought) || 0, 0);
+    if (!ticketCount) {
+      return;
+    }
+
+    const saleAmount = Number(sale.amount) || 0;
+    const perTicketAmount = saleAmount / ticketCount;
+
+    for (let i = 0; i < ticketCount; i += 1) {
+      ticketCounter += 1;
+      rows.push([
+        ticketCounter,
+        sale.buyerName || '-',
+        sale.buyerEmail || '-',
+        sale.buyerPhone || '-',
+        sale.adminName || '-',
+        sale.adminRef || '-',
+        saleAmount.toFixed(2),
+        perTicketAmount.toFixed(2),
+        sale.orderId || '-',
+        sale.paymentId || '-',
+        sale.createdAtText || '-'
+      ]);
+    }
+  });
+
+  if (ticketCounter === 0) {
+    return 0;
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadCsv(`all-sales-per-ticket-${stamp}.csv`, rows);
+  return ticketCounter;
+}
+
 async function renderSuperSalesPage(currentProfile) {
   if (!isSuperAdmin(currentProfile)) {
     window.location.href = '/admin-dashboard.html';
@@ -603,6 +678,22 @@ async function renderSuperSalesPage(currentProfile) {
   setText('super-sales-own-count', String(ownSales.length));
   setText('super-sales-own-tickets', String(ownTickets));
   setText('super-sales-own-amount', formatMoney(ownAmount));
+
+  const exportButton = byId('export-all-sales-button');
+  const exportStatus = byId('export-all-sales-status');
+  if (exportButton) {
+    exportButton.disabled = allSales.length === 0;
+    exportButton.classList.toggle('opacity-50', allSales.length === 0);
+    exportButton.classList.toggle('cursor-not-allowed', allSales.length === 0);
+    exportButton.onclick = () => {
+      const count = exportSalesPerTicketCsv(allSales);
+      if (exportStatus) {
+        exportStatus.textContent = count > 0
+          ? `Exported ${count} ticket rows.`
+          : 'No ticket data to export.';
+      }
+    };
+  }
 
   renderSalesRows(byId('all-sales-body'), allSales);
   renderSalesRows(byId('own-sales-body'), ownSales);
