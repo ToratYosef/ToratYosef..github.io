@@ -4,73 +4,59 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Dashboard - Yeshivat Torat Yosef</title>
-  <meta name="theme-color" content="#08111f" />
-  <link rel="stylesheet" href="/assets/admin.css" />
+  <meta name="theme-color" content="#f8fafc" />
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="admin-page" data-page="dashboard">
+<body class="bg-slate-100 text-slate-900" data-page="dashboard">
   <script defer src="/scripts/layout.js"></script>
-  <main class="admin-content">
-    <section class="hero-card">
+  <main class="mx-auto w-full max-w-7xl px-4 py-8 md:px-6">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div>
-        <span class="eyebrow">Regular Admin Dashboard</span>
-        <h1 id="page-title">Loading your dashboard...</h1>
-        <p id="page-subtitle">Your referral link, sales, clicks, and buyers appear here.</p>
+        <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">Regular Admin Dashboard</span>
+        <h1 id="page-title" class="mt-3 text-3xl font-bold tracking-tight">Loading your dashboard...</h1>
+        <p id="page-subtitle" class="mt-2 text-slate-600">Your referral link, sales, clicks, and buyers appear here.</p>
       </div>
-      <div class="hero-actions">
-        <button id="dashboard-copy-link" class="pill-button" type="button">Copy Link</button>
-        <button id="dashboard-open-link" class="ghost-button" type="button">Open Link</button>
-        <button id="dashboard-share-link" class="ghost-button" type="button">Share Link</button>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button id="dashboard-copy-link" class="inline-flex rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800" type="button">Copy Link</button>
+        <button id="dashboard-open-link" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button">Open Link</button>
+        <button id="dashboard-share-link" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button">Share Link</button>
       </div>
     </section>
 
-    <section class="stats-grid">
-      <article class="stats-card"><div class="label">Clicks</div><div id="stat-clicks" class="value">0</div></article>
-      <article class="stats-card"><div class="label">Sales</div><div id="stat-sales" class="value">0</div></article>
-      <article class="stats-card"><div class="label">Revenue</div><div id="stat-revenue" class="value">$0.00</div></article>
-      <article class="stats-card"><div class="label">Buyers</div><div id="stat-buyers" class="value">0</div></article>
-      <article class="stats-card"><div class="label">Conversion</div><div id="stat-conversion" class="value">0%</div></article>
+    <section class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sales</div><div id="stat-sales" class="mt-2 text-3xl font-black">0</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Revenue</div><div id="stat-revenue" class="mt-2 text-3xl font-black">$0.00</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Buyers</div><div id="stat-buyers" class="mt-2 text-3xl font-black">0</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Goal Left</div><div id="stat-remaining" class="mt-2 text-3xl font-black">0</div></article>
     </section>
 
-    <section class="panel">
-      <div class="panel-header">
+    <section class="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-4">
         <div>
-          <span class="eyebrow">Your Referral Link</span>
-          <h2>Copy and share this link</h2>
+          <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">Your Referral Link</span>
+          <h2 class="mt-2 text-xl font-bold">Copy and share this link</h2>
         </div>
       </div>
-      <div class="link-row">
-        <input id="referral-link" class="input" type="text" readonly />
-        <button id="copy-referral-link" class="primary-button" type="button">Copy</button>
-        <button id="open-referral-link" class="ghost-button" type="button">Open</button>
-        <button id="share-referral-link" class="ghost-button" type="button">Share</button>
+      <div class="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+        <input id="referral-link" class="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2" type="text" readonly />
+        <button id="copy-referral-link" class="inline-flex rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800" type="button">Copy</button>
+        <button id="open-referral-link" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button">Open</button>
+        <button id="share-referral-link" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button">Share</button>
       </div>
     </section>
 
-    <div class="grid-2">
-      <section class="table-card">
-        <div class="panel-header"><h2>Recent Sales</h2></div>
-        <div class="table-wrap">
-          <table class="data-table">
+    <div class="mt-4 grid gap-4">
+      <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-3"><h2 class="text-xl font-bold">Recent Sales</h2></div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full border-collapse text-sm">
             <thead>
-              <tr><th>Buyer</th><th>Amount</th><th>Items</th><th>Timestamp</th><th>Status</th></tr>
+              <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500"><th class="px-2 py-2">Buyer Name</th><th class="px-2 py-2">Phone</th><th class="px-2 py-2">Tickets Bought</th><th class="px-2 py-2">Price</th></tr>
             </thead>
             <tbody id="recent-sales-body"></tbody>
           </table>
         </div>
-        <div id="recent-sales-empty" class="empty-state">No sales yet.</div>
-      </section>
-
-      <section class="table-card">
-        <div class="panel-header"><h2>Recent Clicks</h2></div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr><th>Page</th><th>Item</th><th>Timestamp</th></tr>
-            </thead>
-            <tbody id="recent-clicks-body"></tbody>
-          </table>
-        </div>
-        <div id="recent-clicks-empty" class="empty-state">No clicks yet.</div>
+        <div id="recent-sales-empty" class="mt-3 rounded-lg border border-dashed border-slate-300 p-3 text-center text-sm text-slate-500">No sales yet.</div>
       </section>
     </div>
   </main>

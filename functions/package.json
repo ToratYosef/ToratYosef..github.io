@@ -8,7 +8,8 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "bootstrap:morris": "node scripts/bootstrap-morris-admin.js"
+    "bootstrap:morris": "node scripts/bootstrap-morris-admin.js",
+    "bootstrap:first-admin": "node scripts/bootstrap-first-admin.js"
   },
   "engines": {
     "node": "20"

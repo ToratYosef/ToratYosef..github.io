@@ -118,12 +118,15 @@ async function applyAdminTicketProgressUpdate({
 
     const data = adminSnap.data() || {};
     const goal = toPositiveInt(data.goal, 0);
+    const revenueSoFar = Number.isFinite(Number(data.totalRevenue)) ? Number(data.totalRevenue) : 0;
+    const saleAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
     const soldSoFar = toPositiveInt(
       data.totalTicketsSold !== undefined ? data.totalTicketsSold : data.ticketsSold,
       0
     );
 
     const nextSold = soldSoFar + tickets;
+    const nextRevenue = revenueSoFar + saleAmount;
     const nextRemaining = goal > 0 ? Math.max(goal - nextSold, 0) : Math.max(toPositiveInt(data.ticketsRemaining, 0) - tickets, 0);
 
     transaction.set(adminRef, {
@@ -131,6 +134,7 @@ async function applyAdminTicketProgressUpdate({
       refId: data.refId || data.ref || refId || null,
       totalTicketsSold: nextSold,
       ticketsSold: nextSold,
+      totalRevenue: nextRevenue,
       ticketsRemaining: nextRemaining,
       goalRemaining: nextRemaining,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -161,10 +165,16 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
   }
 
   const name = String(data?.name || '').trim();
+  const firstNameInput = String(data?.firstName || '').trim();
+  const lastNameInput = String(data?.lastName || '').trim();
   const email = sanitizeEmail(data?.email);
   const password = String(data?.password || '');
   const goal = toPositiveInt(data?.goal, 300);
-  const { firstName, lastName } = splitNameParts(name);
+  const role = String(data?.role || 'admin').trim() === 'superAdminReferrer' ? 'superAdminReferrer' : 'admin';
+  const isActive = data?.isActive !== false;
+  const generatedNameParts = splitNameParts(name);
+  const firstName = firstNameInput || generatedNameParts.firstName;
+  const lastName = lastNameInput || generatedNameParts.lastName;
 
 
   if (!name || !email || !password) {
@@ -179,8 +189,18 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Email format is invalid.');
   }
 
-  const refId = generateRefIdFromName(name);
+  const requestedRefId = String(data?.refId || data?.ref || '').trim();
+  const refId = requestedRefId || generateRefIdFromName(name);
   const db = admin.firestore();
+
+  const existingRefId = await db.collection('admin').where('refId', '==', refId).limit(1).get();
+  if (!existingRefId.empty && existingRefId.docs[0].id !== context.auth.uid) {
+    const targetUid = existingRefId.docs[0].id;
+    const existingByEmail = await admin.auth().getUserByEmail(email).catch(() => null);
+    if (!existingByEmail || existingByEmail.uid !== targetUid) {
+      throw new functions.https.HttpsError('already-exists', 'Referral ID already exists.');
+    }
+  }
 
   let userRecord;
   let operation = 'updated';
@@ -191,7 +211,7 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
       password,
       displayName: name,
       emailVerified: true,
-      disabled: false
+      disabled: !isActive
     });
   } catch (error) {
     if (error.code !== 'auth/user-not-found') {
@@ -202,13 +222,15 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
       email,
       password,
       displayName: name,
-      emailVerified: true
+      emailVerified: true,
+      disabled: !isActive
     });
   }
 
   await admin.auth().setCustomUserClaims(userRecord.uid, {
     referrer: true,
-    superAdminReferrer: true
+    admin: role === 'admin',
+    superAdminReferrer: role === 'superAdminReferrer'
   });
 
   await db.collection('referrers').doc(userRecord.uid).set({
@@ -232,8 +254,9 @@ exports.createAdminAccount = functions.https.onCall(async (data, context) => {
     ticketsRemaining: goal,
     totalTicketsSold: 0,
     ticketsSold: 0,
-    role: 'superAdminReferrer',
-    isSuperAdminReferrer: true,
+    role,
+    isActive,
+    isSuperAdminReferrer: role === 'superAdminReferrer',
     createdByUid: context.auth.uid,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp()

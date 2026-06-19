@@ -6,19 +6,27 @@ import {
   signOut
 } from 'https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js';
 import {
+  getFunctions,
+  httpsCallable
+} from 'https://www.gstatic.com/firebasejs/11.9.0/firebase-functions.js';
+import {
   getFirestore,
   doc,
   getDoc,
   collection,
-  getDocs
+  getDocs,
+  query,
+  where
 } from 'https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js';
 import { firebaseConfig } from '/scripts/firebase-config.js';
 
 const ADMIN_EMAIL_DOMAIN = 'toratyosef.com';
+const TICKET_PRICE = 126;
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const functions = getFunctions(app, 'us-central1');
 
 function byId(id) {
   return document.getElementById(id);
@@ -61,8 +69,61 @@ function formatPercent(numerator, denominator) {
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
 
+function formatDateValue(value) {
+  if (!value) {
+    return '-';
+  }
+
+  try {
+    if (typeof value.toDate === 'function') {
+      return value.toDate().toLocaleString();
+    }
+    if (value.seconds) {
+      return new Date((value.seconds * 1000) + Math.floor((value.nanoseconds || 0) / 1000000)).toLocaleString();
+    }
+  } catch (_error) {
+    return '-';
+  }
+
+  return '-';
+}
+
+function timestampToMillis(value) {
+  if (!value) {
+    return 0;
+  }
+  if (typeof value.toMillis === 'function') {
+    return value.toMillis();
+  }
+  if (value.seconds) {
+    return (value.seconds * 1000) + Math.floor((value.nanoseconds || 0) / 1000000);
+  }
+  return 0;
+}
+
 function isSuperAdmin(profile) {
   return Boolean(profile?.isSuperAdminReferrer || profile?.role === 'superAdmin' || profile?.role === 'superAdminReferrer');
+}
+
+function wireAdminHeader(profile) {
+  const headerName = byId('admin-header-name');
+  if (headerName) {
+    headerName.textContent = profile?.name || 'Admin';
+  }
+
+  const headerRole = byId('admin-header-role');
+  if (headerRole) {
+    headerRole.textContent = isSuperAdmin(profile) ? 'Super Admin' : 'Admin';
+  }
+
+  const logoutButton = byId('admin-logout-button');
+  if (logoutButton && !logoutButton.dataset.bound) {
+    logoutButton.dataset.bound = 'true';
+    logoutButton.addEventListener('click', async () => {
+      await signOut(auth);
+      redirectToLogin();
+    });
+  }
 }
 
 async function loadAdminProfile(uid) {
@@ -153,14 +214,86 @@ function updateCommonActions(referralLink) {
   });
 }
 
-function renderDashboard(profile) {
+function setStatusText(id, message, isError = false) {
+  const node = byId(id);
+  if (!node) {
+    return;
+  }
+  node.textContent = message;
+  node.className = isError ? 'self-center text-sm text-red-600' : 'self-center text-sm text-slate-600';
+}
+
+function wireAddAdminForm() {
+  const panel = byId('add-admin-panel');
+  const showButton = byId('show-add-admin-form');
+  const hideButton = byId('hide-add-admin-form');
+  const form = byId('add-admin-form');
+
+  if (!panel || !showButton || !hideButton || !form || form.dataset.bound === 'true') {
+    return;
+  }
+
+  const togglePanel = (visible) => {
+    panel.classList.toggle('hidden', !visible);
+  };
+
+  showButton.addEventListener('click', () => togglePanel(true));
+  hideButton.addEventListener('click', () => togglePanel(false));
+
+  form.dataset.bound = 'true';
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const payload = {
+      name: String(byId('admin-name')?.value || '').trim(),
+      firstName: String(byId('admin-first-name')?.value || '').trim(),
+      lastName: String(byId('admin-last-name')?.value || '').trim(),
+      email: String(byId('admin-email')?.value || '').trim(),
+      password: String(byId('admin-password')?.value || ''),
+      refId: String(byId('admin-ref-id')?.value || '').trim(),
+      goal: Number(byId('admin-goal')?.value || 300),
+      role: String(byId('admin-role')?.value || 'admin'),
+      isActive: Boolean(byId('admin-active')?.checked)
+    };
+
+    if (!payload.name || !payload.email || !payload.password) {
+      setStatusText('add-admin-status', 'Name, email, and password are required.', true);
+      return;
+    }
+
+    setStatusText('add-admin-status', 'Creating admin...');
+
+    try {
+      const createAdminAccount = httpsCallable(functions, 'createAdminAccount');
+      await createAdminAccount(payload);
+      setStatusText('add-admin-status', 'Admin created successfully. Reloading...');
+      window.location.reload();
+    } catch (error) {
+      const message = error?.message || 'Failed to create admin.';
+      setStatusText('add-admin-status', message, true);
+    }
+  });
+}
+
+async function renderDashboard(profile) {
+  wireAdminHeader(profile);
   const name = String(profile?.name || [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Admin');
   const ref = String(profile?.ref || profile?.refId || '').trim();
   const goal = Number(profile?.goal) || 0;
-  const sold = Number(profile?.totalTicketsSold ?? profile?.ticketsSold) || 0;
+  const ticketSales = await loadAllSalesForAdmin(profile);
+  const trackedTickets = ticketSales.reduce((sum, sale) => sum + (Number(sale.ticketsBought) || 0), 0);
+  const trackedRevenue = ticketSales.reduce((sum, sale) => sum + (Number(sale.amount) || 0), 0);
+
+  const sold = trackedTickets > 0
+    ? trackedTickets
+    : (Number(profile?.totalTicketsSold ?? profile?.ticketsSold) || 0);
   const remaining = Math.max(Number(profile?.ticketsRemaining ?? (goal - sold)) || 0, 0);
   const clicks = Number(profile?.clickCount) || 0;
-  const revenue = Number(profile?.totalRevenue) || 0;
+  const storedRevenue = Number(profile?.totalRevenue) || 0;
+  const revenueFromSalesCount = sold > 0 ? sold * TICKET_PRICE : 0;
+  const revenue = trackedRevenue > 0
+    ? trackedRevenue
+    : (storedRevenue > 0 ? storedRevenue : revenueFromSalesCount);
 
   const title = byId('page-title');
   if (title) {
@@ -192,9 +325,9 @@ function renderDashboard(profile) {
     statBuyers.textContent = String(sold);
   }
 
-  const conversion = byId('stat-conversion');
-  if (conversion) {
-    conversion.textContent = formatPercent(sold, clicks);
+  const remainingStat = byId('stat-remaining');
+  if (remainingStat) {
+    remainingStat.textContent = String(remaining);
   }
 
   const referralLink = ref ? `${window.location.origin}/?ref=${encodeURIComponent(ref)}` : '';
@@ -208,23 +341,56 @@ function renderDashboard(profile) {
   }
 
   const recentSalesEmpty = byId('recent-sales-empty');
-  const recentClicksEmpty = byId('recent-clicks-empty');
-  if (recentSalesEmpty) {
-    recentSalesEmpty.textContent = sold > 0 ? 'Sales are being tracked in Firestore under admin/{uid}/ticketSales.' : 'No sales yet.';
+  const recentSalesBody = byId('recent-sales-body');
+
+  const sortedSales = [...ticketSales].sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
+  if (recentSalesBody) {
+    recentSalesBody.innerHTML = '';
+    sortedSales.forEach((sale) => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-b border-slate-100';
+      tr.innerHTML = `
+        <td class="px-2 py-2">${sale.buyerName || '-'}</td>
+        <td class="px-2 py-2">${sale.buyerPhone || '-'}</td>
+        <td class="px-2 py-2">${sale.ticketsBought || 0}</td>
+        <td class="px-2 py-2">${formatMoney(sale.amount || 0)}</td>
+      `;
+      recentSalesBody.appendChild(tr);
+    });
   }
-  if (recentClicksEmpty) {
-    recentClicksEmpty.textContent = clicks > 0 ? 'Clicks are tracked server-side and reflected in your counters.' : 'No clicks yet.';
+
+  if (recentSalesEmpty) {
+    recentSalesEmpty.style.display = sortedSales.length ? 'none' : 'block';
   }
 }
 
-function renderSuperDashboard(profiles) {
-  const totalRevenue = profiles.reduce((sum, p) => sum + (Number(p.totalRevenue) || 0), 0);
-  const totalSales = profiles.reduce((sum, p) => sum + (Number(p.totalTicketsSold ?? p.ticketsSold) || 0), 0);
-  const totalClicks = profiles.reduce((sum, p) => sum + (Number(p.clickCount) || 0), 0);
+async function renderSuperDashboard(profiles) {
+  wireAddAdminForm();
+  const salesByAdmin = await Promise.all(profiles.map((profile) => loadAllSalesForAdmin(profile)));
+  const normalizedProfiles = profiles.map((profile, index) => {
+    const sales = salesByAdmin[index] || [];
+    const trackedRevenue = sales.reduce((sum, sale) => sum + (Number(sale.amount) || 0), 0);
+    const trackedTickets = sales.reduce((sum, sale) => sum + (Number(sale.ticketsBought) || 0), 0);
 
-  const byRevenue = [...profiles].sort((a, b) => (Number(b.totalRevenue) || 0) - (Number(a.totalRevenue) || 0));
-  const bySales = [...profiles].sort((a, b) => (Number(b.totalTicketsSold ?? b.ticketsSold) || 0) - (Number(a.totalTicketsSold ?? a.ticketsSold) || 0));
-  const byClicks = [...profiles].sort((a, b) => (Number(b.clickCount) || 0) - (Number(a.clickCount) || 0));
+    const fallbackRevenue = Number(profile.totalRevenue) || 0;
+    const fallbackTickets = Number(profile.totalTicketsSold ?? profile.ticketsSold) || 0;
+    const fallbackRevenueFromTickets = fallbackTickets > 0 ? fallbackTickets * TICKET_PRICE : 0;
+
+    return {
+      ...profile,
+      totalRevenue: trackedRevenue > 0
+        ? trackedRevenue
+        : (fallbackRevenue > 0 ? fallbackRevenue : fallbackRevenueFromTickets),
+      totalTicketsSold: trackedTickets > 0 ? trackedTickets : fallbackTickets,
+      ticketsSold: trackedTickets > 0 ? trackedTickets : fallbackTickets
+    };
+  });
+
+  const totalRevenue = normalizedProfiles.reduce((sum, p) => sum + (Number(p.totalRevenue) || 0), 0);
+  const totalSales = normalizedProfiles.reduce((sum, p) => sum + (Number(p.totalTicketsSold ?? p.ticketsSold) || 0), 0);
+
+  const byRevenue = [...normalizedProfiles].sort((a, b) => (Number(b.totalRevenue) || 0) - (Number(a.totalRevenue) || 0));
+  const bySales = [...normalizedProfiles].sort((a, b) => (Number(b.totalTicketsSold ?? b.ticketsSold) || 0) - (Number(a.totalTicketsSold ?? a.ticketsSold) || 0));
 
   const setText = (id, value) => {
     const el = byId(id);
@@ -238,11 +404,9 @@ function renderSuperDashboard(profiles) {
   setText('stat-total-revenue', formatMoney(totalRevenue));
   setText('stat-total-sales', String(totalSales));
   setText('stat-total-buyers', String(totalSales));
-  setText('stat-total-clicks', String(totalClicks));
-  setText('stat-total-admins', String(profiles.length));
+  setText('stat-total-admins', String(normalizedProfiles.length));
   setText('top-revenue', byRevenue[0] ? `${byRevenue[0].name || 'Admin'} (${formatMoney(byRevenue[0].totalRevenue || 0)})` : '-');
   setText('top-sales', bySales[0] ? `${bySales[0].name || 'Admin'} (${Number(bySales[0].totalTicketsSold ?? bySales[0].ticketsSold) || 0})` : '-');
-  setText('top-clicks', byClicks[0] ? `${byClicks[0].name || 'Admin'} (${Number(byClicks[0].clickCount) || 0})` : '-');
 
   const body = byId('admins-body');
   const empty = byId('admins-empty');
@@ -251,7 +415,7 @@ function renderSuperDashboard(profiles) {
   }
 
   body.innerHTML = '';
-  if (!profiles.length) {
+  if (!normalizedProfiles.length) {
     if (empty) {
       empty.style.display = 'block';
     }
@@ -262,30 +426,196 @@ function renderSuperDashboard(profiles) {
     empty.style.display = 'none';
   }
 
-  profiles.forEach((profile) => {
+  normalizedProfiles.forEach((profile, index) => {
     const sold = Number(profile.totalTicketsSold ?? profile.ticketsSold) || 0;
-    const clicks = Number(profile.clickCount) || 0;
     const revenue = Number(profile.totalRevenue) || 0;
     const ref = profile.ref || profile.refId || '';
     const link = ref ? `${window.location.origin}/?ref=${encodeURIComponent(ref)}` : '';
-    const conversion = formatPercent(sold, clicks);
     const status = profile.isActive === false ? 'Inactive' : 'Active';
+    const isEvenRow = index % 2 === 0;
 
     const tr = document.createElement('tr');
+    tr.className = `border-b border-slate-100 ${isEvenRow ? 'bg-slate-50/40' : 'bg-white'} hover:bg-rose-50/30 transition-colors`;
     tr.innerHTML = `
-      <td>${profile.name || '-'}</td>
-      <td>${ref || '-'}</td>
-      <td>${profile.email || '-'}</td>
-      <td>${link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">Open</a>` : '-'}</td>
-      <td>${clicks}</td>
-      <td>${sold}</td>
-      <td>${formatMoney(revenue)}</td>
-      <td>${conversion}</td>
-      <td>${status}</td>
-      <td>-</td>
+      <td class="px-4 py-3 font-medium text-slate-900">${profile.name || '-'}</td>
+      <td class="px-4 py-3 text-slate-600">${ref || '-'}</td>
+      <td class="px-4 py-3 text-slate-600">${profile.email || '-'}</td>
+      <td class="px-4 py-3">${link ? `<a href="${link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 rounded px-2 py-1 text-rose-700 hover:bg-rose-100 hover:text-rose-800 transition-colors">Open ↗</a>` : '-'}</td>
+      <td class="px-4 py-3 text-center font-semibold text-slate-900">${sold}</td>
+      <td class="px-4 py-3 text-center font-semibold text-slate-900">${formatMoney(revenue)}</td>
+      <td class="px-4 py-3"><span class="inline-flex rounded-full ${status === 'Active' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-200 text-slate-700 border border-slate-300'} px-3 py-1 text-xs font-bold uppercase tracking-wide">${status}</span></td>
+      <td class="px-4 py-3 text-slate-400">-</td>
     `;
     body.appendChild(tr);
   });
+}
+
+async function loadTicketSalesForAdmin(adminProfile) {
+  const uid = adminProfile.uid;
+  const salesSnap = await getDocs(collection(db, 'admin', uid, 'ticketSales'));
+  return salesSnap.docs.map((snap) => {
+    const data = snap.data() || {};
+    const amountValue = Number(data.amount);
+    const amount = Number.isFinite(amountValue) ? amountValue : 0;
+
+    const rawTickets = Number(data.ticketsBought);
+    const derivedTickets = amount > 0 ? Math.max(Math.round(amount / TICKET_PRICE), 1) : 0;
+    const ticketsBought = Number.isFinite(rawTickets) && rawTickets > 0 ? rawTickets : derivedTickets;
+
+    return {
+      id: snap.id,
+      adminUid: uid,
+      adminName: adminProfile.name || '-',
+      adminRef: adminProfile.ref || adminProfile.refId || '-',
+      refId: data.refId || adminProfile.ref || adminProfile.refId || '-',
+      buyerName: data.buyerName || '-',
+      buyerEmail: data.buyerEmail || '-',
+      buyerPhone: data.buyerPhone || '-',
+      ticketsBought,
+      amount,
+      orderId: data.orderId || snap.id || '-',
+      paymentId: data.paymentId || '-',
+      createdAt: data.createdAt || null,
+      createdAtText: formatDateValue(data.createdAt)
+    };
+  });
+}
+
+async function loadLegacyEntriesForAdmin(adminProfile) {
+  const uid = adminProfile.uid;
+  const ref = adminProfile.ref || adminProfile.refId || null;
+  const all = [];
+
+  try {
+    const byUidSnap = await getDocs(query(collection(db, 'raffle_entries'), where('referrerUid', '==', uid)));
+    byUidSnap.docs.forEach((snap) => {
+      const data = snap.data() || {};
+      all.push({
+        id: snap.id,
+        adminUid: uid,
+        adminName: adminProfile.name || '-',
+        adminRef: ref || '-',
+        buyerName: data.name || '-',
+        buyerEmail: data.email || '-',
+        buyerPhone: data.phone || '-',
+        ticketsBought: Number(data.ticketsBought) || 0,
+        amount: Number(data.amount) || ((Number(data.ticketsBought) || 0) * TICKET_PRICE),
+        orderId: data.orderID || data.orderId || '-',
+        paymentId: data.squarePaymentId || '-',
+        createdAt: data.timestamp || null,
+        createdAtText: formatDateValue(data.timestamp)
+      });
+    });
+  } catch (_error) {
+    // Ignore query failures and continue.
+  }
+
+  if (all.length === 0 && ref) {
+    try {
+      const byRefSnap = await getDocs(query(collection(db, 'raffle_entries'), where('referrerRefId', '==', ref)));
+      byRefSnap.docs.forEach((snap) => {
+        const data = snap.data() || {};
+        all.push({
+          id: snap.id,
+          adminUid: uid,
+          adminName: adminProfile.name || '-',
+          adminRef: ref || '-',
+          buyerName: data.name || '-',
+          buyerEmail: data.email || '-',
+          buyerPhone: data.phone || '-',
+          ticketsBought: Number(data.ticketsBought) || 0,
+          amount: Number(data.amount) || ((Number(data.ticketsBought) || 0) * TICKET_PRICE),
+          orderId: data.orderID || data.orderId || '-',
+          paymentId: data.squarePaymentId || '-',
+          createdAt: data.timestamp || null,
+          createdAtText: formatDateValue(data.timestamp)
+        });
+      });
+    } catch (_error) {
+      // Ignore query failures.
+    }
+  }
+
+  return all;
+}
+
+async function loadAllSalesForAdmin(adminProfile) {
+  const ticketSales = await loadTicketSalesForAdmin(adminProfile);
+  if (ticketSales.length > 0) {
+    return ticketSales;
+  }
+  return loadLegacyEntriesForAdmin(adminProfile);
+}
+
+function renderSalesRows(tbody, sales) {
+  if (!tbody) {
+    return;
+  }
+
+  tbody.innerHTML = '';
+
+  sales.forEach((sale, index) => {
+    const isEvenRow = index % 2 === 0;
+    const tr = document.createElement('tr');
+    tr.className = `border-b border-slate-100 ${isEvenRow ? 'bg-slate-50/40' : 'bg-white'} hover:bg-rose-50/30 transition-colors`;
+    const referrerDisplay = sale.adminRef ? `${sale.adminName} (${sale.adminRef})` : sale.adminName || '-';
+    tr.innerHTML = `
+      <td class="px-4 py-3 font-medium text-slate-900">${sale.buyerName}</td>
+      <td class="px-4 py-3 text-center font-semibold text-slate-900">${sale.ticketsBought}</td>
+      <td class="px-4 py-3 text-center font-semibold text-slate-900">${formatMoney(sale.amount)}</td>
+      <td class="px-4 py-3 text-slate-600">${sale.createdAtText}</td>
+      <td class="px-4 py-3 font-medium text-slate-900">${referrerDisplay}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function renderSuperSalesPage(currentProfile) {
+  if (!isSuperAdmin(currentProfile)) {
+    window.location.href = '/admin-dashboard.html';
+    return;
+  }
+
+  wireAdminHeader(currentProfile);
+
+  const adminsSnap = await getDocs(collection(db, 'admin'));
+  const admins = adminsSnap.docs.map((snap) => ({ uid: snap.id, ...(snap.data() || {}) }));
+
+  const salesByAdmin = await Promise.all(admins.map((profile) => loadAllSalesForAdmin(profile)));
+  const allSales = salesByAdmin.flat().sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
+  const ownSales = allSales.filter((sale) => sale.adminUid === currentProfile.uid);
+
+  const totalTickets = allSales.reduce((sum, sale) => sum + sale.ticketsBought, 0);
+  const totalAmount = allSales.reduce((sum, sale) => sum + sale.amount, 0);
+  const ownTickets = ownSales.reduce((sum, sale) => sum + sale.ticketsBought, 0);
+  const ownAmount = ownSales.reduce((sum, sale) => sum + sale.amount, 0);
+
+  const setText = (id, value) => {
+    const el = byId(id);
+    if (el) {
+      el.textContent = value;
+    }
+  };
+
+  setText('super-sales-total-count', String(allSales.length));
+  setText('super-sales-total-tickets', String(totalTickets));
+  setText('super-sales-total-amount', formatMoney(totalAmount));
+  setText('super-sales-own-count', String(ownSales.length));
+  setText('super-sales-own-tickets', String(ownTickets));
+  setText('super-sales-own-amount', formatMoney(ownAmount));
+
+  renderSalesRows(byId('all-sales-body'), allSales);
+  renderSalesRows(byId('own-sales-body'), ownSales);
+
+  const allEmpty = byId('all-sales-empty');
+  if (allEmpty) {
+    allEmpty.style.display = allSales.length ? 'none' : 'block';
+  }
+
+  const ownEmpty = byId('own-sales-empty');
+  if (ownEmpty) {
+    ownEmpty.style.display = ownSales.length ? 'none' : 'block';
+  }
 }
 
 async function ensureAuthorizedAndRender(currentUser) {
@@ -293,6 +623,7 @@ async function ensureAuthorizedAndRender(currentUser) {
 
   try {
     const profile = await loadAdminProfile(currentUser.uid);
+    wireAdminHeader(profile);
 
     if (pageType === 'super' && !isSuperAdmin(profile)) {
       window.location.href = '/admin-dashboard.html';
@@ -300,14 +631,19 @@ async function ensureAuthorizedAndRender(currentUser) {
     }
 
     if (pageType === 'dashboard') {
-      renderDashboard(profile);
+      await renderDashboard(profile);
       return;
     }
 
     if (pageType === 'super') {
       const allAdminsSnap = await getDocs(collection(db, 'admin'));
       const profiles = allAdminsSnap.docs.map((snap) => ({ uid: snap.id, ...(snap.data() || {}) }));
-      renderSuperDashboard(profiles);
+      await renderSuperDashboard(profiles);
+      return;
+    }
+
+    if (pageType === 'super-sales') {
+      await renderSuperSalesPage(profile);
       return;
     }
   } catch (_error) {

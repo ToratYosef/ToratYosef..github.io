@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Super Admin Sales - Yeshivat Torat Yosef</title>
+  <meta name="theme-color" content="#f8fafc" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900" data-page="super-sales">
+  <header class="border-b border-slate-200 bg-white shadow-sm">
+    <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-6">
+      <a href="/index.html" class="flex items-center gap-2" aria-label="Go to home">
+        <img src="/logo.png" alt="Yeshivat Torat Yosef logo" class="h-10 w-10" />
+        <span class="hidden text-sm font-semibold text-slate-900 sm:inline">Yeshivat Torat Yosef</span>
+      </a>
+      <nav class="flex gap-4 text-sm font-semibold text-slate-700 md:gap-6">
+        <a href="/index.html" class="hover:text-rose-700">Home</a>
+        <a href="/prizes.html" class="hover:text-rose-700">Prizes</a>
+        <a href="/about.html" class="hover:text-rose-700">About</a>
+        <a href="/donors.html" class="hover:text-rose-700">Donors</a>
+        <a href="/sponsor.html" class="hover:text-rose-700">Sponsor</a>
+      </nav>
+    </div>
+  </header>
+  <main class="mx-auto w-full max-w-7xl px-4 py-8 md:px-6">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <div>
+        <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">Sales Overview</span>
+        <h1 class="mt-3 text-3xl font-bold tracking-tight">All Sales</h1>
+        <p class="mt-2 text-slate-600">Track every ticket sale across all admins.</p>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <a href="/admin-super.html" class="inline-flex rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800">Manage Admins</a>
+        <a href="/admin/super/sales" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Sales</a>
+        <a href="/admin-dashboard.html" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">My Dashboard</a>
+      </div>
+    </section>
+
+    <section class="mt-4 grid gap-3 sm:grid-cols-3">
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">All Sales Count</div><div id="super-sales-total-count" class="mt-2 text-3xl font-black">0</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">All Tickets Sold</div><div id="super-sales-total-tickets" class="mt-2 text-3xl font-black">0</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">All Revenue</div><div id="super-sales-total-amount" class="mt-2 text-3xl font-black">$0.00</div></article>
+    </section>
+
+    <section class="mt-4 grid gap-3 sm:grid-cols-3">
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">My Sales Count</div><div id="super-sales-own-count" class="mt-2 text-3xl font-black">0</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">My Tickets Sold</div><div id="super-sales-own-tickets" class="mt-2 text-3xl font-black">0</div></article>
+      <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">My Revenue</div><div id="super-sales-own-amount" class="mt-2 text-3xl font-black">$0.00</div></article>
+    </section>
+
+    <section class="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-3">
+        <div>
+          <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">All Admin Sales</span>
+          <h2 class="mt-2 text-xl font-bold">Every tracked sale</h2>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full border-collapse text-sm">
+          <thead>
+            <tr class="border-b-2 border-slate-300 bg-slate-50 text-left text-xs font-bold uppercase tracking-wider text-slate-700">
+              <th class="px-4 py-3">Buyer</th><th class="px-4 py-3">Tickets</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Time</th><th class="px-4 py-3">Referrer</th>
+            </tr>
+          </thead>
+          <tbody id="all-sales-body"></tbody>
+        </table>
+      </div>
+      <div id="all-sales-empty" class="mt-3 rounded-lg border border-dashed border-slate-300 p-3 text-center text-sm text-slate-500">No sales found.</div>
+    </section>
+
+    <section class="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-3">
+        <div>
+          <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-700">My Sales</span>
+          <h2 class="mt-2 text-xl font-bold">Your own referral sales</h2>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full border-collapse text-sm">
+          <thead>
+            <tr class="border-b-2 border-slate-300 bg-slate-50 text-left text-xs font-bold uppercase tracking-wider text-slate-700">
+              <th class="px-4 py-3">Buyer</th><th class="px-4 py-3">Tickets</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Time</th><th class="px-4 py-3">Referrer</th>
+            </tr>
+          </thead>
+          <tbody id="own-sales-body"></tbody>
+        </table>
+      </div>
+      <div id="own-sales-empty" class="mt-3 rounded-lg border border-dashed border-slate-300 p-3 text-center text-sm text-slate-500">You have no tracked sales yet.</div>
+    </section>
+  </main>
+  <script type="module" src="/scripts/admin-app.js"></script>
+</body>
+</html>
