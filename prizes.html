@@ -6,7 +6,7 @@
   <title>Prizes - Yeshivat Torat Yosef</title>
   <meta name="theme-color" content="#ffffff" />
   <link rel="icon" href="favicon/favicon.ico" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/tailwind.css" />
   <style>
     .ticket-total-row {
       display: flex;
@@ -419,10 +419,18 @@
               sourceId: tokenResult.token
             })
           });
-          const data = await response.json();
+          let data = null;
+          try {
+            data = await response.json();
+          } catch (_parseError) {
+            data = null;
+          }
 
-          if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Payment failed.');
+          if (!response.ok || !data || !data.success) {
+            if (response.status === 402) {
+              throw new Error((data && data.error) || 'Payment was declined. Please verify your card details or try a different card.');
+            }
+            throw new Error((data && data.error) || 'Payment failed. Please try again.');
           }
 
           const checkoutDetails = {
