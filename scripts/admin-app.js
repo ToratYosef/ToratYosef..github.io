@@ -556,15 +556,16 @@ async function loadUnreferredSalesForSuper(adminProfiles) {
 
   let entriesSnap;
   try {
-    entriesSnap = await getDocs(query(collection(db, 'raffle_entries'), where('referrerUid', '==', null)));
+    entriesSnap = await getDocs(collection(db, 'raffle_entries'));
   } catch (_error) {
     return [];
   }
 
   return entriesSnap.docs.map((snap) => {
     const data = snap.data() || {};
+    const referrerUid = String(data.referrerUid || '').trim();
     const referrerRefId = String(data.referrerRefId || '').trim().toLowerCase();
-    const isDirect = !referrerRefId || referrerRefId === 'direct';
+    const isDirect = !referrerUid && (!referrerRefId || referrerRefId === 'direct');
 
     if (!isDirect || knownRefIds.has(referrerRefId)) {
       return null;
