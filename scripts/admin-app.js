@@ -547,6 +547,55 @@ async function loadAllSalesForAdmin(adminProfile) {
   return loadLegacyEntriesForAdmin(adminProfile);
 }
 
+async function loadUnreferredSalesForSuper(adminProfiles) {
+  const knownRefIds = new Set(
+    adminProfiles
+      .map((profile) => String(profile.ref || profile.refId || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  let entriesSnap;
+  try {
+    entriesSnap = await getDocs(query(collection(db, 'raffle_entries'), where('referrerUid', '==', null)));
+  } catch (_error) {
+    return [];
+  }
+
+  return entriesSnap.docs.map((snap) => {
+    const data = snap.data() || {};
+    const referrerRefId = String(data.referrerRefId || '').trim().toLowerCase();
+    const isDirect = !referrerRefId || referrerRefId === 'direct';
+
+    if (!isDirect || knownRefIds.has(referrerRefId)) {
+      return null;
+    }
+
+    const amountValue = Number(data.amount);
+    const amount = Number.isFinite(amountValue) ? amountValue : 0;
+
+    const rawTickets = Number(data.ticketsBought);
+    const derivedTickets = amount > 0 ? Math.max(Math.round(amount / TICKET_PRICE), 1) : 0;
+    const ticketsBought = Number.isFinite(rawTickets) && rawTickets > 0 ? rawTickets : derivedTickets;
+
+    return {
+      id: snap.id,
+      adminUid: 'direct',
+      adminName: 'Direct',
+      adminRef: 'direct',
+      refId: 'direct',
+      buyerName: data.name || '-',
+      buyerEmail: data.email || '-',
+      buyerPhone: data.phone || '-',
+      ticketsBought,
+      amount,
+      orderId: data.orderID || data.orderId || snap.id || '-',
+      paymentId: data.squarePaymentId || '-',
+      createdAt: data.timestamp || null,
+      createdAtText: formatDateValue(data.timestamp)
+    };
+  }).filter(Boolean);
+}
+
 function renderSalesRows(tbody, sales) {
   if (!tbody) {
     return;
@@ -657,7 +706,11 @@ async function renderSuperSalesPage(currentProfile) {
   const admins = adminsSnap.docs.map((snap) => ({ uid: snap.id, ...(snap.data() || {}) }));
 
   const salesByAdmin = await Promise.all(admins.map((profile) => loadAllSalesForAdmin(profile)));
-  const allSales = salesByAdmin.flat().sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
+  const unreferredSales = await loadUnreferredSalesForSuper(admins);
+  const allSales = salesByAdmin
+    .flat()
+    .concat(unreferredSales)
+    .sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
   const ownSales = allSales.filter((sale) => sale.adminUid === currentProfile.uid);
 
   const totalTickets = allSales.reduce((sum, sale) => sum + sale.ticketsBought, 0);
