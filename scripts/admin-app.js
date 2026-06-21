@@ -565,9 +565,9 @@ async function loadUnreferredSalesForSuper(adminProfiles) {
     const data = snap.data() || {};
     const referrerUid = String(data.referrerUid || '').trim();
     const referrerRefId = String(data.referrerRefId || '').trim().toLowerCase();
-    const isDirect = !referrerUid && (!referrerRefId || referrerRefId === 'direct');
+    const isDirect = !referrerUid || !referrerRefId || referrerRefId === 'direct';
 
-    if (!isDirect || knownRefIds.has(referrerRefId)) {
+    if (!isDirect || (referrerRefId && referrerRefId !== 'direct' && knownRefIds.has(referrerRefId))) {
       return null;
     }
 
