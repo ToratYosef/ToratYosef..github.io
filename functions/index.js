@@ -2,6 +2,7 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 const { WebhooksHelper } = require('square');
+const { sendCompletedOrderEmails } = require('./order-email');
 
 admin.initializeApp();
 
@@ -1446,7 +1447,12 @@ exports.getSquareCardConfig = functions.region('us-central1').https.onRequest(as
 /**
  * Processes Square card or digital-wallet tokens from on-page checkout.
  */
-exports.createSquareCardPayment = functions.region('us-central1').https.onRequest(async (req, res) => {
+exports.createSquareCardPayment = functions
+  .runWith({
+    secrets: ['SMTP_USER', 'SMTP_APP_PASSWORD']
+  })
+  .region('us-central1')
+  .https.onRequest(async (req, res) => {
   if (applyCors(req, res)) {
     return;
   }
@@ -1603,6 +1609,59 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
     const card = cardDetails.card || {};
     const cardBrand = card.card_brand || card.brand || null;
     const last4 = card.last_4 || card.last4 || null;
+    let emailDelivery;
+
+    try {
+      emailDelivery = await sendCompletedOrderEmails({
+        name,
+        email,
+        phone,
+        quantity: parsedQuantity,
+        amount: totalAmount,
+        currency: 'USD',
+        paymentMethod,
+        orderId,
+        paymentId: payment.id,
+        referral: normalizedReferrer,
+        receiptUrl: payment.receipt_url || payment.receiptUrl || null,
+        completedAt: new Date(),
+        isTest: squareConfig.isTest
+      }, {
+        smtpUser: process.env.SMTP_USER,
+        smtpAppPassword: process.env.SMTP_APP_PASSWORD
+      });
+    } catch (emailError) {
+      console.error('Completed order email setup failed', {
+        orderId,
+        errorCode: emailError?.code || null,
+        errorMessage: emailError?.message || 'Unknown email error'
+      });
+      emailDelivery = {
+        status: 'failed',
+        customer: {
+          status: 'failed',
+          errorCode: emailError?.code || null,
+          errorMessage: String(emailError?.message || 'Email delivery failed.').slice(0, 500)
+        },
+        admin: {
+          status: 'failed',
+          errorCode: emailError?.code || null,
+          errorMessage: String(emailError?.message || 'Email delivery failed.').slice(0, 500)
+        }
+      };
+    }
+
+    try {
+      await orderRef.set({
+        emailDelivery,
+        receiptEmailAttemptedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (emailStatusError) {
+      console.error('Failed to save completed order email status', {
+        orderId,
+        errorMessage: emailStatusError?.message || 'Unknown Firestore error'
+      });
+    }
 
     return res.status(200).json({
       success: true,
