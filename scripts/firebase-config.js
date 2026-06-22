@@ -9,7 +9,6 @@ export const firebaseConfig = {
   measurementId: "G-9RYXQP6NFD"
 };
 
-// Optional: paste the public Web Push certificate key from
-// Firebase Console > Project Settings > Cloud Messaging > Web Push certificates.
-// When left blank, Firebase Messaging will try the project's default key.
-export const firebaseMessagingVapidKey = "";
+// Public Web Push certificate key from Firebase Console.
+// The matching private key must remain in Firebase and must never be committed.
+export const firebaseMessagingVapidKey = "BPmQAKgQbcGzdKYtUltrlrHpbRLk3dxQ2mbfGR751GnuUzulkwOqX-DISeXbgqfl9HJVmG8BYqlyFeaj8i9OEcM";
