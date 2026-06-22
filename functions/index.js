@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 const { WebhooksHelper } = require('square');
 
 admin.initializeApp();
@@ -94,6 +95,7 @@ async function applyAdminTicketProgressUpdate({
   amount,
   orderId,
   paymentId,
+  paymentMethod,
   buyerName,
   buyerEmail,
   buyerPhone
@@ -144,6 +146,7 @@ async function applyAdminTicketProgressUpdate({
     transaction.set(saleRef, {
       orderId: orderId || null,
       paymentId: paymentId || null,
+      paymentMethod: String(paymentMethod || 'square').toLowerCase(),
       refId: refId || null,
       ticketsBought: tickets,
       amount: Number(amount) || 0,
@@ -660,78 +663,293 @@ exports.getReferrersList = functions.https.onCall(async (data, context) => {
  * This function should only be callable by super admins.
  */
 exports.addManualSale = functions.https.onCall(async (data, context) => {
-    // Security Check: Ensure the caller is an authenticated super admin.
-    if (!context.auth || !context.auth.token.superAdminReferrer) {
-        throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to add manual entries.');
+  const token = context.auth?.token || {};
+  if (!context.auth || (!token.superAdminReferrer && !token.superAdmin)) {
+    throw new functions.https.HttpsError('permission-denied', 'You must be a super admin to add manual entries.');
+  }
+
+  const name = String(data?.name || '').trim();
+  const email = sanitizeEmail(data?.email);
+  const phone = String(data?.phone || '').trim();
+  const requestedTickets = Number(data?.ticketsBought);
+  const ticketsBought = Number.isInteger(requestedTickets) && requestedTickets > 0 ? requestedTickets : 0;
+  const requestedAdminUid = String(data?.referrerUid || '').trim();
+  const requestedRefId = String(data?.referrerRefId || '').trim();
+  const paymentMethod = String(data?.paymentMethod || '').trim().toLowerCase();
+  const allowedPaymentMethods = new Set(['zelle', 'cash', 'venmo', 'other']);
+
+  if (!name || !email || !phone || ticketsBought <= 0 || !requestedAdminUid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Name, email, phone, ticket quantity, and referring admin are required.'
+    );
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Email format is invalid.');
+  }
+  if (!allowedPaymentMethods.has(paymentMethod)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Payment method must be Zelle, cash, Venmo, or other.');
+  }
+
+  const db = admin.firestore();
+
+  try {
+    const adminSnapshot = await db.collection('admin').doc(requestedAdminUid).get();
+    if (!adminSnapshot.exists || adminSnapshot.data()?.isActive === false) {
+      throw new functions.https.HttpsError('not-found', 'The selected admin is missing or inactive.');
     }
 
-    const { name, email, phone, ticketsBought, referrerRefId } = data; // referrerRefId is optional
-
-    // Basic validation
-    if (!name || !email || !phone || typeof ticketsBought !== 'number' || ticketsBought <= 0) {
-        throw new functions.https.HttpsError('invalid-argument', 'Missing or invalid fields: name, email, phone, or ticketsBought.');
+    const adminData = adminSnapshot.data() || {};
+    const referrerRefId = String(adminData.refId || adminData.ref || '').trim();
+    if (!referrerRefId) {
+      throw new functions.https.HttpsError('failed-precondition', 'The selected admin does not have a referral ID.');
+    }
+    if (requestedRefId && requestedRefId !== referrerRefId) {
+      throw new functions.https.HttpsError('failed-precondition', 'The selected admin referral information changed. Please reload.');
     }
 
-    const db = admin.firestore();
-    let referrerUid = null;
+    const amount = ticketsBought * 126;
+    const orderId = `MANUAL_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
-    try {
-        // If a referrerRefId is provided, try to find the corresponding referrer UID
-        if (referrerRefId) {
-            const referrerQuerySnapshot = await db.collection('referrers')
-                .where('refId', '==', referrerRefId)
-                .limit(1)
-                .get();
+    await db.collection('raffle_entries').add({
+      name,
+      email,
+      phone,
+      referrerRefId,
+      referrerUid: requestedAdminUid,
+      amount,
+      ticketsBought,
+      paymentStatus: 'manual_entry',
+      paymentMethod,
+      manualPaymentMethod: paymentMethod,
+      orderID: orderId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      entryType: 'manual',
+      processedBy: context.auth.uid
+    });
 
-            if (!referrerQuerySnapshot.empty) {
-                referrerUid = referrerQuerySnapshot.docs[0].id;
-                console.log(`Manual entry: Found referrer UID: ${referrerUid} for refId: ${referrerRefId}`);
-            } else {
-                console.warn(`Manual entry: Referrer with refId ${referrerRefId} not found. Entry will not be linked to a referrer.`);
-            }
-        }
-        // If no referrerRefId, or referrer not found, it defaults to null
+    await applyAdminTicketProgressUpdate({
+      db,
+      adminUid: requestedAdminUid,
+      refId: referrerRefId,
+      ticketsBought,
+      amount,
+      orderId,
+      paymentId: null,
+      paymentMethod,
+      buyerName: name,
+      buyerEmail: email,
+      buyerPhone: phone
+    });
 
-        // Add the manual raffle entry to the 'raffle_entries' collection
-        await db.collection('raffle_entries').add({
-            name: name,
-            email: email,
-            phone: phone,
-            referrerRefId: referrerRefId || null, // Store the provided refId or null
-            referrerUid: referrerUid, // Store the resolved UID or null
-            amount: ticketsBought * 126.00, // Assuming $126 per ticket for manual entries
-            ticketsBought: ticketsBought,
-            paymentStatus: 'manual_entry', // Custom status for manual entries
-            orderID: `MANUAL_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`, // Unique ID
-            timestamp: admin.firestore.FieldValue.serverTimestamp(), // Timestamp for manual entries is current server time
-            entryType: 'manual', // Explicitly mark as manual
-            processedBy: context.auth.uid // Record who added it
-        });
+    console.log('Successfully added manual raffle entry', {
+      name,
+      ticketsBought,
+      paymentMethod,
+      referrerUid: requestedAdminUid,
+      referrerRefId
+    });
 
-          await applyAdminTicketProgressUpdate({
-            db,
-            adminUid: referrerUid,
-            refId: referrerRefId || null,
-            ticketsBought,
-            amount: ticketsBought * 126.00,
-            orderId: `MANUAL_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-            paymentId: null,
-            buyerName: name,
-            buyerEmail: email,
-            buyerPhone: phone
-          });
-
-        console.log(`Successfully added manual raffle entry for ${name}. Tickets: ${ticketsBought}`);
-        return { success: true, message: `Manual entry for ${ticketsBought} tickets added successfully for ${name}.` };
-
-    } catch (error) {
-        console.error('Error adding manual raffle entry:', error);
-        if (error instanceof functions.https.HttpsError) {
-            throw error;
-        }
-        throw new functions.https.HttpsError('internal', 'An unexpected error occurred while adding manual entry.', error.message);
+    return {
+      success: true,
+      orderId,
+      referrerUid: requestedAdminUid,
+      referrerRefId,
+      message: `Manual entry for ${ticketsBought} ticket${ticketsBought === 1 ? '' : 's'} added successfully.`
+    };
+  } catch (error) {
+    console.error('Error adding manual raffle entry:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
     }
+    throw new functions.https.HttpsError('internal', 'An unexpected error occurred while adding manual entry.', error.message);
+  }
 });
+
+function fcmTokenDocumentId(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+exports.registerAdminFcmToken = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+  }
+
+  const token = String(data?.token || '').trim();
+  if (token.length < 40 || token.length > 4096) {
+    throw new functions.https.HttpsError('invalid-argument', 'A valid notification token is required.');
+  }
+
+  const db = admin.firestore();
+  const uid = context.auth.uid;
+  const profile = await db.collection('admin').doc(uid).get();
+  if (!profile.exists || profile.data()?.isActive === false) {
+    throw new functions.https.HttpsError('permission-denied', 'Active admin access is required.');
+  }
+
+  const tokenId = fcmTokenDocumentId(token);
+  const tokenIndexRef = db.collection('adminFcmTokens').doc(tokenId);
+  const previousOwner = await tokenIndexRef.get();
+  const batch = db.batch();
+
+  if (previousOwner.exists) {
+    const previousUid = String(previousOwner.data()?.uid || '');
+    if (previousUid && previousUid !== uid) {
+      batch.delete(db.collection('admin').doc(previousUid).collection('fcmTokens').doc(tokenId));
+    }
+  }
+
+  const tokenData = {
+    uid,
+    token,
+    userAgent: String(data?.userAgent || '').slice(0, 500),
+    platform: String(data?.platform || '').slice(0, 100),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+
+  batch.set(db.collection('admin').doc(uid).collection('fcmTokens').doc(tokenId), tokenData, { merge: true });
+  batch.set(tokenIndexRef, tokenData, { merge: true });
+  await batch.commit();
+
+  return { success: true };
+});
+
+async function resolveRaffleReferrerUid(entry) {
+  const directUid = String(entry.referrerUid || '').trim();
+  if (directUid) {
+    return directUid;
+  }
+
+  const refId = String(entry.referrerRefId || '').trim();
+  if (!refId || refId.toLowerCase() === 'direct') {
+    return null;
+  }
+
+  const db = admin.firestore();
+  let snapshot = await db.collection('admin').where('refId', '==', refId).limit(1).get();
+  if (snapshot.empty) {
+    snapshot = await db.collection('admin').where('ref', '==', refId).limit(1).get();
+  }
+  return snapshot.empty ? null : snapshot.docs[0].id;
+}
+
+async function loadFcmTokensForAdminUids(uids) {
+  const db = admin.firestore();
+  const uniqueUids = Array.from(new Set(uids.filter(Boolean)));
+  const snapshots = await Promise.all(
+    uniqueUids.map(async (uid) => ({
+      uid,
+      snapshot: await db.collection('admin').doc(uid).collection('fcmTokens').get()
+    }))
+  );
+
+  return snapshots.flatMap(({ uid, snapshot }) => snapshot.docs.map((doc) => ({
+    uid,
+    tokenId: doc.id,
+    token: String(doc.data()?.token || ''),
+    ref: doc.ref
+  }))).filter((record) => record.token);
+}
+
+async function sendAdminSaleNotification({ recipientUids, title, body, entryId, entry, link }) {
+  const tokenRecords = await loadFcmTokensForAdminUids(recipientUids);
+  if (!tokenRecords.length) {
+    return;
+  }
+
+  const db = admin.firestore();
+  const notificationIcon = new URL('/assets/logo.png', link).toString();
+  for (let offset = 0; offset < tokenRecords.length; offset += 500) {
+    const batchRecords = tokenRecords.slice(offset, offset + 500);
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens: batchRecords.map((record) => record.token),
+      notification: { title, body },
+      data: {
+        saleId: String(entryId),
+        referrerUid: String(entry.referrerUid || ''),
+        referrerRefId: String(entry.referrerRefId || ''),
+        ticketsBought: String(toPositiveInt(entry.ticketsBought, 0)),
+        amount: String(Number(entry.amount) || 0)
+      },
+      webpush: {
+        fcmOptions: { link },
+        notification: {
+          icon: notificationIcon,
+          badge: notificationIcon,
+          tag: `ticket-sale-${entryId}`
+        }
+      }
+    });
+
+    const staleTokenDeletes = [];
+    response.responses.forEach((result, index) => {
+      if (result.success) {
+        return;
+      }
+      const code = result.error?.code || '';
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+        const record = batchRecords[index];
+        staleTokenDeletes.push(record.ref.delete());
+        staleTokenDeletes.push(db.collection('adminFcmTokens').doc(record.tokenId).delete());
+      } else {
+        console.error('FCM notification failed', { code, message: result.error?.message });
+      }
+    });
+    await Promise.all(staleTokenDeletes);
+  }
+}
+
+exports.notifyAdminsOnRaffleEntry = functions.firestore
+  .document('raffle_entries/{entryId}')
+  .onCreate(async (snapshot, context) => {
+    const entry = snapshot.data() || {};
+    const db = admin.firestore();
+    const adminsSnapshot = await db.collection('admin').get();
+    const profiles = adminsSnapshot.docs.map((doc) => ({ uid: doc.id, ...(doc.data() || {}) }));
+    const superAdminUids = profiles
+      .filter((profile) => profile.isActive !== false && (
+        profile.isSuperAdminReferrer === true ||
+        profile.role === 'superAdminReferrer' ||
+        profile.role === 'superAdmin'
+      ))
+      .map((profile) => profile.uid);
+
+    const referrerUid = await resolveRaffleReferrerUid(entry);
+    const tickets = Math.max(toPositiveInt(entry.ticketsBought, 0), 1);
+    const buyerName = String(entry.name || 'A buyer').trim() || 'A buyer';
+    const amount = Number(entry.amount) || 0;
+    const saleSummary = `${buyerName} bought ${tickets} ticket${tickets === 1 ? '' : 's'}${amount > 0 ? ` for $${amount.toFixed(2)}` : ''}.`;
+    const siteUrl = String(process.env.PUBLIC_SITE_URL || process.env.DOMAIN || 'https://toratyosefsummerraffle.com').replace(/\/$/, '');
+
+    const notificationJobs = [];
+    if (referrerUid && !superAdminUids.includes(referrerUid)) {
+      notificationJobs.push(sendAdminSaleNotification({
+        recipientUids: [referrerUid],
+        title: 'Your referral link made a sale',
+        body: saleSummary,
+        entryId: context.params.entryId,
+        entry,
+        link: `${siteUrl}/admin-dashboard.html`
+      }));
+    }
+
+    if (superAdminUids.length) {
+      const referrer = profiles.find((profile) => profile.uid === referrerUid);
+      const sourceName = referrer
+        ? `${referrer.name || 'Admin'} (${referrer.refId || referrer.ref || 'no ref ID'})`
+        : 'Direct sale';
+      notificationJobs.push(sendAdminSaleNotification({
+        recipientUids: superAdminUids,
+        title: 'New ticket sale',
+        body: `${saleSummary} Referrer: ${sourceName}.`,
+        entryId: context.params.entryId,
+        entry,
+        link: `${siteUrl}/admin/super/sales`
+      }));
+    }
+
+    await Promise.all(notificationJobs);
+  });
 
 /**
  * Firebase Callable Function to retrieve all ticket sales,
@@ -1194,6 +1412,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       amount: totalAmount,
       orderId,
       paymentId: payment.id,
+      paymentMethod: 'square',
       buyerName: name,
       buyerEmail: email,
       buyerPhone: phone

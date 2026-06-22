@@ -18,7 +18,13 @@ import {
   query,
   where
 } from 'https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js';
-import { firebaseConfig } from '/scripts/firebase-config.js';
+import {
+  getMessaging,
+  getToken,
+  isSupported as isMessagingSupported,
+  onMessage
+} from 'https://www.gstatic.com/firebasejs/11.9.0/firebase-messaging.js';
+import { firebaseConfig, firebaseMessagingVapidKey } from '/scripts/firebase-config.js';
 
 const ADMIN_EMAIL_DOMAIN = 'toratyosef.com';
 const TICKET_PRICE = 126;
@@ -27,6 +33,7 @@ const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const functions = getFunctions(app, 'us-central1');
+let foregroundMessagingBound = false;
 
 function byId(id) {
   return document.getElementById(id);
@@ -60,6 +67,29 @@ function normalizeIdentifier(input) {
 function formatMoney(value) {
   const amount = Number(value) || 0;
   return `$${amount.toFixed(2)}`;
+}
+
+function formatPaymentMethod(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  const labels = {
+    cash: 'Cash',
+    other: 'Other',
+    square: 'Square',
+    square_card: 'Square',
+    venmo: 'Venmo',
+    zelle: 'Zelle'
+  };
+  return labels[normalized] || (normalized ? normalized.replace(/_/g, ' ') : '-');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[character]));
 }
 
 function formatPercent(numerator, denominator) {
@@ -223,6 +253,115 @@ function setStatusText(id, message, isError = false) {
   node.className = isError ? 'self-center text-sm text-red-600' : 'self-center text-sm text-slate-600';
 }
 
+async function setupSaleNotifications() {
+  const button = byId('enable-sale-notifications');
+  const status = byId('sale-notification-status');
+  if (!button || button.dataset.bound === 'true') {
+    return;
+  }
+
+  const setStatus = (message, isError = false) => {
+    if (!status) {
+      return;
+    }
+    status.textContent = message;
+    status.className = isError ? 'self-center text-xs text-red-600' : 'self-center text-xs text-slate-500';
+  };
+
+  if (!window.isSecureContext || !('serviceWorker' in navigator) || !('Notification' in window)) {
+    button.disabled = true;
+    button.classList.add('opacity-50', 'cursor-not-allowed');
+    setStatus('Push notifications are not supported in this browser.', true);
+    return;
+  }
+
+  if (!(await isMessagingSupported())) {
+    button.disabled = true;
+    button.classList.add('opacity-50', 'cursor-not-allowed');
+    setStatus('Firebase notifications are not supported in this browser.', true);
+    return;
+  }
+
+  const messaging = getMessaging(app);
+
+  const registerToken = async (requestPermission) => {
+    try {
+      let permission = Notification.permission;
+      if (requestPermission && permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+
+      if (permission !== 'granted') {
+        setStatus(
+          permission === 'denied'
+            ? 'Notifications are blocked in your browser settings.'
+            : 'Click Enable Notifications to receive sale alerts.',
+          permission === 'denied'
+        );
+        return;
+      }
+
+      setStatus('Connecting sale notifications...');
+      const serviceWorkerRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const tokenOptions = { serviceWorkerRegistration };
+      if (firebaseMessagingVapidKey) {
+        tokenOptions.vapidKey = firebaseMessagingVapidKey;
+      }
+
+      const token = await getToken(messaging, tokenOptions);
+      if (!token) {
+        throw new Error('Firebase did not return a notification token.');
+      }
+
+      const registerAdminFcmToken = httpsCallable(functions, 'registerAdminFcmToken');
+      await registerAdminFcmToken({
+        token,
+        userAgent: navigator.userAgent,
+        platform: navigator.userAgentData?.platform || navigator.platform || ''
+      });
+
+      button.textContent = 'Notifications Enabled';
+      button.disabled = true;
+      button.classList.add('opacity-70', 'cursor-default');
+      setStatus('This browser will receive ticket sale alerts.');
+
+      if (!foregroundMessagingBound) {
+        foregroundMessagingBound = true;
+        onMessage(messaging, (payload) => {
+          const title = payload.notification?.title || 'New ticket sale';
+          const body = payload.notification?.body || 'A new raffle sale was recorded.';
+          setStatus(body);
+          if (Notification.permission === 'granted') {
+            try {
+              new Notification(title, {
+                body,
+                icon: '/assets/logo.png',
+                tag: payload.data?.saleId ? `ticket-sale-${payload.data.saleId}` : 'ticket-sale'
+              });
+            } catch (_error) {
+              // Some mobile browsers only display notifications from the service worker.
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Sale notification registration failed:', error);
+      setStatus('Could not enable notifications. Check the Firebase Web Push key and browser permissions.', true);
+    }
+  };
+
+  button.dataset.bound = 'true';
+  button.addEventListener('click', () => registerToken(true));
+
+  if (Notification.permission === 'granted') {
+    await registerToken(false);
+  } else if (Notification.permission === 'denied') {
+    setStatus('Notifications are blocked in your browser settings.', true);
+  } else {
+    setStatus('Enable alerts to be notified when tickets are sold.');
+  }
+}
+
 function wireAddAdminForm() {
   const panel = byId('add-admin-panel');
   const showButton = byId('show-add-admin-form');
@@ -271,6 +410,108 @@ function wireAddAdminForm() {
     } catch (error) {
       const message = error?.message || 'Failed to create admin.';
       setStatusText('add-admin-status', message, true);
+    }
+  });
+}
+
+function wireManualSaleForm(profiles) {
+  const panel = byId('manual-sale-panel');
+  const showButton = byId('show-manual-sale-form');
+  const hideButton = byId('hide-manual-sale-form');
+  const form = byId('manual-sale-form');
+  const referrerSelect = byId('manual-sale-referrer');
+  const assignment = byId('manual-sale-assignment');
+  const ticketInput = byId('manual-sale-tickets');
+  const amountPreview = byId('manual-sale-amount');
+
+  if (!panel || !showButton || !hideButton || !form || !referrerSelect) {
+    return;
+  }
+
+  const activeProfiles = profiles
+    .filter((profile) => profile.isActive !== false && (profile.refId || profile.ref))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  const profilesByUid = new Map(activeProfiles.map((profile) => [profile.uid, profile]));
+
+  referrerSelect.innerHTML = '<option value="">Select an admin</option>';
+  activeProfiles.forEach((profile) => {
+    const option = document.createElement('option');
+    option.value = profile.uid;
+    option.textContent = `${profile.name || 'Admin'} — ${profile.refId || profile.ref}`;
+    referrerSelect.appendChild(option);
+  });
+
+  const updateAssignment = () => {
+    const profile = profilesByUid.get(referrerSelect.value);
+    if (assignment) {
+      assignment.textContent = profile
+        ? `UID: ${profile.uid} · Ref ID: ${profile.refId || profile.ref}`
+        : 'Choose an admin to assign both UID and Ref ID automatically.';
+    }
+  };
+
+  const updateAmount = () => {
+    if (amountPreview) {
+      const tickets = Math.max(Number(ticketInput?.value) || 0, 0);
+      amountPreview.textContent = formatMoney(tickets * TICKET_PRICE);
+    }
+  };
+
+  referrerSelect.addEventListener('change', updateAssignment);
+  ticketInput?.addEventListener('input', updateAmount);
+  updateAssignment();
+  updateAmount();
+
+  if (form.dataset.bound === 'true') {
+    return;
+  }
+
+  const togglePanel = (visible) => {
+    panel.classList.toggle('hidden', !visible);
+    if (visible) {
+      byId('manual-sale-name')?.focus();
+    }
+  };
+
+  showButton.addEventListener('click', () => togglePanel(true));
+  hideButton.addEventListener('click', () => togglePanel(false));
+
+  form.dataset.bound = 'true';
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const selectedProfile = profilesByUid.get(referrerSelect.value);
+    const submitButton = byId('submit-manual-sale');
+    const payload = {
+      name: String(byId('manual-sale-name')?.value || '').trim(),
+      email: String(byId('manual-sale-email')?.value || '').trim(),
+      phone: String(byId('manual-sale-phone')?.value || '').trim(),
+      ticketsBought: Number(byId('manual-sale-tickets')?.value || 0),
+      paymentMethod: String(byId('manual-sale-payment-method')?.value || '').trim(),
+      referrerUid: selectedProfile?.uid || '',
+      referrerRefId: selectedProfile?.refId || selectedProfile?.ref || ''
+    };
+
+    if (!payload.name || !payload.email || !payload.phone || payload.ticketsBought <= 0 || !selectedProfile || !payload.paymentMethod) {
+      setStatusText('manual-sale-status', 'Complete every field and select the referring admin.', true);
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.classList.add('opacity-60', 'cursor-not-allowed');
+    setStatusText('manual-sale-status', 'Saving manual ticket entry...');
+
+    try {
+      const addManualSale = httpsCallable(functions, 'addManualSale');
+      const result = await addManualSale(payload);
+      setStatusText('manual-sale-status', result.data?.message || 'Manual ticket entry saved.');
+      form.reset();
+      updateAssignment();
+      updateAmount();
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (error) {
+      setStatusText('manual-sale-status', error?.message || 'Failed to save the manual ticket entry.', true);
+      submitButton.disabled = false;
+      submitButton.classList.remove('opacity-60', 'cursor-not-allowed');
     }
   });
 }
@@ -350,10 +591,11 @@ async function renderDashboard(profile) {
       const tr = document.createElement('tr');
       tr.className = 'border-b border-slate-100';
       tr.innerHTML = `
-        <td class="px-2 py-2">${sale.buyerName || '-'}</td>
-        <td class="px-2 py-2">${sale.buyerPhone || '-'}</td>
+        <td class="px-2 py-2">${escapeHtml(sale.buyerName || '-')}</td>
+        <td class="px-2 py-2">${escapeHtml(sale.buyerPhone || '-')}</td>
         <td class="px-2 py-2">${sale.ticketsBought || 0}</td>
         <td class="px-2 py-2">${formatMoney(sale.amount || 0)}</td>
+        <td class="px-2 py-2">${escapeHtml(formatPaymentMethod(sale.paymentMethod))}</td>
       `;
       recentSalesBody.appendChild(tr);
     });
@@ -366,6 +608,7 @@ async function renderDashboard(profile) {
 
 async function renderSuperDashboard(profiles) {
   wireAddAdminForm();
+  wireManualSaleForm(profiles);
   const salesByAdmin = await Promise.all(profiles.map((profile) => loadAllSalesForAdmin(profile)));
   const normalizedProfiles = profiles.map((profile, index) => {
     const sales = salesByAdmin[index] || [];
@@ -475,6 +718,7 @@ async function loadTicketSalesForAdmin(adminProfile) {
       amount,
       orderId: data.orderId || snap.id || '-',
       paymentId: data.paymentId || '-',
+      paymentMethod: data.paymentMethod || (data.paymentId ? 'square' : '-'),
       createdAt: data.createdAt || null,
       createdAtText: formatDateValue(data.createdAt)
     };
@@ -502,6 +746,7 @@ async function loadLegacyEntriesForAdmin(adminProfile) {
         amount: Number(data.amount) || ((Number(data.ticketsBought) || 0) * TICKET_PRICE),
         orderId: data.orderID || data.orderId || '-',
         paymentId: data.squarePaymentId || '-',
+        paymentMethod: data.paymentMethod || data.manualPaymentMethod || data.entryType || '-',
         createdAt: data.timestamp || null,
         createdAtText: formatDateValue(data.timestamp)
       });
@@ -527,6 +772,7 @@ async function loadLegacyEntriesForAdmin(adminProfile) {
           amount: Number(data.amount) || ((Number(data.ticketsBought) || 0) * TICKET_PRICE),
           orderId: data.orderID || data.orderId || '-',
           paymentId: data.squarePaymentId || '-',
+          paymentMethod: data.paymentMethod || data.manualPaymentMethod || data.entryType || '-',
           createdAt: data.timestamp || null,
           createdAtText: formatDateValue(data.timestamp)
         });
@@ -591,6 +837,7 @@ async function loadUnreferredSalesForSuper(adminProfiles) {
       amount,
       orderId: data.orderID || data.orderId || snap.id || '-',
       paymentId: data.squarePaymentId || '-',
+      paymentMethod: data.paymentMethod || data.manualPaymentMethod || data.entryType || '-',
       createdAt: data.timestamp || null,
       createdAtText: formatDateValue(data.timestamp)
     };
@@ -610,11 +857,12 @@ function renderSalesRows(tbody, sales) {
     tr.className = `border-b border-slate-100 ${isEvenRow ? 'bg-slate-50/40' : 'bg-white'} hover:bg-rose-50/30 transition-colors`;
     const referrerDisplay = sale.adminRef ? `${sale.adminName} (${sale.adminRef})` : sale.adminName || '-';
     tr.innerHTML = `
-      <td class="px-4 py-3 font-medium text-slate-900">${sale.buyerName}</td>
+      <td class="px-4 py-3 font-medium text-slate-900">${escapeHtml(sale.buyerName)}</td>
       <td class="px-4 py-3 text-center font-semibold text-slate-900">${sale.ticketsBought}</td>
       <td class="px-4 py-3 text-center font-semibold text-slate-900">${formatMoney(sale.amount)}</td>
+      <td class="px-4 py-3 text-slate-600">${escapeHtml(formatPaymentMethod(sale.paymentMethod))}</td>
       <td class="px-4 py-3 text-slate-600">${sale.createdAtText}</td>
-      <td class="px-4 py-3 font-medium text-slate-900">${referrerDisplay}</td>
+      <td class="px-4 py-3 font-medium text-slate-900">${escapeHtml(referrerDisplay)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -653,6 +901,7 @@ function exportSalesPerTicketCsv(sales) {
     'Ticket Amount',
     'Order ID',
     'Payment ID',
+    'Payment Method',
     'Sale Time'
   ];
 
@@ -681,6 +930,7 @@ function exportSalesPerTicketCsv(sales) {
         perTicketAmount.toFixed(2),
         sale.orderId || '-',
         sale.paymentId || '-',
+        formatPaymentMethod(sale.paymentMethod),
         sale.createdAtText || '-'
       ]);
     }
@@ -769,6 +1019,9 @@ async function ensureAuthorizedAndRender(currentUser) {
   try {
     const profile = await loadAdminProfile(currentUser.uid);
     wireAdminHeader(profile);
+    setupSaleNotifications().catch((error) => {
+      console.error('Notification setup failed:', error);
+    });
 
     if (pageType === 'super' && !isSuperAdmin(profile)) {
       window.location.href = '/admin-dashboard.html';
