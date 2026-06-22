@@ -42,7 +42,7 @@
         <div id="checkout-summary" class="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="display: none;">
           <div class="summary-row"><span class="summary-label">Tickets Bought</span><span id="summary-tickets" class="summary-value">-</span></div>
           <div class="summary-row"><span class="summary-label">Amount Spent</span><span id="summary-amount" class="summary-value">-</span></div>
-          <div class="summary-row"><span class="summary-label">Card</span><span id="summary-card" class="summary-value">-</span></div>
+          <div class="summary-row"><span class="summary-label">Payment Method</span><span id="summary-card" class="summary-value">-</span></div>
           <div class="summary-row"><span class="summary-label">Full Name</span><span id="summary-name" class="summary-value">-</span></div>
           <div class="summary-row"><span class="summary-label">Email</span><span id="summary-email" class="summary-value">-</span></div>
           <div class="summary-row"><span class="summary-label">Phone</span><span id="summary-phone" class="summary-value">-</span></div>
@@ -107,9 +107,15 @@
                 }
                 const tickets = details.quantity || '-';
                 const amount = formatAmount(details.amount);
+                const paymentLabels = {
+                    apple_pay: 'Apple Pay',
+                    card: 'Card',
+                    google_pay: 'Google Pay'
+                };
+                const methodLabel = paymentLabels[details.paymentMethod] || 'Card';
                 const card = details.cardBrand && details.last4
-                    ? `${details.cardBrand} •••• ${details.last4}`
-                    : 'Card details unavailable';
+                    ? `${methodLabel} — ${details.cardBrand} •••• ${details.last4}`
+                    : methodLabel;
 
                 document.getElementById('summary-tickets').textContent = String(tickets);
                 document.getElementById('summary-amount').textContent = amount;

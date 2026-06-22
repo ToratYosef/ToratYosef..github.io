@@ -1444,7 +1444,7 @@ exports.getSquareCardConfig = functions.region('us-central1').https.onRequest(as
 });
 
 /**
- * Processes Square card token from on-page checkout.
+ * Processes Square card or digital-wallet tokens from on-page checkout.
  */
 exports.createSquareCardPayment = functions.region('us-central1').https.onRequest(async (req, res) => {
   if (applyCors(req, res)) {
@@ -1457,7 +1457,10 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const { sourceId, name, email, phone, referral, quantity } = body;
+    const { sourceId, name, email, phone, referral, quantity, verificationToken } = body;
+    const requestedPaymentMethod = String(body.paymentMethod || 'card').trim().toLowerCase();
+    const allowedPaymentMethods = new Set(['card', 'apple_pay', 'google_pay']);
+    const paymentMethod = allowedPaymentMethods.has(requestedPaymentMethod) ? requestedPaymentMethod : 'card';
 
     if (!sourceId || !name || !email || !phone) {
       return res.status(400).json({ error: 'Missing required fields: sourceId, name, email, phone.' });
@@ -1485,7 +1488,8 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       referrerRefId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
       quantity: parsedQuantity,
       amount: totalAmount,
-      status: 'pending_card_payment',
+      status: `pending_${paymentMethod}_payment`,
+      paymentMethod,
       provider: 'square',
       squareMode: squareConfig.isTest ? 'test' : 'live',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1503,11 +1507,12 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
         source_id: sourceId,
         autocomplete: true,
         location_id: squareConfig.locationId,
+        ...(verificationToken ? { verification_token: String(verificationToken) } : {}),
         amount_money: {
           amount: amountCents,
           currency: 'USD'
         },
-        note: `Raffle order ${orderId} | Referrer: ${normalizedReferrer}`
+        note: `Raffle order ${orderId} | ${paymentMethod} | Referrer: ${normalizedReferrer}`
       })
     });
 
@@ -1532,7 +1537,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
 
       if (isPaymentMethodError) {
         return res.status(402).json({
-          error: 'Card was declined. Please use a different card or verify your card details.',
+          error: 'Payment was declined. Please verify your payment method or try another one.',
           code: errorCode,
           details: squareErrors
         });
@@ -1565,10 +1570,11 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       amount: totalAmount,
       ticketsBought: parsedQuantity,
       paymentStatus: payment.status || 'COMPLETED',
+      paymentMethod,
       orderID: orderId,
       squarePaymentId: payment.id,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      entryType: 'square_card'
+      entryType: `square_${paymentMethod}`
     });
 
     await applyAdminTicketProgressUpdate({
@@ -1580,7 +1586,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       amount: totalAmount,
       orderId,
       paymentId: payment.id,
-      paymentMethod: 'square',
+      paymentMethod,
       buyerName: name,
       buyerEmail: email,
       buyerPhone: phone
@@ -1610,6 +1616,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
         amount: totalAmount,
         currency: 'USD',
         paymentStatus: payment.status || 'COMPLETED',
+        paymentMethod,
         cardBrand,
         last4,
         referral: normalizedReferrer,
@@ -1619,7 +1626,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
   } catch (error) {
     console.error('createSquareCardPayment error:', error);
     return res.status(500).json({
-      error: 'Failed to process card payment.',
+      error: 'Failed to process payment.',
       details: error?.message || null
     });
   }

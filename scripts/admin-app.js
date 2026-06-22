@@ -72,10 +72,15 @@ function formatMoney(value) {
 function formatPaymentMethod(value) {
   const normalized = String(value || '').trim().toLowerCase();
   const labels = {
+    apple_pay: 'Apple Pay',
     cash: 'Cash',
+    card: 'Card',
+    google_pay: 'Google Pay',
     other: 'Other',
     square: 'Square',
+    square_apple_pay: 'Apple Pay',
     square_card: 'Square',
+    square_google_pay: 'Google Pay',
     venmo: 'Venmo',
     zelle: 'Zelle'
   };
