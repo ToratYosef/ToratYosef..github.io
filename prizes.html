@@ -15,8 +15,20 @@
       gap: 18px;
       padding: 20px;
       border: 1px solid #d9e2ef;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    }
+
+    .checkout-card {
+      border-radius: 30px;
+      border-color: #dbe4ef;
+      background: linear-gradient(145deg, #ffffff 0%, #fbfdff 100%);
+      box-shadow: 0 22px 60px rgba(15, 23, 42, 0.08);
+    }
+
+    .checkout-card input {
       border-radius: 14px;
-      background: #ffffff;
     }
 
     .quantity-controls {
@@ -37,6 +49,9 @@
       flex-direction: column;
       align-items: center;
       width: 100%;
+      max-width: 820px;
+      margin-left: auto;
+      margin-right: auto;
       gap: 18px;
       opacity: 0;
       transform: translateY(10px);
@@ -51,11 +66,15 @@
       transform: translateY(0);
       max-height: 1800px;
       pointer-events: auto;
+      padding: 26px;
+      border: 1px solid #e2e8f0;
+      border-radius: 26px;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      box-shadow: 0 16px 45px rgba(15, 23, 42, 0.07);
     }
 
     .wallet-payment-options {
       width: 100%;
-      max-width: 760px;
       display: grid;
       gap: 12px;
     }
@@ -74,22 +93,36 @@
     .wallet-heading {
       text-align: center;
       color: #334155;
-      font-size: 14px;
-      font-weight: 700;
+      font-size: 16px;
+      font-weight: 800;
     }
 
     .wallet-button {
+      display: block;
       width: 100%;
-      min-height: 48px;
+      height: 56px;
+      min-height: 56px;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    #google-pay-button > div,
+    #google-pay-button iframe,
+    #google-pay-button button {
+      width: 100% !important;
+      max-width: none !important;
+      height: 56px !important;
+      min-height: 56px !important;
+      border-radius: 14px !important;
     }
 
     #apple-pay-button {
       -webkit-appearance: -apple-pay-button;
       -apple-pay-button-type: buy;
       -apple-pay-button-style: black;
-      height: 48px;
+      height: 56px;
       border: 0;
-      border-radius: 8px;
+      border-radius: 14px;
       cursor: pointer;
     }
 
@@ -114,12 +147,11 @@
 
     .square-card-wrapper {
       width: 100%;
-      max-width: 760px;
-      padding: 22px;
+      padding: 24px;
       border: 1px solid #d9e2ef;
-      border-radius: 14px;
+      border-radius: 20px;
       background: #ffffff;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
       opacity: 0;
       transform: translateY(6px);
       transition: opacity 240ms ease, transform 240ms ease;
@@ -142,9 +174,9 @@
 
     .purchase-button {
       margin-top: 4px;
-      min-width: 220px;
+      width: 100%;
       height: 56px;
-      border-radius: 12px;
+      border-radius: 16px;
       font-size: 18px;
       font-weight: 700;
       background: #c8103e;
@@ -152,6 +184,28 @@
       border: none;
       cursor: pointer;
       padding: 0 26px;
+    }
+
+    #prize-open-pay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 54px;
+      border-radius: 16px;
+      font-size: 16px;
+      box-shadow: 0 12px 26px rgba(200, 16, 62, 0.18);
+    }
+
+    @media (max-width: 640px) {
+      .payment-section.is-visible {
+        padding: 18px;
+        border-radius: 22px;
+      }
+
+      .checkout-card {
+        border-radius: 24px;
+      }
     }
 
     .purchase-button:hover {
@@ -230,7 +284,7 @@
       </article>
     </section>
 
-    <section id="checkout" class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <section id="checkout" class="checkout-card mt-8 border border-slate-200 bg-white p-6 md:p-8">
       <h2 class="text-2xl font-bold tracking-tight text-slate-900">Enter The Raffle</h2>
       <p class="mt-2 text-sm text-slate-600">Complete your details and pay directly on this page.</p>
 
@@ -261,7 +315,7 @@
           <p class="total-price">Total: $<span id="prize-total">126.00</span></p>
         </div>
 
-        <button id="prize-open-pay" type="button" class="mt-4 inline-flex rounded-lg bg-rose-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">Pay</button>
+        <button id="prize-open-pay" type="button" class="mt-4 bg-rose-700 px-6 py-3 font-semibold text-white transition hover:bg-rose-800">Pay</button>
 
         <div id="payment-section" class="payment-section">
           <div id="wallet-payment-options" class="wallet-payment-options" hidden>
@@ -498,7 +552,13 @@
         try {
           googlePay = await squarePayments.googlePay(walletPaymentRequest);
           googlePayButton.hidden = false;
-          await googlePay.attach('#google-pay-button');
+          await googlePay.attach('#google-pay-button', {
+            buttonBorderType: 'no_border',
+            buttonColor: 'black',
+            buttonRadius: 14,
+            buttonSizeMode: 'fill',
+            buttonType: 'long'
+          });
           walletAvailable = true;
         } catch (error) {
           googlePay = null;
