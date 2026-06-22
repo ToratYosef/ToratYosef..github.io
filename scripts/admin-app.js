@@ -859,6 +859,8 @@ function renderSalesRows(tbody, sales, options = {}) {
 
   const editableAssignments = options.editableAssignments === true;
   const allowManualReceipt = options.allowManualReceipt === true;
+  const allowRefund = options.allowRefund === true;
+  const allowDelete = options.allowDelete === true;
   const assignmentAdmins = Array.isArray(options.admins)
     ? options.admins
       .filter((profile) => profile.refId || profile.ref)
@@ -1011,6 +1013,116 @@ function renderSalesRows(tbody, sales, options = {}) {
       tr.appendChild(assignmentCell);
     }
 
+    if (allowRefund) {
+      const refundCell = document.createElement('td');
+      refundCell.className = 'px-4 py-3';
+      const refundButton = document.createElement('button');
+      refundButton.type = 'button';
+      refundButton.className = 'inline-flex rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60';
+      refundButton.textContent = 'Refund';
+
+      const refundStatus = byId('refund-sales-status');
+      const hasEntry = Boolean(String(sale.raffleEntryId || '').trim());
+      const hasSquarePayment = Boolean(String(sale.paymentId || '').trim() && String(sale.paymentId || '').trim() !== '-');
+
+      if (!hasEntry || !hasSquarePayment) {
+        refundButton.disabled = true;
+        refundButton.title = 'Refund is only available for Square sales with a payment ID.';
+      }
+
+      refundButton.addEventListener('click', async () => {
+        if (!hasEntry || !hasSquarePayment) {
+          return;
+        }
+
+        const confirmed = window.confirm(`Refund this Square payment for ${sale.buyerName} (${formatMoney(sale.amount)})? This cannot be undone.`);
+        if (!confirmed) {
+          return;
+        }
+
+        refundButton.disabled = true;
+        if (refundStatus) {
+          refundStatus.textContent = `Refunding ${sale.buyerName}...`;
+          refundStatus.className = 'text-xs text-slate-500';
+        }
+
+        try {
+          const refundSquareOrder = httpsCallable(functions, 'refundSquareOrder');
+          const result = await refundSquareOrder({ entryId: sale.raffleEntryId });
+          if (refundStatus) {
+            refundStatus.textContent = result.data?.message || `Refund completed for ${sale.buyerName}. Reloading...`;
+            refundStatus.className = 'text-xs text-emerald-700';
+          }
+          window.setTimeout(() => window.location.reload(), 600);
+        } catch (error) {
+          console.error('Square refund failed:', error);
+          refundButton.disabled = false;
+          if (refundStatus) {
+            refundStatus.textContent = error?.message || 'Could not refund this sale.';
+            refundStatus.className = 'text-xs text-red-600';
+          }
+        }
+      });
+
+      refundCell.appendChild(refundButton);
+      tr.appendChild(refundCell);
+    }
+
+    if (allowDelete) {
+      const deleteCell = document.createElement('td');
+      deleteCell.className = 'px-4 py-3';
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'inline-flex rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60';
+      deleteButton.textContent = 'Delete';
+
+      const deleteStatus = byId('delete-sales-status');
+      const hasEntry = Boolean(String(sale.raffleEntryId || '').trim());
+      if (!hasEntry) {
+        deleteButton.disabled = true;
+        deleteButton.title = 'Missing sale entry ID for this row.';
+      }
+
+      deleteButton.addEventListener('click', async () => {
+        if (!hasEntry) {
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Delete this sale for ${sale.buyerName} (${sale.ticketsBought} ticket${sale.ticketsBought === 1 ? '' : 's'})? This removes it from reporting.`
+        );
+        if (!confirmed) {
+          return;
+        }
+
+        deleteButton.disabled = true;
+        if (deleteStatus) {
+          deleteStatus.textContent = `Deleting sale for ${sale.buyerName}...`;
+          deleteStatus.className = 'text-xs text-slate-500';
+        }
+
+        try {
+          const deleteTicketSale = httpsCallable(functions, 'deleteTicketSale');
+          const result = await deleteTicketSale({ entryId: sale.raffleEntryId });
+          if (deleteStatus) {
+            deleteStatus.textContent = result.data?.message || `Deleted sale for ${sale.buyerName}. Reloading...`;
+            deleteStatus.className = 'text-xs text-emerald-700';
+          }
+          window.setTimeout(() => window.location.reload(), 600);
+        } catch (error) {
+          console.error('Delete sale failed:', error);
+          deleteButton.disabled = false;
+          if (deleteStatus) {
+            deleteStatus.textContent = error?.message || 'Could not delete this sale.';
+            deleteStatus.className = 'text-xs text-red-600';
+          }
+        }
+      });
+
+      deleteCell.appendChild(deleteButton);
+      tr.appendChild(deleteCell);
+    }
+
     tbody.appendChild(tr);
   });
 }
@@ -1145,6 +1257,8 @@ async function renderSuperSalesPage(currentProfile) {
   renderSalesRows(byId('all-sales-body'), allSales, {
     editableAssignments: true,
     allowManualReceipt: true,
+    allowRefund: true,
+    allowDelete: true,
     admins
   });
   renderSalesRows(byId('own-sales-body'), ownSales);

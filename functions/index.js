@@ -1093,6 +1093,238 @@ function adminProgressAfterAssignment(data, ticketsDelta, revenueDelta) {
   };
 }
 
+async function resolveEntryAdminUidInTransaction(transaction, db, entry) {
+  const storedAdminUid = String(entry.referrerUid || '').trim();
+  if (storedAdminUid) {
+    return storedAdminUid;
+  }
+
+  const refId = String(entry.referrerRefId || '').trim();
+  if (!refId || refId.toLowerCase() === 'direct') {
+    return null;
+  }
+
+  let currentAdminQuery = await transaction.get(
+    db.collection('admin').where('refId', '==', refId).limit(1)
+  );
+  if (currentAdminQuery.empty) {
+    currentAdminQuery = await transaction.get(
+      db.collection('admin').where('ref', '==', refId).limit(1)
+    );
+  }
+
+  return currentAdminQuery.empty ? null : currentAdminQuery.docs[0].id;
+}
+
+exports.deleteTicketSale = functions.https.onCall(async (data, context) => {
+  const token = context.auth?.token || {};
+  if (!context.auth || (!token.superAdminReferrer && !token.superAdmin)) {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can delete ticket sales.');
+  }
+
+  const entryId = String(data?.entryId || '').trim();
+  if (!entryId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Sale entry ID is required.');
+  }
+
+  const db = admin.firestore();
+  const entryRef = db.collection('raffle_entries').doc(entryId);
+  let result = null;
+
+  await db.runTransaction(async (transaction) => {
+    const entrySnapshot = await transaction.get(entryRef);
+    if (!entrySnapshot.exists) {
+      throw new functions.https.HttpsError('not-found', 'Ticket sale not found.');
+    }
+
+    const entry = entrySnapshot.data() || {};
+    const adminUid = await resolveEntryAdminUidInTransaction(transaction, db, entry);
+    const ticketsBought = Math.max(toPositiveInt(entry.ticketsBought, 0), 1);
+    const amountValue = Number(entry.amount);
+    const amount = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : (ticketsBought * 126);
+    const orderId = String(entry.orderID || entry.orderId || entryId).trim() || entryId;
+
+    if (adminUid) {
+      const adminRef = db.collection('admin').doc(adminUid);
+      const adminSnapshot = await transaction.get(adminRef);
+      if (adminSnapshot.exists) {
+        transaction.set(
+          adminRef,
+          adminProgressAfterAssignment(adminSnapshot.data() || {}, -ticketsBought, -amount),
+          { merge: true }
+        );
+        transaction.delete(adminRef.collection('ticketSales').doc(orderId));
+      }
+    }
+
+    transaction.delete(entryRef);
+    result = {
+      entryId,
+      orderId,
+      adminUid,
+      ticketsBought,
+      amount
+    };
+  });
+
+  try {
+    await db.collection('adminAuditLogs').add({
+      action: 'deleted_ticket_sale',
+      performedBy: context.auth.uid,
+      targetAdminId: result?.adminUid || null,
+      details: result || { entryId },
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Failed to write delete sale audit log:', error);
+  }
+
+  return {
+    success: true,
+    ...(result || { entryId }),
+    message: 'Sale deleted successfully.'
+  };
+});
+
+exports.refundSquareOrder = functions.https.onCall(async (data, context) => {
+  const token = context.auth?.token || {};
+  if (!context.auth || (!token.superAdminReferrer && !token.superAdmin)) {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can refund Square orders.');
+  }
+
+  const entryId = String(data?.entryId || '').trim();
+  if (!entryId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Sale entry ID is required.');
+  }
+
+  const db = admin.firestore();
+  const entryRef = db.collection('raffle_entries').doc(entryId);
+  const entrySnapshot = await entryRef.get();
+  if (!entrySnapshot.exists) {
+    throw new functions.https.HttpsError('not-found', 'Ticket sale not found.');
+  }
+
+  const entry = entrySnapshot.data() || {};
+  const paymentId = String(entry.squarePaymentId || entry.paymentId || '').trim();
+  if (!paymentId) {
+    throw new functions.https.HttpsError('failed-precondition', 'This sale does not have a Square payment ID to refund.');
+  }
+
+  const ticketsBought = Math.max(toPositiveInt(entry.ticketsBought, 0), 1);
+  const amountValue = Number(entry.amount);
+  const amount = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : (ticketsBought * 126);
+  const amountCents = Math.max(1, Math.round(amount * 100));
+  const orderId = String(entry.orderID || entry.orderId || entryId).trim() || entryId;
+
+  const squareConfig = getSquareRuntimeConfig();
+  if (!squareConfig.accessToken) {
+    throw new functions.https.HttpsError('failed-precondition', 'Square access token is not configured.');
+  }
+
+  const refundResponse = await fetch(`${squareConfig.apiBase}/v2/refunds`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${squareConfig.accessToken}`,
+      'Content-Type': 'application/json',
+      'Square-Version': '2025-01-23'
+    },
+    body: JSON.stringify({
+      idempotency_key: `refund_${entryId}_${paymentId}`.slice(0, 192),
+      payment_id: paymentId,
+      amount_money: {
+        amount: amountCents,
+        currency: 'USD'
+      },
+      reason: `Super admin refund for raffle order ${orderId}`
+    })
+  });
+
+  const refundData = await refundResponse.json().catch(() => ({}));
+  if (!refundResponse.ok || !refundData?.refund?.id) {
+    const squareErrors = Array.isArray(refundData?.errors) ? refundData.errors : [];
+    const primaryError = squareErrors[0] || null;
+    console.error('Square refund failed', {
+      entryId,
+      orderId,
+      paymentId,
+      status: refundResponse.status,
+      errors: squareErrors
+    });
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      primaryError?.detail || 'Square refund failed.',
+      primaryError || null
+    );
+  }
+
+  const refund = refundData.refund;
+  let result = null;
+
+  await db.runTransaction(async (transaction) => {
+    const currentEntrySnapshot = await transaction.get(entryRef);
+    if (!currentEntrySnapshot.exists) {
+      throw new functions.https.HttpsError('not-found', 'Ticket sale was removed before refund cleanup completed.');
+    }
+
+    const currentEntry = currentEntrySnapshot.data() || {};
+    const adminUid = await resolveEntryAdminUidInTransaction(transaction, db, currentEntry);
+
+    if (adminUid) {
+      const adminRef = db.collection('admin').doc(adminUid);
+      const adminSnapshot = await transaction.get(adminRef);
+      if (adminSnapshot.exists) {
+        transaction.set(
+          adminRef,
+          adminProgressAfterAssignment(adminSnapshot.data() || {}, -ticketsBought, -amount),
+          { merge: true }
+        );
+        transaction.delete(adminRef.collection('ticketSales').doc(orderId));
+      }
+    }
+
+    transaction.delete(entryRef);
+    result = {
+      entryId,
+      orderId,
+      adminUid,
+      paymentId,
+      refundId: refund.id,
+      ticketsBought,
+      amount
+    };
+  });
+
+  try {
+    await db.collection('square_orders').doc(orderId).set({
+      status: 'refunded',
+      refundId: refund.id,
+      refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      refundedBy: context.auth.uid
+    }, { merge: true });
+  } catch (error) {
+    console.error('Failed to update square order refund status:', error);
+  }
+
+  try {
+    await db.collection('adminAuditLogs').add({
+      action: 'refunded_square_order',
+      performedBy: context.auth.uid,
+      targetAdminId: result?.adminUid || null,
+      details: result || { entryId, orderId, paymentId },
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Failed to write Square refund audit log:', error);
+  }
+
+  return {
+    success: true,
+    ...(result || { entryId, orderId, paymentId, refundId: refund.id }),
+    message: 'Square refund completed and sale removed.'
+  };
+});
+
 exports.reassignTicketSale = functions.https.onCall(async (data, context) => {
   const token = context.auth?.token || {};
   if (!context.auth || (!token.superAdminReferrer && !token.superAdmin)) {
