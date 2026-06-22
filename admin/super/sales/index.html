@@ -46,13 +46,14 @@
         <div class="flex flex-col items-end gap-2">
           <button id="export-all-sales-button" type="button" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Export Per-Ticket CSV</button>
           <div id="export-all-sales-status" class="text-xs text-slate-500"></div>
+          <div id="assignment-sales-status" class="text-xs text-slate-500"></div>
         </div>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full border-collapse text-sm">
           <thead>
             <tr class="border-b-2 border-slate-300 bg-slate-50 text-left text-xs font-bold uppercase tracking-wider text-slate-700">
-              <th class="px-4 py-3">Buyer</th><th class="px-4 py-3">Tickets</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Method</th><th class="px-4 py-3">Time</th><th class="px-4 py-3">Referrer</th>
+              <th class="px-4 py-3">Buyer</th><th class="px-4 py-3">Tickets</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Method</th><th class="px-4 py-3">Time</th><th class="px-4 py-3">Referrer</th><th class="px-4 py-3">Assign Admin</th>
             </tr>
           </thead>
           <tbody id="all-sales-body"></tbody>
