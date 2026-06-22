@@ -858,6 +858,7 @@ function renderSalesRows(tbody, sales, options = {}) {
   }
 
   const editableAssignments = options.editableAssignments === true;
+  const allowManualReceipt = options.allowManualReceipt === true;
   const assignmentAdmins = Array.isArray(options.admins)
     ? options.admins
       .filter((profile) => profile.refId || profile.ref)
@@ -879,6 +880,60 @@ function renderSalesRows(tbody, sales, options = {}) {
       <td class="px-4 py-3 text-slate-600">${sale.createdAtText}</td>
       <td class="px-4 py-3 font-medium text-slate-900">${escapeHtml(referrerDisplay)}</td>
     `;
+
+    if (allowManualReceipt) {
+      const receiptCell = document.createElement('td');
+      receiptCell.className = 'px-4 py-3';
+      const receiptButton = document.createElement('button');
+      receiptButton.type = 'button';
+      receiptButton.className = 'inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60';
+      receiptButton.textContent = 'Send Receipt';
+      const receiptStatus = byId('receipt-sales-status');
+      const hasEmail = Boolean(String(sale.buyerEmail || '').trim());
+      const hasEntry = Boolean(String(sale.raffleEntryId || '').trim());
+
+      if (!hasEmail || !hasEntry) {
+        receiptButton.disabled = true;
+        receiptButton.title = 'Missing email or sale entry ID for this row.';
+      }
+
+      receiptButton.addEventListener('click', async () => {
+        if (!sale.raffleEntryId) {
+          return;
+        }
+
+        const confirmed = window.confirm(`Send receipt email to ${sale.buyerName} (${sale.buyerEmail})?`);
+        if (!confirmed) {
+          return;
+        }
+
+        receiptButton.disabled = true;
+        if (receiptStatus) {
+          receiptStatus.textContent = `Sending receipt to ${sale.buyerEmail}...`;
+          receiptStatus.className = 'text-xs text-slate-500';
+        }
+
+        try {
+          const sendManualReceipt = httpsCallable(functions, 'sendManualReceipt');
+          const result = await sendManualReceipt({ entryId: sale.raffleEntryId });
+          if (receiptStatus) {
+            receiptStatus.textContent = result.data?.message || `Receipt sent to ${sale.buyerEmail}.`;
+            receiptStatus.className = 'text-xs text-emerald-700';
+          }
+        } catch (error) {
+          console.error('Manual receipt send failed:', error);
+          if (receiptStatus) {
+            receiptStatus.textContent = error?.message || 'Could not send receipt email.';
+            receiptStatus.className = 'text-xs text-red-600';
+          }
+        } finally {
+          receiptButton.disabled = !hasEmail || !hasEntry;
+        }
+      });
+
+      receiptCell.appendChild(receiptButton);
+      tr.appendChild(receiptCell);
+    }
 
     if (editableAssignments) {
       const assignmentCell = document.createElement('td');
@@ -1089,6 +1144,7 @@ async function renderSuperSalesPage(currentProfile) {
 
   renderSalesRows(byId('all-sales-body'), allSales, {
     editableAssignments: true,
+    allowManualReceipt: true,
     admins
   });
   renderSalesRows(byId('own-sales-body'), ownSales);

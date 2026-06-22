@@ -189,7 +189,7 @@ function renderEmailShell(mainContentHtml) {
 </html>`;
 }
 
-async function sendOrderCompletionEmails(order) {
+async function sendOrderCompletionEmails(order, options = {}) {
   const transporter = getMailTransporter();
   if (!transporter) {
     console.warn('SMTP_USER / SMTP_PASS are missing; skipping order email notifications.');
@@ -213,6 +213,7 @@ async function sendOrderCompletionEmails(order) {
   const amountText = formatCurrency(order.amount);
   const safeAmountText = escapeHtml(amountText);
   const receiptUrl = String(order.receiptUrl || '').trim();
+  const notifyAdmin = options.notifyAdmin !== false;
 
   const customerHtml = renderEmailShell(`
     <h1 style="margin:0 0 12px 0; font-size:28px; line-height:34px; color:#111827;">Thank you for your purchase!</h1>
@@ -266,24 +267,26 @@ async function sendOrderCompletionEmails(order) {
     }));
   }
 
-  tasks.push(transporter.sendMail({
-    from: fromEmail,
-    to: SALES_ALERT_EMAIL,
-    subject: `Ticket Sold: ${safeQuantity} ticket${toPositiveInt(order.quantity, 1) === 1 ? '' : 's'} (${safeAmountText})`,
-    html: adminHtml,
-    text: [
-      'A ticket was sold.',
-      `Buyer: ${order.name || ''}`,
-      `Email: ${order.email || ''}`,
-      `Phone: ${order.phone || ''}`,
-      `Order ID: ${order.orderId || ''}`,
-      `Payment ID: ${order.paymentId || ''}`,
-      `Tickets: ${toPositiveInt(order.quantity, 1)}`,
-      `Amount: ${amountText}`,
-      `Payment Method: ${order.paymentMethod || 'card'}`,
-      `Referral: ${order.referral || 'direct'}`
-    ].join('\n')
-  }));
+  if (notifyAdmin) {
+    tasks.push(transporter.sendMail({
+      from: fromEmail,
+      to: SALES_ALERT_EMAIL,
+      subject: `Ticket Sold: ${safeQuantity} ticket${toPositiveInt(order.quantity, 1) === 1 ? '' : 's'} (${safeAmountText})`,
+      html: adminHtml,
+      text: [
+        'A ticket was sold.',
+        `Buyer: ${order.name || ''}`,
+        `Email: ${order.email || ''}`,
+        `Phone: ${order.phone || ''}`,
+        `Order ID: ${order.orderId || ''}`,
+        `Payment ID: ${order.paymentId || ''}`,
+        `Tickets: ${toPositiveInt(order.quantity, 1)}`,
+        `Amount: ${amountText}`,
+        `Payment Method: ${order.paymentMethod || 'card'}`,
+        `Referral: ${order.referral || 'direct'}`
+      ].join('\n')
+    }));
+  }
 
   const sendResults = await Promise.allSettled(tasks);
   sendResults.forEach((result, index) => {
@@ -955,6 +958,19 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
       buyerPhone: phone
     });
 
+    await sendOrderCompletionEmails({
+      name,
+      email,
+      phone,
+      orderId,
+      paymentId: null,
+      quantity: ticketsBought,
+      amount,
+      paymentMethod,
+      referral: referrerRefId,
+      receiptUrl: null
+    });
+
     console.log('Successfully added manual raffle entry', {
       name,
       ticketsBought,
@@ -977,6 +993,80 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
     }
     throw new functions.https.HttpsError('internal', 'An unexpected error occurred while adding manual entry.', error.message);
   }
+});
+
+exports.sendManualReceipt = functions.https.onCall(async (data, context) => {
+  const token = context.auth?.token || {};
+  if (!context.auth || (!token.superAdminReferrer && !token.superAdmin)) {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can send receipts manually.');
+  }
+
+  const entryId = String(data?.entryId || '').trim();
+  if (!entryId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Sale entry ID is required.');
+  }
+
+  const db = admin.firestore();
+  const entrySnapshot = await db.collection('raffle_entries').doc(entryId).get();
+  if (!entrySnapshot.exists) {
+    throw new functions.https.HttpsError('not-found', 'Ticket sale not found.');
+  }
+
+  const entry = entrySnapshot.data() || {};
+  const email = sanitizeEmail(entry.email);
+  if (!email) {
+    throw new functions.https.HttpsError('failed-precondition', 'This sale does not have a customer email address.');
+  }
+
+  const rawTickets = toPositiveInt(entry.ticketsBought, 0);
+  const ticketsBought = rawTickets > 0 ? rawTickets : 1;
+  const rawAmount = Number(entry.amount);
+  const amount = Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : (ticketsBought * 126);
+  const paymentMethod = String(entry.paymentMethod || entry.manualPaymentMethod || entry.entryType || 'manual').trim().toLowerCase();
+  const orderId = String(entry.orderID || entry.orderId || entryId).trim();
+  const paymentId = String(entry.squarePaymentId || entry.paymentId || '').trim() || null;
+
+  await sendOrderCompletionEmails({
+    name: String(entry.name || '').trim() || 'Donor',
+    email,
+    phone: String(entry.phone || '').trim(),
+    orderId,
+    paymentId,
+    quantity: ticketsBought,
+    amount,
+    paymentMethod,
+    referral: String(entry.referrerRefId || 'direct').trim() || 'direct',
+    receiptUrl: String(entry.receiptUrl || '').trim() || null
+  }, {
+    notifyAdmin: false
+  });
+
+  try {
+    await db.collection('adminAuditLogs').add({
+      action: 'sent_manual_receipt',
+      performedBy: context.auth.uid,
+      targetAdminId: String(entry.referrerUid || '').trim() || null,
+      details: {
+        entryId,
+        orderId,
+        email,
+        paymentMethod,
+        ticketsBought,
+        amount
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Failed to write manual receipt audit log:', error);
+  }
+
+  return {
+    success: true,
+    entryId,
+    orderId,
+    email,
+    message: 'Receipt email sent successfully.'
+  };
 });
 
 function adminProgressAfterAssignment(data, ticketsDelta, revenueDelta) {
