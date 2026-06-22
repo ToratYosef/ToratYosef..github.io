@@ -346,7 +346,15 @@ async function setupSaleNotifications() {
       }
     } catch (error) {
       console.error('Sale notification registration failed:', error);
-      setStatus('Could not enable notifications. Check the Firebase Web Push key and browser permissions.', true);
+      const isNetworkFailure =
+        error instanceof TypeError ||
+        /failed to fetch|network|certificate|cert_authority/i.test(String(error?.message || ''));
+      setStatus(
+        isNetworkFailure
+          ? 'Could not reach Firebase. Check DNS/security filters such as NextDNS, then reload.'
+          : 'Could not enable notifications. Check the Firebase Web Push key and browser permissions.',
+        true
+      );
     }
   };
 
