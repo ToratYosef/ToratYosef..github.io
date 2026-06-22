@@ -1,9 +1,13 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const { WebhooksHelper } = require('square');
 
 admin.initializeApp();
+
+const SALES_ALERT_EMAIL = 'morriselliott@icloud.com';
+let mailTransporter = null;
 
 function normalizeAliasKey(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -85,6 +89,212 @@ function toPositiveInt(value, fallback = 0) {
     return fallback;
   }
   return parsed;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatCurrency(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '$0.00';
+  }
+  return `$${numeric.toFixed(2)}`;
+}
+
+function getMailTransporter() {
+  if (mailTransporter) {
+    return mailTransporter;
+  }
+
+  const user = String(process.env.SMTP_USER || '').trim();
+  const pass = String(process.env.SMTP_PASS || '').trim();
+  if (!user || !pass) {
+    return null;
+  }
+
+  mailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user,
+      pass
+    }
+  });
+
+  return mailTransporter;
+}
+
+function renderEmailShell(mainContentHtml) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Torat Yosef Email</title>
+</head>
+
+<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#111111;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f3f4f6; margin:0; padding:32px 16px;">
+    <tr>
+      <td align="center">
+
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px; background:#ffffff; border-radius:28px; overflow:hidden; border:1px solid #e5e7eb; box-shadow:0 12px 40px rgba(0,0,0,0.04);">
+
+          <tr>
+            <td style="padding:20px 24px 16px 24px; background:#ffffff; border-bottom:1px solid #f1f1f1;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" valign="middle">
+                    <a href="https://toratyosefsummerraffle.com" style="text-decoration:none; display:inline-block;">
+                      <img src="https://toratyosefsummerraffle.com/logo.png" alt="ToratYosef" style="height:56px; display:block; margin:0 auto;" />
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:42px 36px 24px 36px; font-size:16px; line-height:26px; color:#3f3f46;">
+              ${mainContentHtml}
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:34px 36px 34px 36px;">
+              <div style="border-top:1px solid #eeeeee; padding-top:22px; text-align:center; font-size:12px; line-height:20px; color:#9ca3af;">
+                <div style="font-weight:600; color:#6b7280; margin-bottom:4px;">ToratYosefSummerRaffle.com</div>
+                <div>
+                  <a href="https://toratyosefsummerraffle.com" style="color:#8b8b8f; text-decoration:none;">ToratYosefSummerRaffle.com</a>
+                  &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+                  <a href="mailto:morriselliott@icloud.com" style="color:#8b8b8f; text-decoration:none;">Morriselliott@icloud.com</a>
+                </div>
+                <div style="margin-top:6px;">© 2026 Torat Yosef. All rights reserved.</div>
+              </div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendOrderCompletionEmails(order) {
+  const transporter = getMailTransporter();
+  if (!transporter) {
+    console.warn('SMTP_USER / SMTP_PASS are missing; skipping order email notifications.');
+    return;
+  }
+
+  const fromEmail = String(process.env.SMTP_FROM || process.env.SMTP_USER || '').trim();
+  if (!fromEmail) {
+    console.warn('SMTP sender email is missing; skipping order email notifications.');
+    return;
+  }
+
+  const safeName = escapeHtml(order.name || 'Donor');
+  const safeEmail = escapeHtml(order.email || '');
+  const safePhone = escapeHtml(order.phone || '');
+  const safeOrderId = escapeHtml(order.orderId || '');
+  const safePaymentId = escapeHtml(order.paymentId || '');
+  const safePaymentMethod = escapeHtml(order.paymentMethod || 'card');
+  const safeReferral = escapeHtml(order.referral || 'direct');
+  const safeQuantity = escapeHtml(String(toPositiveInt(order.quantity, 1)));
+  const amountText = formatCurrency(order.amount);
+  const safeAmountText = escapeHtml(amountText);
+  const receiptUrl = String(order.receiptUrl || '').trim();
+
+  const customerHtml = renderEmailShell(`
+    <h1 style="margin:0 0 12px 0; font-size:28px; line-height:34px; color:#111827;">Thank you for your purchase!</h1>
+    <p style="margin:0 0 16px 0;">Hi ${safeName}, your Torat Yosef raffle order has been received.</p>
+    <p style="margin:0 0 16px 0;">Order details:</p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse; margin-bottom:16px;">
+      <tr><td style="padding:8px 0; color:#6b7280;">Order ID</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeOrderId}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Payment ID</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safePaymentId}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Tickets</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeQuantity}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Amount</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeAmountText}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Payment Method</td><td style="padding:8px 0; text-align:right; font-weight:600; text-transform:capitalize;">${safePaymentMethod.replace(/_/g, ' ')}</td></tr>
+    </table>
+    ${receiptUrl ? `<p style="margin:0 0 16px 0;"><a href="${escapeHtml(receiptUrl)}" style="color:#b91c1c; text-decoration:none; font-weight:600;">View Square Receipt</a></p>` : ''}
+    <p style="margin:0;">We appreciate your support for Torah learning.</p>
+  `);
+
+  const adminHtml = renderEmailShell(`
+    <h1 style="margin:0 0 12px 0; font-size:28px; line-height:34px; color:#111827;">A ticket was sold</h1>
+    <p style="margin:0 0 16px 0;">A new order was completed successfully.</p>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse; margin-bottom:16px;">
+      <tr><td style="padding:8px 0; color:#6b7280;">Buyer</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeName}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Email</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeEmail}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Phone</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safePhone}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Order ID</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeOrderId}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Payment ID</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safePaymentId}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Tickets</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeQuantity}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Amount</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeAmountText}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Payment Method</td><td style="padding:8px 0; text-align:right; font-weight:600; text-transform:capitalize;">${safePaymentMethod.replace(/_/g, ' ')}</td></tr>
+      <tr><td style="padding:8px 0; color:#6b7280;">Referral</td><td style="padding:8px 0; text-align:right; font-weight:600;">${safeReferral}</td></tr>
+    </table>
+  `);
+
+  const tasks = [];
+  if (safeEmail) {
+    tasks.push(transporter.sendMail({
+      from: fromEmail,
+      to: order.email,
+      subject: `Your Torat Yosef Raffle Receipt (${safeOrderId})`,
+      html: customerHtml,
+      text: [
+        `Hi ${order.name || 'Donor'},`,
+        '',
+        'Thank you for your raffle purchase.',
+        `Order ID: ${order.orderId || ''}`,
+        `Payment ID: ${order.paymentId || ''}`,
+        `Tickets: ${toPositiveInt(order.quantity, 1)}`,
+        `Amount: ${amountText}`,
+        '',
+        'We appreciate your support for Torah learning.'
+      ].join('\n')
+    }));
+  }
+
+  tasks.push(transporter.sendMail({
+    from: fromEmail,
+    to: SALES_ALERT_EMAIL,
+    subject: `Ticket Sold: ${safeQuantity} ticket${toPositiveInt(order.quantity, 1) === 1 ? '' : 's'} (${safeAmountText})`,
+    html: adminHtml,
+    text: [
+      'A ticket was sold.',
+      `Buyer: ${order.name || ''}`,
+      `Email: ${order.email || ''}`,
+      `Phone: ${order.phone || ''}`,
+      `Order ID: ${order.orderId || ''}`,
+      `Payment ID: ${order.paymentId || ''}`,
+      `Tickets: ${toPositiveInt(order.quantity, 1)}`,
+      `Amount: ${amountText}`,
+      `Payment Method: ${order.paymentMethod || 'card'}`,
+      `Referral: ${order.referral || 'direct'}`
+    ].join('\n')
+  }));
+
+  const sendResults = await Promise.allSettled(tasks);
+  sendResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error('Failed sending order email', {
+        index,
+        orderId: order.orderId || null,
+        error: result.reason?.message || result.reason
+      });
+    }
+  });
 }
 
 async function applyAdminTicketProgressUpdate({
@@ -1597,6 +1807,19 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       paymentStatus: payment.status || 'COMPLETED',
       squarePaymentId: payment.id,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await sendOrderCompletionEmails({
+      name,
+      email,
+      phone,
+      orderId,
+      paymentId: payment.id,
+      quantity: parsedQuantity,
+      amount: totalAmount,
+      paymentMethod,
+      referral: normalizedReferrer,
+      receiptUrl: payment.receipt_url || payment.receiptUrl || null
     });
 
     const cardDetails = payment.card_details || payment.cardDetails || {};
