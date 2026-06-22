@@ -49,8 +49,67 @@
     .payment-section.is-visible {
       opacity: 1;
       transform: translateY(0);
-      max-height: 1200px;
+      max-height: 1800px;
       pointer-events: auto;
+    }
+
+    .wallet-payment-options {
+      width: 100%;
+      max-width: 760px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .wallet-payment-options[hidden],
+    .wallet-button[hidden],
+    .wallet-divider[hidden] {
+      display: none;
+    }
+
+    .wallet-payment-options.is-processing {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .wallet-heading {
+      text-align: center;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .wallet-button {
+      width: 100%;
+      min-height: 48px;
+    }
+
+    #apple-pay-button {
+      -webkit-appearance: -apple-pay-button;
+      -apple-pay-button-type: buy;
+      -apple-pay-button-style: black;
+      height: 48px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .wallet-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .wallet-divider::before,
+    .wallet-divider::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: #d9e2ef;
     }
 
     .square-card-wrapper {
@@ -205,6 +264,12 @@
         <button id="prize-open-pay" type="button" class="mt-4 inline-flex rounded-lg bg-rose-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-rose-800">Pay</button>
 
         <div id="payment-section" class="payment-section">
+          <div id="wallet-payment-options" class="wallet-payment-options" hidden>
+            <p class="wallet-heading">Express checkout</p>
+            <button id="apple-pay-button" class="wallet-button" type="button" aria-label="Buy with Apple Pay" hidden></button>
+            <div id="google-pay-button" class="wallet-button" hidden></div>
+          </div>
+          <div id="wallet-divider" class="wallet-divider" hidden>Or pay by card</div>
           <div id="square-card-wrap" class="square-card-wrapper">
             <div id="square-card"></div>
           </div>
@@ -227,8 +292,16 @@
       const openPayBtn = document.getElementById('prize-open-pay');
       const paymentSection = document.getElementById('payment-section');
       const squareCardWrap = document.getElementById('square-card-wrap');
+      const walletPaymentOptions = document.getElementById('wallet-payment-options');
+      const walletDivider = document.getElementById('wallet-divider');
+      const applePayButton = document.getElementById('apple-pay-button');
+      const googlePayButton = document.getElementById('google-pay-button');
       const scrollToCheckoutBtn = document.getElementById('scroll-to-checkout');
+      let squarePayments = null;
       let squareCard = null;
+      let walletPaymentRequest = null;
+      let applePay = null;
+      let googlePay = null;
       let loadedSquareSdkMode = null;
       let showPaymentForm = false;
       let isProcessing = false;
@@ -276,6 +349,21 @@
         const quantity = sanitizeQuantity(quantityInput.value);
         quantityInput.value = String(quantity);
         totalEl.textContent = (quantity * TICKET_PRICE).toFixed(2);
+
+        if (walletPaymentRequest && typeof walletPaymentRequest.update === 'function') {
+          try {
+            Promise.resolve(walletPaymentRequest.update({
+              total: {
+                amount: (quantity * TICKET_PRICE).toFixed(2),
+                label: 'Yeshivat Torat Yosef Raffle'
+              }
+            })).catch(function (error) {
+              console.warn('Could not update digital wallet total:', error);
+            });
+          } catch (error) {
+            console.warn('Could not update digital wallet total:', error);
+          }
+        }
       }
 
       function renderPaymentState() {
@@ -283,6 +371,7 @@
         paymentSection.classList.toggle('is-visible', showPaymentForm);
         submitBtn.disabled = !showPaymentForm || !squareCard || isProcessing;
         submitBtn.textContent = isProcessing ? 'Processing...' : 'Purchase Tickets';
+        walletPaymentOptions.classList.toggle('is-processing', isProcessing);
       }
 
       async function ensureSquareSdk(mode) {
@@ -316,16 +405,126 @@
         loadedSquareSdkMode = desiredMode;
       }
 
-      async function initializeSquareCard() {
+      function getCheckoutPayload() {
+        return {
+          name: document.getElementById('prize-name').value.trim(),
+          email: document.getElementById('prize-email').value.trim(),
+          phone: document.getElementById('prize-phone').value.trim(),
+          quantity: sanitizeQuantity(quantityInput.value),
+          referral: getSavedReferrer()
+        };
+      }
+
+      function validateCheckoutPayload(payload) {
+        if (!payload.name || !payload.email || !payload.phone || !form.checkValidity()) {
+          form.reportValidity();
+          setStatus('Please fill in a valid name, email, and phone before checkout.', 'error');
+          return false;
+        }
+        return true;
+      }
+
+      function splitBuyerName(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return {
+          givenName: parts[0] || '',
+          familyName: parts.length > 1 ? parts.slice(1).join(' ') : ''
+        };
+      }
+
+      function buildBillingContact(payload) {
+        const buyerName = splitBuyerName(payload.name);
+        return {
+          givenName: buyerName.givenName,
+          familyName: buyerName.familyName,
+          email: payload.email,
+          phone: payload.phone,
+          countryCode: 'US'
+        };
+      }
+
+      function buildCardVerificationDetails(payload) {
+        return {
+          amount: (payload.quantity * TICKET_PRICE).toFixed(2),
+          billingContact: buildBillingContact(payload),
+          currencyCode: 'USD',
+          intent: 'CHARGE',
+          customerInitiated: true,
+          sellerKeyedIn: false
+        };
+      }
+
+      function buildWalletPaymentRequest(payments) {
+        const quantity = sanitizeQuantity(quantityInput.value);
+        return payments.paymentRequest({
+          countryCode: 'US',
+          currencyCode: 'USD',
+          requestBillingContact: true,
+          total: {
+            amount: (quantity * TICKET_PRICE).toFixed(2),
+            label: 'Yeshivat Torat Yosef Raffle'
+          }
+        });
+      }
+
+      async function verifyWalletBuyer(sourceId, payload) {
+        if (!squarePayments || typeof squarePayments.verifyBuyer !== 'function') {
+          return null;
+        }
+
+        const verificationResult = await squarePayments.verifyBuyer(sourceId, {
+          amount: (payload.quantity * TICKET_PRICE).toFixed(2),
+          billingContact: buildBillingContact(payload),
+          currencyCode: 'USD',
+          intent: 'CHARGE'
+        });
+        return verificationResult && verificationResult.token ? verificationResult.token : null;
+      }
+
+      async function initializeDigitalWallets() {
+        walletPaymentOptions.hidden = false;
+        let walletAvailable = false;
+
+        try {
+          applePay = await squarePayments.applePay(walletPaymentRequest);
+          applePayButton.hidden = false;
+          walletAvailable = true;
+        } catch (error) {
+          applePay = null;
+          applePayButton.hidden = true;
+          console.info('Apple Pay is not available on this browser or device:', error);
+        }
+
+        try {
+          googlePay = await squarePayments.googlePay(walletPaymentRequest);
+          googlePayButton.hidden = false;
+          await googlePay.attach('#google-pay-button');
+          walletAvailable = true;
+        } catch (error) {
+          googlePay = null;
+          googlePayButton.hidden = true;
+          console.info('Google Pay is not available on this browser or device:', error);
+        }
+
+        walletPaymentOptions.hidden = !walletAvailable;
+        walletDivider.hidden = !walletAvailable;
+      }
+
+      async function initializeSquarePayments() {
         if (squareCard) {
           return;
         }
         try {
           const configResponse = await fetch(squareCardConfigUrl);
-          const configData = await configResponse.json();
+          let configData = null;
+          try {
+            configData = await configResponse.json();
+          } catch (_parseError) {
+            configData = null;
+          }
 
-          if (!configResponse.ok || !configData.appId || !configData.locationId) {
-            throw new Error(configData.error || 'Could not load payment configuration.');
+          if (!configResponse.ok || !configData || !configData.appId || !configData.locationId) {
+            throw new Error((configData && configData.error) || 'Could not load payment configuration.');
           }
 
           await ensureSquareSdk(configData.mode);
@@ -334,9 +533,11 @@
             throw new Error('Square payment SDK failed to load.');
           }
 
-          const payments = window.Square.payments(configData.appId, configData.locationId);
-          squareCard = await payments.card();
+          squarePayments = window.Square.payments(configData.appId, configData.locationId);
+          walletPaymentRequest = buildWalletPaymentRequest(squarePayments);
+          squareCard = await squarePayments.card();
           await squareCard.attach('#square-card');
+          await initializeDigitalWallets();
 
           setStatus('', 'info');
           renderPaymentState();
@@ -357,11 +558,16 @@
       });
 
       openPayBtn.addEventListener('click', async function () {
+        const payload = getCheckoutPayload();
+        if (!validateCheckoutPayload(payload)) {
+          return;
+        }
+
         showPaymentForm = true;
         openPayBtn.disabled = true;
-        openPayBtn.textContent = 'Loading Card Form...';
+        openPayBtn.textContent = 'Loading Payment Options...';
         renderPaymentState();
-        await initializeSquareCard();
+        await initializeSquarePayments();
         if (squareCard) {
           openPayBtn.disabled = true;
         }
@@ -379,20 +585,108 @@
 
       quantityInput.addEventListener('input', updateTotal);
 
+      async function submitPaymentToken(sourceId, paymentMethod, payload, verificationToken) {
+        const response = await fetch(squareCardPaymentUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            sourceId,
+            paymentMethod,
+            verificationToken: verificationToken || null
+          })
+        });
+        let data = null;
+        try {
+          data = await response.json();
+        } catch (_parseError) {
+          data = null;
+        }
+
+        if (!response.ok || !data || !data.success) {
+          if (response.status === 402) {
+            throw new Error((data && data.error) || 'Payment was declined. Please verify your payment method or try another one.');
+          }
+          throw new Error((data && data.error) || 'Payment failed. Please try again.');
+        }
+
+        const checkoutDetails = {
+          name: payload.name,
+          email: payload.email,
+          phone: payload.phone,
+          quantity: payload.quantity,
+          amount: payload.quantity * TICKET_PRICE,
+          referral: payload.referral,
+          orderId: data.orderId || null,
+          paymentId: data.paymentId || null,
+          paymentStatus: data.checkout && data.checkout.paymentStatus ? data.checkout.paymentStatus : null,
+          paymentMethod: data.checkout && data.checkout.paymentMethod ? data.checkout.paymentMethod : paymentMethod,
+          cardBrand: data.checkout && data.checkout.cardBrand ? data.checkout.cardBrand : null,
+          last4: data.checkout && data.checkout.last4 ? data.checkout.last4 : null,
+          receiptUrl: data.checkout && data.checkout.receiptUrl ? data.checkout.receiptUrl : null
+        };
+
+        try {
+          sessionStorage.setItem('checkoutSuccessDetails', JSON.stringify(checkoutDetails));
+        } catch (_storageError) {
+          // If storage is unavailable, still continue to success page.
+        }
+
+        const successUrl = checkoutDetails.referral && checkoutDetails.referral !== 'direct'
+          ? `success.html?ref=${encodeURIComponent(checkoutDetails.referral)}`
+          : 'success.html';
+        window.location.href = successUrl;
+      }
+
+      async function handleWalletPayment(event, wallet, paymentMethod) {
+        event.preventDefault();
+        if (!wallet || isProcessing) {
+          return;
+        }
+
+        const payload = getCheckoutPayload();
+        if (!validateCheckoutPayload(payload)) {
+          return;
+        }
+
+        isProcessing = true;
+        renderPaymentState();
+        setStatus(`Opening ${paymentMethod === 'apple_pay' ? 'Apple Pay' : 'Google Pay'}...`, 'info');
+
+        // Apple requires tokenize() to run immediately inside the click handler.
+        const tokenizationPromise = wallet.tokenize();
+
+        try {
+          const tokenResult = await tokenizationPromise;
+          if (tokenResult.status !== 'OK' || !tokenResult.token) {
+            throw new Error(`${paymentMethod === 'apple_pay' ? 'Apple Pay' : 'Google Pay'} was canceled or could not be authorized.`);
+          }
+
+          setStatus('Verifying and processing your payment...', 'info');
+          const verificationToken = await verifyWalletBuyer(tokenResult.token, payload);
+          await submitPaymentToken(tokenResult.token, paymentMethod, payload, verificationToken);
+        } catch (error) {
+          setStatus(error.message || 'Checkout failed. Please try again.', 'error');
+        } finally {
+          isProcessing = false;
+          renderPaymentState();
+        }
+      }
+
+      applePayButton.addEventListener('click', function (event) {
+        return handleWalletPayment(event, applePay, 'apple_pay');
+      });
+
+      googlePayButton.addEventListener('click', function (event) {
+        return handleWalletPayment(event, googlePay, 'google_pay');
+      });
+
       form.addEventListener('submit', async function (event) {
         event.preventDefault();
         setStatus('', 'info');
 
-        const payload = {
-          name: document.getElementById('prize-name').value.trim(),
-          email: document.getElementById('prize-email').value.trim(),
-          phone: document.getElementById('prize-phone').value.trim(),
-          quantity: sanitizeQuantity(quantityInput.value),
-          referral: getSavedReferrer()
-        };
-
-        if (!payload.name || !payload.email || !payload.phone) {
-          setStatus('Please fill in name, email, and phone before checkout.', 'error');
+        const payload = getCheckoutPayload();
+        if (!validateCheckoutPayload(payload)) {
           return;
         }
 
@@ -403,61 +697,15 @@
 
         isProcessing = true;
         renderPaymentState();
-        setStatus('Processing your payment...', 'info');
+        setStatus('Processing your card payment...', 'info');
 
         try {
-          const tokenResult = await squareCard.tokenize();
+          const tokenResult = await squareCard.tokenize(buildCardVerificationDetails(payload));
           if (tokenResult.status !== 'OK' || !tokenResult.token) {
             throw new Error('Card details are invalid. Please check and try again.');
           }
 
-          const response = await fetch(squareCardPaymentUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...payload,
-              sourceId: tokenResult.token
-            })
-          });
-          let data = null;
-          try {
-            data = await response.json();
-          } catch (_parseError) {
-            data = null;
-          }
-
-          if (!response.ok || !data || !data.success) {
-            if (response.status === 402) {
-              throw new Error((data && data.error) || 'Payment was declined. Please verify your card details or try a different card.');
-            }
-            throw new Error((data && data.error) || 'Payment failed. Please try again.');
-          }
-
-          const checkoutDetails = {
-            name: payload.name,
-            email: payload.email,
-            phone: payload.phone,
-            quantity: payload.quantity,
-            amount: payload.quantity * TICKET_PRICE,
-            referral: payload.referral,
-            orderId: data.orderId || null,
-            paymentId: data.paymentId || null,
-            paymentStatus: data.checkout && data.checkout.paymentStatus ? data.checkout.paymentStatus : null,
-            cardBrand: data.checkout && data.checkout.cardBrand ? data.checkout.cardBrand : null,
-            last4: data.checkout && data.checkout.last4 ? data.checkout.last4 : null,
-            receiptUrl: data.checkout && data.checkout.receiptUrl ? data.checkout.receiptUrl : null
-          };
-
-          try {
-            sessionStorage.setItem('checkoutSuccessDetails', JSON.stringify(checkoutDetails));
-          } catch (_storageError) {
-            // If storage is unavailable, still continue to success page.
-          }
-
-          const successUrl = checkoutDetails.referral && checkoutDetails.referral !== 'direct'
-            ? `success.html?ref=${encodeURIComponent(checkoutDetails.referral)}`
-            : 'success.html';
-          window.location.href = successUrl;
+          await submitPaymentToken(tokenResult.token, 'card', payload, null);
         } catch (error) {
           setStatus(error.message || 'Checkout failed. Please try again.', 'error');
         } finally {
