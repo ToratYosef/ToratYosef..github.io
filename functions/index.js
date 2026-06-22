@@ -91,6 +91,7 @@ async function applyAdminTicketProgressUpdate({
   db,
   adminUid,
   refId,
+  raffleEntryId,
   ticketsBought,
   amount,
   orderId,
@@ -148,6 +149,7 @@ async function applyAdminTicketProgressUpdate({
       paymentId: paymentId || null,
       paymentMethod: String(paymentMethod || 'square').toLowerCase(),
       refId: refId || null,
+      raffleEntryId: raffleEntryId || null,
       ticketsBought: tickets,
       amount: Number(amount) || 0,
       buyerName: String(buyerName || ''),
@@ -711,7 +713,7 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
     const amount = ticketsBought * 126;
     const orderId = `MANUAL_${Date.now()}_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
-    await db.collection('raffle_entries').add({
+    const raffleEntryRef = await db.collection('raffle_entries').add({
       name,
       email,
       phone,
@@ -732,6 +734,7 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
       db,
       adminUid: requestedAdminUid,
       refId: referrerRefId,
+      raffleEntryId: raffleEntryRef.id,
       ticketsBought,
       amount,
       orderId,
@@ -764,6 +767,170 @@ exports.addManualSale = functions.https.onCall(async (data, context) => {
     }
     throw new functions.https.HttpsError('internal', 'An unexpected error occurred while adding manual entry.', error.message);
   }
+});
+
+function adminProgressAfterAssignment(data, ticketsDelta, revenueDelta) {
+  const goal = toPositiveInt(data.goal, 0);
+  const currentSold = toPositiveInt(
+    data.totalTicketsSold !== undefined ? data.totalTicketsSold : data.ticketsSold,
+    0
+  );
+  const currentRevenue = Number.isFinite(Number(data.totalRevenue)) ? Number(data.totalRevenue) : 0;
+  const nextSold = Math.max(currentSold + ticketsDelta, 0);
+  const nextRevenue = Math.max(currentRevenue + revenueDelta, 0);
+  const currentRemaining = toPositiveInt(data.ticketsRemaining, 0);
+  const nextRemaining = goal > 0
+    ? Math.max(goal - nextSold, 0)
+    : Math.max(currentRemaining - ticketsDelta, 0);
+
+  return {
+    totalTicketsSold: nextSold,
+    ticketsSold: nextSold,
+    totalRevenue: nextRevenue,
+    ticketsRemaining: nextRemaining,
+    goalRemaining: nextRemaining,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+}
+
+exports.reassignTicketSale = functions.https.onCall(async (data, context) => {
+  const token = context.auth?.token || {};
+  if (!context.auth || (!token.superAdminReferrer && !token.superAdmin)) {
+    throw new functions.https.HttpsError('permission-denied', 'Only super admins can reassign ticket sales.');
+  }
+
+  const entryId = String(data?.entryId || '').trim();
+  const targetAdminUid = String(data?.targetAdminUid || '').trim();
+  if (!entryId || !targetAdminUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Sale entry and target admin are required.');
+  }
+
+  const db = admin.firestore();
+  const entryRef = db.collection('raffle_entries').doc(entryId);
+  let result;
+
+  await db.runTransaction(async (transaction) => {
+    const entrySnapshot = await transaction.get(entryRef);
+    if (!entrySnapshot.exists) {
+      throw new functions.https.HttpsError('not-found', 'Ticket sale not found.');
+    }
+
+    const entry = entrySnapshot.data() || {};
+    const storedAdminUid = String(entry.referrerUid || '').trim();
+    let currentAdminUid = storedAdminUid;
+    const targetAdminRef = db.collection('admin').doc(targetAdminUid);
+    const targetAdminSnapshot = await transaction.get(targetAdminRef);
+    if (!targetAdminSnapshot.exists || targetAdminSnapshot.data()?.isActive === false) {
+      throw new functions.https.HttpsError('not-found', 'The selected admin is missing or inactive.');
+    }
+
+    const targetAdmin = targetAdminSnapshot.data() || {};
+    const targetRefId = String(targetAdmin.refId || targetAdmin.ref || '').trim();
+    if (!targetRefId) {
+      throw new functions.https.HttpsError('failed-precondition', 'The selected admin does not have a referral ID.');
+    }
+
+    if (!currentAdminUid && entry.referrerRefId) {
+      let currentAdminQuery = await transaction.get(
+        db.collection('admin').where('refId', '==', String(entry.referrerRefId)).limit(1)
+      );
+      if (currentAdminQuery.empty) {
+        currentAdminQuery = await transaction.get(
+          db.collection('admin').where('ref', '==', String(entry.referrerRefId)).limit(1)
+        );
+      }
+      if (!currentAdminQuery.empty) {
+        currentAdminUid = currentAdminQuery.docs[0].id;
+      }
+    }
+
+    if (storedAdminUid === targetAdminUid && String(entry.referrerRefId || '') === targetRefId) {
+      result = { changed: false, entryId, targetAdminUid, targetRefId };
+      return;
+    }
+
+    let currentAdminRef = null;
+    let currentAdminSnapshot = null;
+    if (currentAdminUid && currentAdminUid !== targetAdminUid) {
+      currentAdminRef = db.collection('admin').doc(currentAdminUid);
+      currentAdminSnapshot = await transaction.get(currentAdminRef);
+    }
+
+    const tickets = Math.max(toPositiveInt(entry.ticketsBought, 0), 1);
+    const amount = Number.isFinite(Number(entry.amount)) ? Number(entry.amount) : tickets * 126;
+    const orderId = String(entry.orderID || entry.orderId || entryId);
+    const paymentId = String(entry.squarePaymentId || entry.paymentId || '').trim() || null;
+    const paymentMethod = String(
+      entry.paymentMethod || entry.manualPaymentMethod || entry.entryType || 'other'
+    ).toLowerCase();
+
+    transaction.update(entryRef, {
+      referrerUid: targetAdminUid,
+      referrerRefId: targetRefId,
+      reassignedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reassignedBy: context.auth.uid,
+      previousReferrerUid: currentAdminUid || null,
+      previousReferrerRefId: entry.referrerRefId || null
+    });
+
+    if (currentAdminRef && currentAdminSnapshot?.exists) {
+      transaction.set(
+        currentAdminRef,
+        adminProgressAfterAssignment(currentAdminSnapshot.data() || {}, -tickets, -amount),
+        { merge: true }
+      );
+      transaction.delete(currentAdminRef.collection('ticketSales').doc(orderId));
+    }
+
+    if (currentAdminUid !== targetAdminUid) {
+      transaction.set(
+        targetAdminRef,
+        {
+          ...adminProgressAfterAssignment(targetAdmin, tickets, amount),
+          lastSaleAt: admin.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+    }
+
+    transaction.set(targetAdminRef.collection('ticketSales').doc(orderId), {
+      orderId,
+      paymentId,
+      paymentMethod,
+      refId: targetRefId,
+      raffleEntryId: entryId,
+      ticketsBought: tickets,
+      amount,
+      buyerName: String(entry.name || ''),
+      buyerEmail: sanitizeEmail(entry.email),
+      buyerPhone: String(entry.phone || ''),
+      createdAt: entry.timestamp || admin.firestore.FieldValue.serverTimestamp(),
+      reassignedAt: admin.firestore.FieldValue.serverTimestamp(),
+      reassignedBy: context.auth.uid
+    }, { merge: true });
+
+    result = {
+      changed: true,
+      entryId,
+      previousAdminUid: currentAdminUid || null,
+      targetAdminUid,
+      targetRefId
+    };
+  });
+
+  try {
+    await db.collection('adminAuditLogs').add({
+      action: 'reassigned_ticket_sale',
+      performedBy: context.auth.uid,
+      targetAdminId: targetAdminUid,
+      details: result || { entryId, targetAdminUid },
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Failed to write ticket reassignment audit log:', error);
+  }
+
+  return { success: true, ...result };
 });
 
 function fcmTokenDocumentId(token) {
@@ -1389,7 +1556,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       }
     }
 
-    await db.collection('raffle_entries').add({
+    const raffleEntryRef = await db.collection('raffle_entries').add({
       name,
       email,
       phone,
@@ -1408,6 +1575,7 @@ exports.createSquareCardPayment = functions.region('us-central1').https.onReques
       db,
       adminUid: referrerUid,
       refId: normalizedReferrer === 'direct' ? null : normalizedReferrer,
+      raffleEntryId: raffleEntryRef.id,
       ticketsBought: parsedQuantity,
       amount: totalAmount,
       orderId,

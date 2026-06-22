@@ -727,6 +727,7 @@ async function loadTicketSalesForAdmin(adminProfile) {
       orderId: data.orderId || snap.id || '-',
       paymentId: data.paymentId || '-',
       paymentMethod: data.paymentMethod || (data.paymentId ? 'square' : '-'),
+      raffleEntryId: data.raffleEntryId || null,
       createdAt: data.createdAt || null,
       createdAtText: formatDateValue(data.createdAt)
     };
@@ -755,6 +756,7 @@ async function loadLegacyEntriesForAdmin(adminProfile) {
         orderId: data.orderID || data.orderId || '-',
         paymentId: data.squarePaymentId || '-',
         paymentMethod: data.paymentMethod || data.manualPaymentMethod || data.entryType || '-',
+        raffleEntryId: snap.id,
         createdAt: data.timestamp || null,
         createdAtText: formatDateValue(data.timestamp)
       });
@@ -781,6 +783,7 @@ async function loadLegacyEntriesForAdmin(adminProfile) {
           orderId: data.orderID || data.orderId || '-',
           paymentId: data.squarePaymentId || '-',
           paymentMethod: data.paymentMethod || data.manualPaymentMethod || data.entryType || '-',
+          raffleEntryId: snap.id,
           createdAt: data.timestamp || null,
           createdAtText: formatDateValue(data.timestamp)
         });
@@ -801,29 +804,20 @@ async function loadAllSalesForAdmin(adminProfile) {
   return loadLegacyEntriesForAdmin(adminProfile);
 }
 
-async function loadUnreferredSalesForSuper(adminProfiles) {
-  const knownRefIds = new Set(
+async function loadAllRaffleEntriesForSuper(adminProfiles) {
+  const profilesByUid = new Map(adminProfiles.map((profile) => [profile.uid, profile]));
+  const profilesByRef = new Map(
     adminProfiles
-      .map((profile) => String(profile.ref || profile.refId || '').trim().toLowerCase())
-      .filter(Boolean)
+      .map((profile) => [String(profile.ref || profile.refId || '').trim().toLowerCase(), profile])
+      .filter(([refId]) => Boolean(refId))
   );
-
-  let entriesSnap;
-  try {
-    entriesSnap = await getDocs(collection(db, 'raffle_entries'));
-  } catch (_error) {
-    return [];
-  }
+  const entriesSnap = await getDocs(collection(db, 'raffle_entries'));
 
   return entriesSnap.docs.map((snap) => {
     const data = snap.data() || {};
     const referrerUid = String(data.referrerUid || '').trim();
     const referrerRefId = String(data.referrerRefId || '').trim().toLowerCase();
-    const isDirect = !referrerUid || !referrerRefId || referrerRefId === 'direct';
-
-    if (!isDirect || (referrerRefId && referrerRefId !== 'direct' && knownRefIds.has(referrerRefId))) {
-      return null;
-    }
+    const profile = profilesByUid.get(referrerUid) || profilesByRef.get(referrerRefId) || null;
 
     const amountValue = Number(data.amount);
     const amount = Number.isFinite(amountValue) ? amountValue : 0;
@@ -834,10 +828,11 @@ async function loadUnreferredSalesForSuper(adminProfiles) {
 
     return {
       id: snap.id,
-      adminUid: 'direct',
-      adminName: 'Direct',
-      adminRef: 'direct',
-      refId: 'direct',
+      raffleEntryId: snap.id,
+      adminUid: profile?.uid || '',
+      adminName: profile?.name || 'Direct / Unassigned',
+      adminRef: profile?.ref || profile?.refId || data.referrerRefId || 'direct',
+      refId: profile?.ref || profile?.refId || data.referrerRefId || 'direct',
       buyerName: data.name || '-',
       buyerEmail: data.email || '-',
       buyerPhone: data.phone || '-',
@@ -849,13 +844,20 @@ async function loadUnreferredSalesForSuper(adminProfiles) {
       createdAt: data.timestamp || null,
       createdAtText: formatDateValue(data.timestamp)
     };
-  }).filter(Boolean);
+  });
 }
 
-function renderSalesRows(tbody, sales) {
+function renderSalesRows(tbody, sales, options = {}) {
   if (!tbody) {
     return;
   }
+
+  const editableAssignments = options.editableAssignments === true;
+  const assignmentAdmins = Array.isArray(options.admins)
+    ? options.admins
+      .filter((profile) => profile.refId || profile.ref)
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+    : [];
 
   tbody.innerHTML = '';
 
@@ -872,6 +874,83 @@ function renderSalesRows(tbody, sales) {
       <td class="px-4 py-3 text-slate-600">${sale.createdAtText}</td>
       <td class="px-4 py-3 font-medium text-slate-900">${escapeHtml(referrerDisplay)}</td>
     `;
+
+    if (editableAssignments) {
+      const assignmentCell = document.createElement('td');
+      assignmentCell.className = 'px-4 py-3';
+      const select = document.createElement('select');
+      select.className = 'min-w-[190px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400';
+      select.setAttribute('aria-label', `Assign ${sale.buyerName || 'ticket sale'} to an admin`);
+
+      const unassignedOption = document.createElement('option');
+      unassignedOption.value = '';
+      unassignedOption.textContent = 'Direct / Unassigned';
+      unassignedOption.disabled = true;
+      select.appendChild(unassignedOption);
+
+      assignmentAdmins.forEach((profile) => {
+        const option = document.createElement('option');
+        option.value = profile.uid;
+        option.textContent = `${profile.name || 'Admin'} (${profile.refId || profile.ref})${profile.isActive === false ? ' — Inactive' : ''}`;
+        option.disabled = profile.isActive === false;
+        select.appendChild(option);
+      });
+
+      const originalAdminUid = sale.adminUid || '';
+      select.value = originalAdminUid;
+      if (!select.value) {
+        unassignedOption.selected = true;
+      }
+
+      select.addEventListener('change', async () => {
+        const targetAdminUid = select.value;
+        const targetAdmin = assignmentAdmins.find((profile) => profile.uid === targetAdminUid);
+        if (!targetAdmin || targetAdmin.isActive === false || !sale.raffleEntryId) {
+          select.value = originalAdminUid;
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Assign ${sale.ticketsBought} ticket${sale.ticketsBought === 1 ? '' : 's'} for ${sale.buyerName} to ${targetAdmin.name}?`
+        );
+        if (!confirmed) {
+          select.value = originalAdminUid;
+          return;
+        }
+
+        const status = byId('assignment-sales-status');
+        select.disabled = true;
+        if (status) {
+          status.textContent = `Reassigning ${sale.buyerName} to ${targetAdmin.name}...`;
+          status.className = 'text-xs text-slate-500';
+        }
+
+        try {
+          const reassignTicketSale = httpsCallable(functions, 'reassignTicketSale');
+          await reassignTicketSale({
+            entryId: sale.raffleEntryId,
+            targetAdminUid
+          });
+          if (status) {
+            status.textContent = `Assigned ${sale.buyerName} to ${targetAdmin.name}. Reloading...`;
+            status.className = 'text-xs text-emerald-700';
+          }
+          window.setTimeout(() => window.location.reload(), 600);
+        } catch (error) {
+          console.error('Ticket reassignment failed:', error);
+          select.value = originalAdminUid;
+          select.disabled = false;
+          if (status) {
+            status.textContent = error?.message || 'Could not reassign this sale.';
+            status.className = 'text-xs text-red-600';
+          }
+        }
+      });
+
+      assignmentCell.appendChild(select);
+      tr.appendChild(assignmentCell);
+    }
+
     tbody.appendChild(tr);
   });
 }
@@ -964,11 +1043,7 @@ async function renderSuperSalesPage(currentProfile) {
   const adminsSnap = await getDocs(collection(db, 'admin'));
   const admins = adminsSnap.docs.map((snap) => ({ uid: snap.id, ...(snap.data() || {}) }));
 
-  const salesByAdmin = await Promise.all(admins.map((profile) => loadAllSalesForAdmin(profile)));
-  const unreferredSales = await loadUnreferredSalesForSuper(admins);
-  const allSales = salesByAdmin
-    .flat()
-    .concat(unreferredSales)
+  const allSales = (await loadAllRaffleEntriesForSuper(admins))
     .sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
   const ownSales = allSales.filter((sale) => sale.adminUid === currentProfile.uid);
 
@@ -1007,7 +1082,10 @@ async function renderSuperSalesPage(currentProfile) {
     };
   }
 
-  renderSalesRows(byId('all-sales-body'), allSales);
+  renderSalesRows(byId('all-sales-body'), allSales, {
+    editableAssignments: true,
+    admins
+  });
   renderSalesRows(byId('own-sales-body'), ownSales);
 
   const allEmpty = byId('all-sales-empty');

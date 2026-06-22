@@ -42,7 +42,7 @@ From the repository root:
 ```bash
 firebase login
 firebase deploy \
-  --only functions:registerAdminFcmToken,functions:notifyAdminsOnRaffleEntry,functions:addManualSale \
+  --only functions:registerAdminFcmToken,functions:notifyAdminsOnRaffleEntry,functions:addManualSale,functions:reassignTicketSale \
   --project torat-yose
 ```
 
